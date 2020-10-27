@@ -39,13 +39,13 @@ start = "1920-01-01"
 end   = "2005-12-01"
 
 # Indicate the lat bounds for AMOC Index
-latS = 26
-latN = 27
+latS = 20
+latN = 30
 
 # Detrending Options
 # For deg = 0, Detrend by removing the ensemble average 
 # For deg > 0, Specify degree of polynomial for detrending 
-deg = 0
+deg = 1
         
 # Debug mode, makes some plots to check detrending, etc
 debug = 1
@@ -79,23 +79,70 @@ dz   = ds['moc_z']
 mon = ds['time'].values#[1032]
 nens,nmon,comp,nz,nlat =moc.shape
 
-# 3 -- Sum the components
+#%% 3 -- Sum the components
 moc = moc[:,:,comps,:,:].sum(2) # [ens x time x depth x lat]
 if len(comps)>1:
     compname = "all"
 else:
     compname = str(comps[:])
-    
 
-# # Calculate monthly anomalies
+# Calculate monthly anomalies
 # moc = moc.tranpose(1,0,2,3) # [time x ens x depth x lat]
 # mocm = moc.reshape(int(np.ceil(nmon/12)),12,nens*nz*nlat) # Separate mon/year, combine lat/depth/ens
 # moca = mocm - mocm.mean(0)[None,:,:] # Calculate monthly anomalies
 # moca = moca.reshape(nmon,nens*nz*nlat) # Recombine mon x year
 
-# 4 -- Take the maximum from the selected region
-amocidx = moc.reshape(nens,nmon,nz*nlat).max(2)
+
+#%% 4 -- Take the maximum from the selected region
+
+amocidx = moc.reshape(nens,nmon,nz*nlat).max(2) # [ensemble x time]
+
+if debug == 1:
+    e = 0
+    fig,ax= plt.subplots(1,1)
+    ax.plot(amocidx[e,:])
+    ax.set_xlabel("Time (months)")
+    ax.set_ylabel("MOC (Sverdrups)")
+    ax.set_title("AMOC Index (Undetrended) for Ensemble member %i, Lat: %iN to %iN"%(e+1,latS,latN))
+
+#%% 5 -- Detrend
+
+if deg == 0: # Remove ensemble average to detrend
+    amocidxdt = amocidx - amocidx.mean(0)[None,:]
+    
+    if debug == 1:
+        e = 0
+        fig,ax= plt.subplots(1,1)
+        ax.plot(amocidx[e,:],label="Undetrended",color='r')
+        ax.plot(amocidx.mean(0),label="Ensemble Mean",color='k')
+        ax.plot(amocidxdt[e,:],label="Detrended",color='b')
+        
+        ax.legend()
+        ax.set_xlabel("Time (months)")
+        ax.set_ylabel("MOC (Sverdrups)")
+        
+        ax.set_title("AMOC Index for Ensemble member %i, Lat: %iN to %iN"%(e+1,latS,latN))
+        
+elif deg > 0:
+    x = np.arange(0,nmon)
+    amocidxdt,model = amv.detrend_poly(x,amocidx.T,deg) # [time x ensemble]
+    
+    
+    if debug == 1:
+        e = 0
+        fig,ax= plt.subplots(1,1)
+        ax.plot(amocidx[e,:],label="Undetrended",color='r')
+        ax.plot(model[e,:],label="Fitted Trend",color='k')
+        ax.plot(amocidxdt[:,e],label="Detrended",color='b')
+        ax.legend()
+        ax.set_xlabel("Time (months)")
+        ax.set_ylabel("MOC (Sverdrups)")
+        
+        ax.set_title("AMOC Index for Ensemble member %i, Lat: %iN to %iN"%(e+1,latS,latN))
+  
+    amocidxdt = amocidxdt.T #[ensemble x time]
+    
 
 
 #%% 5 - Save Output
-np.save("%sCESM1LE_AMOCIndex_%s-%s_region%ito%i_component%s.npy" % (outpath,start[0:4],end[0:4],latS,latN,compname),amocidx)
+np.save("%sCESM1LE_AMOCIndex_%s-%s_region%ito%i_component%s_detrend%i.npy" % (outpath,start[0:4],end[0:4],latS,latN,compname,deg),amocidxdt)
