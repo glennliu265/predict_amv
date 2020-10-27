@@ -103,6 +103,113 @@ def eof_simple(pattern,N_mode,remove_timemean):
     return eofs, pcs, varexp
 
 
+def regress_2d(A,B,nanwarn=1):
+    """
+    Regresses A (independent variable) onto B (dependent variable), where
+    either A or B can be a timeseries [N-dimensions] or a space x time matrix 
+    [N x M]. Script automatically detects this and permutes to allow for matrix
+    multiplication.
+    
+    Returns the slope (beta) for each point, array of size [M]
+    
+    
+    """
+    # Determine if A or B is 2D and find anomalies
+    
+    # Compute using nan functions (slower)
+    if np.any(np.isnan(A)) or np.any(np.isnan(B)):
+        if nanwarn == 1:
+            print("NaN Values Detected...")
+    
+        # 2D Matrix is in A [MxN]
+        if len(A.shape) > len(B.shape):
+            
+            # Tranpose A so that A = [MxN]
+            if A.shape[1] != B.shape[0]:
+                A = A.T
+            
+            
+            # Set axis for summing/averaging
+            a_axis = 1
+            b_axis = 0
+            
+            # Compute anomalies along appropriate axis
+            Aanom = A - np.nanmean(A,axis=a_axis)[:,None]
+            Banom = B - np.nanmean(B,axis=b_axis)
+            
+        
+            
+        # 2D matrix is B [N x M]
+        elif len(A.shape) < len(B.shape):
+            
+            # Tranpose B so that it is [N x M]
+            if B.shape[0] != A.shape[0]:
+                B = B.T
+            
+            # Set axis for summing/averaging
+            a_axis = 0
+            b_axis = 0
+            
+            # Compute anomalies along appropriate axis        
+            Aanom = A - np.nanmean(A,axis=a_axis)
+            Banom = B - np.nanmean(B,axis=b_axis)[None,:]
+        
+        # Calculate denominator, summing over N
+        Aanom2 = np.power(Aanom,2)
+        denom = np.nansum(Aanom2,axis=a_axis)    
+        
+        # Calculate Beta
+        beta = Aanom @ Banom / denom
+            
+        
+        b = (np.nansum(B,axis=b_axis) - beta * np.nansum(A,axis=a_axis))/A.shape[a_axis]
+    else:
+        # 2D Matrix is in A [MxN]
+        if len(A.shape) > len(B.shape):
+            
+            # Tranpose A so that A = [MxN]
+            if A.shape[1] != B.shape[0]:
+                A = A.T
+            
+            
+            # Set axis for summing/averaging
+            a_axis = 1
+            b_axis = 0
+            
+            # Compute anomalies along appropriate axis
+            Aanom = A - np.mean(A,axis=a_axis)[:,None]
+            Banom = B - np.mean(B,axis=b_axis)
+            
+        
+            
+        # 2D matrix is B [N x M]
+        elif len(A.shape) < len(B.shape):
+            
+            # Tranpose B so that it is [N x M]
+            if B.shape[0] != A.shape[0]:
+                B = B.T
+            
+            # Set axis for summing/averaging
+            a_axis = 0
+            b_axis = 0
+            
+            # Compute anomalies along appropriate axis        
+            Aanom = A - np.mean(A,axis=a_axis)
+            Banom = B - np.mean(B,axis=b_axis)[None,:]
+        
+        # Calculate denominator, summing over N
+        Aanom2 = np.power(Aanom,2)
+        denom = np.sum(Aanom2,axis=a_axis)    
+        
+        # Calculate Beta
+        beta = Aanom @ Banom / denom
+            
+        
+        b = (np.sum(B,axis=b_axis) - beta * np.sum(A,axis=a_axis))/A.shape[a_axis]
+    
+    
+    return beta,b
+
 def sel_region(var,lon,lat,bbox,reg_avg=0,reg_sum=0,warn=1):
     """
     
@@ -150,7 +257,7 @@ def sel_region(var,lon,lat,bbox,reg_avg=0,reg_sum=0,warn=1):
         return varr
     return varr,lonr,latr
 
-def calc_AMV(lon,lat,sst,bbox,order,cutofftime,awgt):
+def calc_AMV(lon,lat,sst,bbox,order,cutofftime,awgt,lpf=1):
     """
     Calculate AMV Index for detrended/anomalized SST data [LON x LAT x Time]
     given bounding box [bbox]. Applies area weight based on awgt
@@ -199,7 +306,7 @@ def calc_AMV(lon,lat,sst,bbox,order,cutofftime,awgt):
     
     # Compute AMV Index
     amv = filtfilt(b,a,aa_sst)
-    
+
     return amv,aa_sst
 
 
@@ -338,3 +445,4 @@ def plot_AMV(amv,ax=None):
     ax.fill_between(htimefull,0,amv,where=amv<0,facecolor='blue',interpolate=True,alpha=0.5)
 
     return ax
+

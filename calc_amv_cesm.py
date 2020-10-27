@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 
-Calculate AMV Index from HadISST Dataset
+Calculate AMV Index from CESM1.1 Large Ensemble
 
 General Procedure:
     1 - Load data and calculate monthly anomalies
@@ -11,11 +11,8 @@ General Procedure:
         i)  Take Area-weighted Average
         ii) Apply Low-pass butterworth filter
 
-
-
 @author: gliu
 """
-
 
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -48,13 +45,17 @@ latS = 0
 latN = 65
 
 # AMV Index Filtering Options
-cutofftime = 120 # In units of months
+lpf        = 0   # Set to 0 for no filtering
+cutofftime = 120 # In units of months.
 awgt       = 1   # Area weighting (0=none,1=cos(lat),2=sqrt(cos(lat)))
 order      = 5   # Order of butterworth filter
 
-# Degree of polynomial for detrending
-deg = 4
 
+# Detrending Options
+# For deg = 0, Detrend by removing the ensemble average 
+# For deg > 0, Specify degree of polynomial for detrending 
+deg = 3
+        
 # Debug mode, makes some plots to check detrending, amv, etc
 debug = 1
 
@@ -71,7 +72,7 @@ ds = xr.open_dataset(datpath+sstname)
 ds = ds.sel(time=slice(start,end))
 
 # Load data from DataArray to numpy array
-sst = ds['sst'].values #[1740 x 180 x 360]
+sst = ds['sst'].values 
 lon = ds['lon'].values
 lat = ds['lat'].values   
 mon = ds['time'].values
@@ -86,7 +87,7 @@ ssta = ssta.reshape(np.prod(ssta.shape[:2]),nens*nlat*nlon) #Recombine mon/year 
 
 # %% 2) Perform detrending at each point ----
 
-if detrend_method == 1:
+if deg > 0: # Detrend by removing fitted polynomial
     x = np.arange(0,nmon)
     okdata,knan,okpts = amv.find_nan(ssta.T,1) # Find Non-Nan Points
     okdt,model = amv.detrend_poly(x,okdata,deg)
@@ -97,9 +98,9 @@ if detrend_method == 1:
         pt = 4026
         fig,ax=plt.subplots(1,1)
         plt.style.use('seaborn')
-        ax.scatter(x,okdata[pt,:],label='raw')
+        ax.scatter(x,okdata[pt,:],label='raw',color='r')
         ax.plot(x,model[pt,:],label='fit',color='k')
-        ax.scatter(x,okdt[pt,:],label='detrended')
+        ax.scatter(x,okdt[pt,:],label='detrended',color='b')
         ax.legend()
         ax.set_title("SST Detrended , %i Deg. Polynomial"%deg)
     
@@ -108,17 +109,22 @@ if detrend_method == 1:
     sstdt[okpts,:] = okdt
     sstdt = sstdt.reshape(nens,nlat,nlon,nmon)
     if debug == 1:
-        plt.pcolormesh(lon,lat,sstdt[0,:,:,0]),plt.colorbar(),plt.title("SST Detrended")
+        fig,ax = plt.subplots(1,1)
+        ax.pcolormesh(lon,lat,sstdt[0,:,:,0]),plt.colorbar(),plt.title("SST Detrended")
 else: # Detrend by moving ensemble average
     ssta = ssta.reshape(nmon,nens,nlat,nlon)
     sstdt = ssta - ssta.mean(1)[:,None,:,:]
     
+    # Test visualize detrending
     if debug == 1:
+        ensavg = ssta.mean(1)[:,50,53]
         fig,ax=plt.subplots(1,1)
-        ax.plot(ssta[:,0,50,53],label='raw')
-        ax.plot(sstdt[:,0,50,53],label='detrended')
+        ax.plot(x,ssta[:,0,50,53],label='raw',color='r')
+        ax.plot(x,sstdt[:,0,50,53],label='detrended',color='b')
+        ax.plot(ensavg,label='ensavg',color='k')
         ax.legend()
     
+    # Transpose to ens x lat x lon x time
     sstdt = sstdt.transpose(1,2,3,0)
 
 
@@ -128,13 +134,16 @@ amvidx = np.ones((nens,nmon)) * np.nan
 for e in range(nens):
     
     insst = sstdt[e,:,:,:].squeeze()
-    amvidx[e,:],_   = amv.calc_AMV(lon,lat,insst,[lonW,lonE,latS,latN],order,cutofftime,1)
+    if lpf == 1: # Return low-passfiltered time series
+        amvidx[e,:],_   = amv.calc_AMV(lon,lat,insst,[lonW,lonE,latS,latN],order,cutofftime,1)
+    else: # Just return area-weighted average for no filtering
+        _,amvidx[e,:]   = amv.calc_AMV(lon,lat,insst,[lonW,lonE,latS,latN],order,cutofftime,1)
+        
     print("Completed ensemble %i"%(e+1))
     
 
-if debug == True:
+if debug == True: # Plot AMV Average
     e = 12
-    
     xtks = np.arange(0,nmon,120)
     xlb = np.arange(int(start[0:4]),int(end[0:4]),10)
     fig,ax=plt.subplots(1,1)
@@ -143,7 +152,7 @@ if debug == True:
     ax.set_xticklabels(xlb)
     ax.set_xlabel("Year")
     ax.set_ylabel("AMV Index")
-    ax.set_title("AMV Index, HadISST %i-%s" % (xlb[0],end[0:4]))
+    ax.set_title("AMV Index for Ens. Member %i, CESMLE %i-%s, Detrend %i; Filter %i" % (e,xlb[0],end[0:4],deg,lpf))
 
-# Save data
-np.save("%sCESM1LE_AMVIndex_%s-%s.npy" % (outpath,start[0:4],end[0:4]),amvidx)
+# Save data (consider adding detrending method and low-pass filter)
+np.save("%sCESM1LE_AMVIndex_%s-%s_detrend%i_filter%i.npy" % (outpath,start[0:4],end[0:4],deg,lpf),amvidx)
