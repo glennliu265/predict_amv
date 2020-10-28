@@ -1,0 +1,2 @@
+This directory contains the AMV, AMOC, and NAO Indices.
+
