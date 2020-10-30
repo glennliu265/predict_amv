@@ -14,6 +14,10 @@ from scipy.signal import butter,filtfilt
 
 import numpy as np
 import matplotlib.pyplot as plt
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+from cartopy.util import add_cyclic_point
+from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 
 ## Processing/Analysis ----
 def find_nan(data,dim):
@@ -423,6 +427,99 @@ def area_avg(data,bbox,lon,lat,wgt):
     
     return data_aa
 
+def regress2ts(var,ts,normalizeall=0,method=1,nanwarn=1):
+    """
+    regress variable var [lon x lat x time] to timeseries ts [time]
+    
+    Parameters
+    ----------
+    var : TYPE
+        DESCRIPTION.
+    ts : TYPE
+        DESCRIPTION.
+    normalizeall : TYPE, optional
+        DESCRIPTION. The default is 0.
+    method : TYPE, optional
+        DESCRIPTION. The default is 1.
+    nanwarn : TYPE, optional
+        DESCRIPTION. The default is 1.
+
+    Returns
+    -------
+    var_reg : TYPE
+        DESCRIPTION.
+    
+    """
+
+    
+    # Anomalize and normalize the data (time series is assumed to have been normalized)
+    if normalizeall == 1:
+        varmean = np.nanmean(var,2)
+        varstd  = np.nanstd(var,2)
+        var = (var - varmean[:,:,None]) /varstd[:,:,None]
+        
+    # Get variable shapes
+    londim = var.shape[0]
+    latdim = var.shape[1]
+    
+    # 1st method is matrix multiplication
+    if method == 1:
+        
+        # Combine the spatial dimensions 
+
+        var = np.reshape(var,(londim*latdim,var.shape[2]))
+        
+        
+        # Find Nan Points
+        # sumvar = np.sum(var,1)
+        
+        # # Find indices of nan pts and non-nan (ok) pts
+        # nanpts = np.isnan(sumvar)
+        # okpts  = np.invert(nanpts)
+    
+        # # Drop nan pts and reshape again to separate space and time dimensions
+        # var_ok = var[okpts,:]
+        #var[np.isnan(var)] = 0
+        
+        
+        # Perform regression
+        #var_reg = np.matmul(np.ma.anomalies(var,axis=1),np.ma.anomalies(ts,axis=0))/len(ts)
+        var_reg,_ = regress_2d(ts,var,nanwarn=nanwarn)
+        
+        
+        # Reshape to match lon x lat dim
+        var_reg = np.reshape(var_reg,(londim,latdim))
+    
+    
+    
+    
+    # 2nd method is looping point by point
+    elif method == 2:
+        
+        
+        # Preallocate       
+        var_reg = np.zeros((londim,latdim))
+        
+        # Loop lat and long
+        for o in range(londim):
+            for a in range(latdim):
+                
+                # Get time series for that period
+                vartime = np.squeeze(var[o,a,:])
+                
+                # Skip nan points
+                if any(np.isnan(vartime)):
+                    var_reg[o,a]=np.nan
+                    continue
+                
+                # Perform regression 
+                r = np.polyfit(ts,vartime,1)
+                #r=stats.linregress(vartime,ts)
+                var_reg[o,a] = r[0]
+                #var_reg[o,a]=stats.pearsonr(vartime,ts)[0]
+    
+    return var_reg
+
 ## Plotting ----
 def plot_AMV(amv,ax=None):
     
@@ -446,3 +543,82 @@ def plot_AMV(amv,ax=None):
 
     return ax
 
+def plot_AMV_spatial(var,lon,lat,bbox,cmap,cint=[0,],clab=[0,],ax=None,pcolor=0,labels=True,fmt="%.1f",clabelBG=False,fontsize=10):
+    fig = plt.gcf()
+    
+    if ax is None:
+        ax = plt.gca()
+        ax = plt.axes(projection=ccrs.PlateCarree())
+        
+    # Add cyclic point to avoid the gap
+    var,lon1 = add_cyclic_point(var,coord=lon)
+    
+
+    
+    # Set  extent
+    ax.set_extent(bbox)
+    
+    # Add filled coastline
+    ax.add_feature(cfeature.LAND,color=[0.4,0.4,0.4])
+    
+    
+    if len(cint) == 1:
+        # Automaticall set contours to max values
+        cmax = np.nanmax(np.abs(var))
+        cmax = np.round(cmax,decimals=2)
+        cint = np.linspace(cmax*-1,cmax,9)
+    
+    
+    
+    if pcolor == 0:
+
+        # Draw contours
+        cs = ax.contourf(lon1,lat,var,cint,cmap=cmap)
+    
+    
+    
+        # Negative contours
+        cln = ax.contour(lon1,lat,var,
+                    cint[cint<0],
+                    linestyles='dashed',
+                    colors='k',
+                    linewidths=0.5,
+                    transform=ccrs.PlateCarree())
+    
+        # Positive Contours
+        clp = ax.contour(lon1,lat,var,
+                    cint[cint>=0],
+                    colors='k',
+                    linewidths=0.5,
+                    transform=ccrs.PlateCarree())    
+                          
+        if labels is True:
+            clabelsn= ax.clabel(cln,colors=None,fmt=fmt,fontsize=fontsize)
+            clabelsp= ax.clabel(clp,colors=None,fmt=fmt,fontsize=fontsize)
+            
+            # if clabelBG is True:
+            #     [txt.set_backgroundcolor('white') for txt in clabelsn]
+            #     [txt.set_backgroundcolor('white') for txt in clabelsp]
+    else:
+        
+        cs = ax.pcolormesh(lon1,lat,var,vmin = cint[0],vmax=cint[-1],cmap=cmap)
+        
+                                
+                
+    # Add Gridlines
+    gl = ax.gridlines(draw_labels=True,linewidth=0.75,color='gray',linestyle=':')
+
+    gl.top_labels = gl.right_labels = False
+    gl.xformatter = LongitudeFormatter(degree_symbol='')
+    gl.yformatter = LatitudeFormatter(degree_symbol='')
+    gl.xlabel_style={'size':8}
+    gl.ylabel_style={'size':8}
+    if len(clab) == 1:
+        cbar= fig.colorbar(cs,ax=ax,fraction=0.046, pad=0.04,format=fmt)
+        cbar.ax.tick_params(labelsize=8)
+    else:
+        cbar = fig.colorbar(cs,ax=ax,ticks=clab,fraction=0.046, pad=0.04,format=fmt)
+        cbar.ax.tick_params(labelsize=8)
+    #cbar.ax.set_yticklabels(['{:.0f}'.format(x) for x in cint], fontsize=10, weight='bold')
+    
+    return ax

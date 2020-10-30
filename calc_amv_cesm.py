@@ -19,6 +19,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import sys
 
+import cmocean
+import cartopy.crs as ccrs
+import cartopy.feature as cfeature
+
 ## User Specific Edits <START> ----
 
 # Path settings ...
@@ -54,7 +58,7 @@ order      = 5   # Order of butterworth filter
 # Detrending Options
 # For deg = 0, Detrend by removing the ensemble average 
 # For deg > 0, Specify degree of polynomial for detrending 
-deg = 3
+deg = 0
         
 # Debug mode, makes some plots to check detrending, amv, etc
 debug = 1
@@ -77,7 +81,6 @@ lon = ds['lon'].values
 lat = ds['lat'].values   
 mon = ds['time'].values
 nlat,nlon,nmon,nens = sst.shape
-
 
 # Calculate monthly anomalies
 sst  = sst.transpose(2,3,0,1)  # [ntime,nens,nlat,nlon]
@@ -154,5 +157,51 @@ if debug == True: # Plot AMV Average
     ax.set_ylabel("AMV Index")
     ax.set_title("AMV Index for Ens. Member %i, CESMLE %i-%s, Detrend %i; Filter %i" % (e,xlb[0],end[0:4],deg,lpf))
 
-# Save data (consider adding detrending method and low-pass filter)
+# %% Regress back into SSTA to obtain the AMV pattern:
+
+# Recombine the lat/lon/ensemble points
+sstin = sstdt.transpose(0,2,1,3) # [ens,lon,lat, time]
+
+# Normalize index
+idxnorm    = amvidx / np.nanstd(amvidx) # [ens,time]
+
+# Compute amv pattern for each ensemble
+amvpattern = np.zeros((nens,nlat,nlon))*np.nan
+
+for e in range(nens):
+    idxe   = idxnorm[e,:] # Get index for ensemble member [time]
+    sste   = sstin[e,:,:,:] # Get SST for ensemble member [space x time]
+    pat    = amv.regress2ts(sste,idxe,nanwarn=0)
+    amvpattern[e,:,:] = pat.T.copy()
+    print("Calculated pattern for ensemble %i"%(e+1))
+    
+
+if debug == 1: # Plot AMV Pattern for 4 Ensemble Members
+
+    # Add units!
+    
+    # Plot settings
+    bbox = [lonW,lonE,latS,latN]
+    cmap = cmocean.cm.balance
+    cmap.set_bad(color='yellow')
+    cint = np.arange(-1,1.1,0.1)
+    
+    plotens = [1,11,21,31] # Choose 4 ensemble members to plot
+    
+    
+    fig,axs = plt.subplots(2,2,figsize=(8,8),subplot_kw={'projection':ccrs.PlateCarree()})
+    
+    for i in range(4):
+        ax = axs.reshape(-1)[i]
+        e = plotens[i]
+        ax = amv.plot_AMV_spatial(amvpattern[e,:,:],lon,lat,bbox,cmap,cint=cint,ax=ax)    
+        ax.set_title("Ens:%i" %(e+1))
+    fig.suptitle("CESM1-LE AMV Pattern\n"+ "Deg:%i Filt:%i" % (deg,lpf),fontsize=20)
+    
+    
+    
+    
+    
+
+#%% Save data (consider adding detrending method and low-pass filter)
 np.save("%sCESM1LE_AMVIndex_%s-%s_detrend%i_filter%i.npy" % (outpath,start[0:4],end[0:4],deg,lpf),amvidx)
