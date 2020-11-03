@@ -124,13 +124,13 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 1    # Ensemble members to use
 
 # Select variable
-channels   = 3     # Number of variables to include
-varname    = 'SST+SSS+PSL'
+channels   = 1     # Number of variables to include
+varname    = 'PSL'
 sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
 sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
 psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
-invars = [sst_normed,sss_normed,psl_normed]
-#invars=[psl_normed]
+#invars = [sst_normed,sss_normed,psl_normed]
+invars=[psl_normed]
 
 # Model training settings
 #max_epochs    = 15 
@@ -150,6 +150,7 @@ poolsize1     = 5# kernel size for first pooling layer
 # ---------------------
 
 allstart = time.time()
+print("Running CNN testing for variable %s" % varname)
 
 # Apply lead/lag to data
 y = np.mean(sst_normed[:ens,lead:,:,:],axis=(2,3)).reshape((tstep-lead)*ens,1) # Take area average for SST 
