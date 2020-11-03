@@ -101,15 +101,16 @@ lead          = 12    # Time ahead (in months) to forecast AMV
 tstep         = 1032  # Total number of months
 
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 2    # Ensemble members to use
+ens           = 1    # Ensemble members to use
 
 
 # Select variable
 channels   = 1     # Number of variables to include
-varname    = 'SST'
-sst_normed = np.load('../CESM_data/CESM_SST_normalized.npy').astype(np.float32)
-sss_normed = np.load('../CESM_data/CESM_SSS_normalized.npy').astype(np.float32)
-invars = [sst_normed]
+varname    = 'PSL'
+sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
+sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
+psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
+invars = [psl_normed]
 
 # Model training settings
 max_epochs    = 15 
@@ -136,10 +137,6 @@ layers        = [
 # ---------------------
 
 allstart = time.time()
-
-# Load in Normalized Data that has been processed by 'output_normalized_data.ipynb'
-sst_normed = np.load('../CESM_data/CESM_SST_normalized.npy').astype(np.float32)
-sss_normed = np.load('../CESM_data/CESM_SSS_normalized.npy').astype(np.float32)
 
 # Apply lead/lag to data
 y = np.mean(sst_normed[:ens,lead:,:,:],axis=(2,3)).reshape((tstep-lead)*ens,1) # Take area average for SST 
