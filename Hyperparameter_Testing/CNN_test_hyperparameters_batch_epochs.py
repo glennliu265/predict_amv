@@ -109,9 +109,13 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
 # -------------
 
 # Set Paths
-os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
-outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
-
+# Set Paths
+machine='local-glenn'
+if machine == 'local-glenn':
+    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
+else:
+    outpath = os.getcwd()
 # Data preparation settings
 lead          = 12    # Time ahead (in months) to forecast AMV
 tstep         = 1032  # Total number of months

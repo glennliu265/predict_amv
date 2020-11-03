@@ -94,9 +94,14 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
 # -------------
 
 # Set Paths
-os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
-outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
+machine='local-glenn'
+if machine == 'local-glenn':
+    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
+else:
+    outpath = os.getcwd()
 
+t/'
 # Data preparation settings
 lead          = 12    # Time ahead (in months) to forecast AMV
 tstep         = 1032  # Total number of months

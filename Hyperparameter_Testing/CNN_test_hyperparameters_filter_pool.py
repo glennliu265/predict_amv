@@ -109,8 +109,13 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
 # -------------
 
 # Set Paths
-os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
-outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
+# Set Paths
+machine='local-glenn'
+if machine == 'local-glenn':
+    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
+else:
+    outpath = os.getcwd()
 
 # Data preparation settings
 lead          = 12    # Time ahead (in months) to forecast AMV
@@ -121,12 +126,12 @@ ens           = 1    # Ensemble members to use
 
 # Select variable
 channels   = 1     # Number of variables to include
-varname    = 'SSS'
+varname    = 'PSL'
 sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
 sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
 psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
 #invars = [sst_normed,sss_normed,psl_normed]
-invars=[sst_normed]
+invars=[psl_normed]
 
 # Model training settings
 max_epochs    = 15 
