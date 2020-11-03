@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Created on Mon Nov  2 16:25:04 2020
+CNN_test_hyperparameters_filter_pool
 
-@author: gliu
+Testing Filter Size and maxpool size
+
 """
 
 import numpy as np
@@ -17,7 +18,6 @@ from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
-
 
 #%% Functions
 def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose=True):
@@ -88,6 +88,22 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 
     return model,train_loss,test_loss         
 
+def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
+    """
+    For a 1 layer convolution, calculate the size of the next layer after flattening
+    
+    inputs:
+        nlat:         latitude dimensions of input
+        nlon:         longitude dimensions of input
+        filtersize:   size of the filter in layer 1
+        poolsize:     size of the maxpooling kernel
+        nchannels:    number of out_channels in layer 1
+    output:
+        flattensize:  flattened dimensions of layer for input into FC layer
+    
+    """
+    return int(np.floor((nlat-filtersize+1)/poolsize) * np.floor((nlon-filtersize+1)/poolsize) * nchannels)
+
 # -------------
 #%% User Edits
 # -------------
@@ -103,34 +119,21 @@ tstep         = 1032  # Total number of months
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 1    # Ensemble members to use
 
-
 # Select variable
 channels   = 1     # Number of variables to include
-varname    = 'PSL'
+varname    = 'SSS'
 sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
 sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
 psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
-invars = [psl_normed]
+#invars = [sst_normed,sss_normed,psl_normed]
+invars=[sst_normed]
 
 # Model training settings
 max_epochs    = 15 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-optname       = 'Adadelta'    # Name optimizer
-layers        = [
-                nn.Conv2d(in_channels=channels, out_channels=32, kernel_size=5),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=5),
-
-                nn.Flatten(),
-                nn.Linear(in_features=5*17*32,out_features=128),
-                nn.ReLU(),
-                nn.Linear(in_features=128,out_features=64),
-                nn.ReLU(),
-
-                nn.Dropout(p=0.5),
-                nn.Linear(in_features=64,out_features=1)
-                ]
+opt           = ['Adadelta',0.1,0.1]    # Name optimizer
+nchannels     = 32                    # Number of out_channels for the first convolution
 
 # ---------------------
 #%% Load and prep data
@@ -173,17 +176,16 @@ val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
 # User edits start here -----------------------
 # Input some hyperparameters and their values, as well as choices for the data
 
-maxorder = 0
-minorder = -7
-eta = [10**i for i in range(minorder,maxorder+1)]
-wd  = eta.copy()
+
+pr1name = 'filtersize'
+pr2name = 'poolsize'
 
 # Set the hyperparameter grid
-param1 = eta.copy()
-param2 = wd.copy()
+param1 = [2,4,8,10] # Indicate kernel/filter sizes here (all square)
+param2 = [2,3,4,5]  # Indicate max pooling size here
 
 # Save data
-expname = "wd_eta_1e%i_1e%i_nens%i_lead%i_%s" % (minorder,maxorder,ens,lead,varname)
+expname = "%s_%ito%i_%s_%ito%i_nens%i_lead%i_%s" % (pr1name,min(param1),max(param1),pr2name,min(param2),max(param2),ens,lead,varname)
 outname = "hyperparameter_testing_%s.npz" % (expname)
 
 # Dimensions of target parameters
@@ -201,15 +203,32 @@ test_loss_grid  = np.zeros(train_loss_grid.shape)
 # %% Manual Hyperparameter Testing: Testing Loop
 # ----------------------------------------------
 
+ndat,_,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
 
 for i in range(np1): # Loop for Learning Rate
-    eta_in = param1[i]
+    filtersize = param1[i]
     for j in range(np2): # Loop for Weight Decay
         start = time.time()
-        wd_in = param2[j]
+        poolsize = param2[j]
         
-        # Set Optimizer
-        opt = [optname, eta_in, wd_in]
+        # Calculate dimensions of first FC layer
+        firstlineardim = calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels)
+        
+        # Build model architecture
+        layers = [
+                nn.Conv2d(in_channels=channels, out_channels=nchannels, kernel_size=filtersize),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=poolsize),
+
+                nn.Flatten(),
+                nn.Linear(in_features=firstlineardim,out_features=128),
+                nn.ReLU(),
+                nn.Linear(in_features=128,out_features=64),
+                nn.ReLU(),
+
+                nn.Dropout(p=0.5),
+                nn.Linear(in_features=64,out_features=1)
+                ]
         
         # Train the model
         model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=False)
@@ -232,7 +251,7 @@ for i in range(np1): # Loop for Learning Rate
         corr_grid_test[i,j]    = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         corr_grid_train[i,j]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
-        print("\nCompleted training for learning rate %i of %i, weight decay %i of %i in %.2fs" % (i+1,np1,j+1,np2,time.time()-start))
+        print("\nCompleted training for %s %i of %i, %s %i of %i in %.2fs" % (pr1name,i+1,np1,pr2name,j+1,np2,time.time()-start))
         
 # Save Data
 np.savez(outpath+outname,
@@ -252,7 +271,6 @@ print("Saved data to %s%s. Script ran to completion in %ss"%(outpath,outname,tim
 
 import matplotlib.pyplot as plt
 
-
 # Plot the Correlation grid
 data = corr_grid_test.copy()**2
 gsize = data.shape[0]
@@ -260,13 +278,13 @@ cmap = plt.get_cmap("pink",20)
 cmap.set_bad(np.array([0,255,0])/255)
 fig,ax = plt.subplots(1,1,figsize=(8,8))
 im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
-ax.set_title("Correlation $(R^{2})$"+"(CESM - CNN Output); Predictor = %s \n Weight Decay vs Learning Rate"%varname)
+ax.set_title("Correlation $(R^{2})$"+"(CESM - CNN Output); Predictor = %s \n %s vs %s"% (varname,pr1name,pr2name))
 ax.set_xticks(np.arange(0,gsize))
 ax.set_yticks(np.arange(0,gsize))
 ax.set_xticklabels(param1)
 ax.set_yticklabels(param2)
-ax.set_xlabel("Learning Rate")
-ax.set_ylabel("Weight Decay")
+ax.set_xlabel(pr1name)
+ax.set_ylabel(pr2name)
 plt.gca().invert_yaxis()
 plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
 # Loop over data dimensions and create text annotations.
@@ -298,13 +316,13 @@ cmap = plt.get_cmap("pink",20)
 cmap.set_bad(np.array([0,255,0])/255)
 fig,ax = plt.subplots(1,1,figsize=(8,8))
 im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
-ax.set_title("MSE (CESM - CNN Output); Predictor %s \n Weight Decay vs Learning Rate"%varname)
+ax.set_title("MSE (CESM - CNN Output); Predictor %s \n %s vs %s"% (varname,pr1name,pr2name))
 ax.set_xticks(np.arange(0,gsize))
 ax.set_yticks(np.arange(0,gsize))
 ax.set_xticklabels(param1)
 ax.set_yticklabels(param2)
-ax.set_xlabel("Learning Rate")
-ax.set_ylabel("Weight Decay")
+ax.set_xlabel(pr1name)
+ax.set_ylabel(pr2name)
 plt.gca().invert_yaxis()
 plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
 # Loop over data dimensions and create text annotations.
