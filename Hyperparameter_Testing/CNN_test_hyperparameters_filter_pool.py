@@ -122,19 +122,19 @@ lead          = 12    # Time ahead (in months) to forecast AMV
 tstep         = 1032  # Total number of months
 
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 1    # Ensemble members to use
+ens           = 5    # Ensemble members to use
 
 # Select variable
 channels   = 1     # Number of variables to include
 varname    = 'PSL'
-sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
-sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
-psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
+sst_normed = np.load('../../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
+sss_normed = np.load('../../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
+psl_normed = np.load('../../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
 #invars = [sst_normed,sss_normed,psl_normed]
 invars=[psl_normed]
 
 # Model training settings
-max_epochs    = 15 
+max_epochs    = 5 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0.1]    # Name optimizer
@@ -312,7 +312,6 @@ for i in range(np1):
         #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
 plt.savefig("%sCorr_%s.png"% (outpath,expname),dpi=200)
 plt.show()
-
 
 # Plot the RMSE grid
 data = test_loss_grid.min(2).copy()

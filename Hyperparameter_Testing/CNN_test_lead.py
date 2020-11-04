@@ -212,6 +212,9 @@ for v in range(nvar): # Loop for each variable
                         nn.Conv2d(in_channels=channels, out_channels=nchannels, kernel_size=filtersize1),
                         nn.ReLU(),
                         nn.MaxPool2d(kernel_size=poolsize1),
+                        
+                        
+                        
                         nn.Flatten(),
                         nn.Linear(in_features=firstlineardim,out_features=128),
                         nn.ReLU(),
@@ -229,9 +232,9 @@ for v in range(nvar): # Loop for each variable
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
             
         # Evalute the model
-        y_pred_val   = model(X_val).detach().numpy()
+        y_pred_val     = model(X_val).detach().numpy()
         y_valdt        = y_val.detach().numpy()
-        y_pred_train = model(X_train).detach().numpy()
+        y_pred_train   = model(X_train).detach().numpy()
         y_traindt      = y_train.detach().numpy()
             
         # Get the correlation (save these)
