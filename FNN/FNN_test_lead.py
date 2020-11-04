@@ -135,7 +135,7 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
 # -------------
 
 # Indicate machine to set path
-machine='local-glenn'
+machine='stormtrack'
 
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
@@ -168,11 +168,11 @@ opt           = ['Adadelta',0.1,0]    # Name optimizer
 
 
 # FNN Architecture
-nlayers = 3
-nunits  = [64,128,256]
-activations = [nn.ReLU(),nn.ReLU(),nn.ReLU()]
+nlayers = 2
+nunits  = [20,20]
+activations = [nn.ReLU(),nn.ReLU()]
 outsize = 1
-netname = "FNN3"
+netname = "FNN2"
 
 # ----------------------------------------
 # %% Experiment storage setup
