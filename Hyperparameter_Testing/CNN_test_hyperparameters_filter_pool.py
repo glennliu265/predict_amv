@@ -114,8 +114,14 @@ machine='local-glenn'
 if machine == 'local-glenn':
     os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
     outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
+    sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
+    sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
+    psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
 else:
     outpath = os.getcwd()
+    sst_normed = np.load('../../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
+    sss_normed = np.load('../../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
+    psl_normed = np.load('../../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
 
 # Data preparation settings
 lead          = 12    # Time ahead (in months) to forecast AMV
@@ -127,9 +133,6 @@ ens           = 5    # Ensemble members to use
 # Select variable
 channels   = 1     # Number of variables to include
 varname    = 'PSL'
-sst_normed = np.load('../../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
-sss_normed = np.load('../../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
-psl_normed = np.load('../../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
 #invars = [sst_normed,sss_normed,psl_normed]
 invars=[psl_normed]
 
@@ -145,6 +148,7 @@ nchannels     = 32                    # Number of out_channels for the first con
 # ---------------------
 
 allstart = time.time()
+
 
 # Apply lead/lag to data
 y = np.mean(sst_normed[:ens,lead:,:,:],axis=(2,3)).reshape((tstep-lead)*ens,1) # Take area average for SST 
