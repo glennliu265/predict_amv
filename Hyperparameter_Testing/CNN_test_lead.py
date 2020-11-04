@@ -107,14 +107,22 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
 #%% User Edits
 # -------------
 
-# Set Paths
-# Set Paths
+# Indicate machine to set path
 machine='local-glenn'
+
+# Set directory and load data depending on machine
 if machine == 'local-glenn':
     os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
     outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
+    sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
+    sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
+    psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
 else:
     outpath = os.getcwd()
+    sst_normed = np.load('../../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
+    sss_normed = np.load('../../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
+    psl_normed = np.load('../../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
+    
 # Data preparation settings
 leads          = np.arange(0,25,1)    # Time ahead (in months) to forecast AMV
 tstep          = 1032                  # Total number of months
@@ -123,22 +131,21 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 42    # Ensemble members to use
 
 # Select variable
-#channels   = 3     # Number of variables to include
-#varname    = 'SST+SSS+PSL'
-sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
-sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
-psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
-#invars = [sst_normed,sss_normed,psl_normed]
-#invars=[psl_normed]
+
 
 # Model training settings
 max_epochs    = 10 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',0.1,0]  # Name optimizer
+opt           = ['Adadelta',0.1,0]    # Name optimizer
+
+cnnlayers     = 2                     # Set CNN # of layers, 1 or 2
+
+
+# 1 layer CNN settings (2 currently fixed, need to implement more customization)
 nchannels     = 32                    # Number of out_channels for the first convolution
-filtersize1   = 5# kernel size for first ConvLayer
-poolsize1     = 5# kernel size for first pooling layer
+filtersize1   = 5                     # kernel size for first ConvLayer
+poolsize1     = 5                     # kernel size for first pooling layer
 
 # ----------------------------------------
 # %% Experiment storage setup
@@ -200,29 +207,53 @@ for v in range(nvar): # Loop for each variable
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
             
-        # ---
+        # Set up CNN
 
         ndat,_,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
         
-         # Calculate dimensions of first FC layer
-        firstlineardim = calc_layerdim(nlat,nlon,filtersize1,poolsize1,nchannels)
-
-        # Set layer architecture
-        layers        = [
-                        nn.Conv2d(in_channels=channels, out_channels=nchannels, kernel_size=filtersize1),
-                        nn.ReLU(),
-                        nn.MaxPool2d(kernel_size=poolsize1),
-                        
-                        
-                        
-                        nn.Flatten(),
-                        nn.Linear(in_features=firstlineardim,out_features=128),
-                        nn.ReLU(),
-                        nn.Linear(in_features=128,out_features=64),
-                        nn.ReLU(),
-                        nn.Dropout(p=0.5),
-                        nn.Linear(in_features=64,out_features=1)
-                        ]
+        
+        if cnnlayers == 1:
+             # Calculate dimensions of first FC layer
+            firstlineardim = calc_layerdim(nlat,nlon,filtersize1,poolsize1,nchannels)
+    
+            # Set layer architecture
+            layers        = [
+                            nn.Conv2d(in_channels=channels, out_channels=nchannels, kernel_size=filtersize1),
+                            nn.ReLU(),
+                            nn.MaxPool2d(kernel_size=poolsize1),
+                            
+                            
+                            
+                            nn.Flatten(),
+                            nn.Linear(in_features=firstlineardim,out_features=128),
+                            nn.ReLU(),
+                            nn.Linear(in_features=128,out_features=64),
+                            nn.ReLU(),
+                            nn.Dropout(p=0.5),
+                            nn.Linear(in_features=64,out_features=1)
+                            ]
+        elif cnnlayers == 2:
+            # Set layer architecture
+            layers        = [
+                            nn.Conv2d(in_channels=channels, out_channels=32, kernel_size=(2,3)),
+                            nn.ReLU(),
+                            nn.MaxPool2d(kernel_size=(2,3)),
+                                          
+                            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(3,3)),
+                            nn.ReLU(),
+                            nn.MaxPool2d(kernel_size=(2,3)),            
+                                          
+                            nn.Flatten(),
+                            nn.Linear(in_features=7*9*64,out_features=64),
+                            nn.ReLU(),
+                              #nn.Linear(in_features=128,out_features=64),
+                              #nn.ReLU(),
+                              
+                            nn.Dropout(p=0.5),
+                            nn.Linear(in_features=64,out_features=1)
+                            ]
+            
+            
         
         # Train the model
         model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=False)
