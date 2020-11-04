@@ -120,7 +120,7 @@ leads          = np.arange(0,25,1)    # Time ahead (in months) to forecast AMV
 tstep          = 1032                  # Total number of months
 
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 10    # Ensemble members to use
+ens           = 42    # Ensemble members to use
 
 # Select variable
 #channels   = 3     # Number of variables to include
@@ -132,7 +132,7 @@ psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype
 #invars=[psl_normed]
 
 # Model training settings
-max_epochs    = 5 
+max_epochs    = 10 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]  # Name optimizer
