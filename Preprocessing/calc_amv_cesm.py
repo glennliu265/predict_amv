@@ -28,7 +28,7 @@ import cartopy.feature as cfeature
 # Path settings ...
 # Path to directory containing data, downloaded from link below
 # https://drive.google.com/drive/u/0/folders/1o0R4RSj34HNInR9ehZ9Yw2pCiZGRPo-s
-datpath = "/Users/gliu/Downloads/2020_Fall/6.862/Project/Data/"
+datpath = "/Users/gliu/Downloads/2020_Fall/6.862/Project/CESM_Data/"
 
 # Path to module
 modpath = "/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/"
@@ -115,6 +115,7 @@ if deg > 0: # Detrend by removing fitted polynomial
         fig,ax = plt.subplots(1,1)
         ax.pcolormesh(lon,lat,sstdt[0,:,:,0]),plt.colorbar(),plt.title("SST Detrended")
 else: # Detrend by moving ensemble average
+    x = np.arange(0,nmon)
     ssta = ssta.reshape(nmon,nens,nlat,nlon)
     sstdt = ssta - ssta.mean(1)[:,None,:,:]
     

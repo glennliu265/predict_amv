@@ -109,8 +109,9 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
 # -------------
 
 # Set Paths
-# Set Paths
 machine='local-glenn'
+
+# Set directory and load data depending on machine
 if machine == 'local-glenn':
     os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
     outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
@@ -133,8 +134,7 @@ ens           = 5    # Ensemble members to use
 # Select variable
 channels   = 1     # Number of variables to include
 varname    = 'PSL'
-#invars = [sst_normed,sss_normed,psl_normed]
-invars=[psl_normed]
+invars=[psl_normed] # Variables to involve inthe calculation
 
 # Model training settings
 max_epochs    = 5 

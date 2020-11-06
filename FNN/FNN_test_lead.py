@@ -151,8 +151,9 @@ else:
     psl_normed = np.load('../../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
     
 # Data preparation settings
-leads          = np.arange(0,25,1)    # Time ahead (in months) to forecast AMV
-tstep          = 1032                  # Total number of months
+#tunits         = 'year'               # Indicate units of time ('month' or 'year)
+leads          = np.arange(0,25,1)    # Time ahead (in tunits) to forecast AMV
+tstep          = 1032             # Total number of time units
 
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 42    # Ensemble members to use
@@ -166,13 +167,13 @@ batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
 
-
 # FNN Architecture
 nlayers = 2
 nunits  = [20,20]
 activations = [nn.ReLU(),nn.ReLU()]
 outsize = 1
 netname = "FNN2"
+
 
 # ----------------------------------------
 # %% Experiment storage setup
@@ -226,7 +227,6 @@ for v in range(nvar): # Loop for each variable
         ndat,nchan,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
         inputsize = nchan*nlat*nlon
         X = X.reshape(ndat,inputsize)
-        
         
         # Split into training and test sets
         X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:] )

@@ -2,7 +2,7 @@
 """
 CNN_test_lead_time
 
-testing different lead times
+testing different lead times for a specified CNN architecture
 
 """
 
@@ -132,15 +132,12 @@ ens           = 42    # Ensemble members to use
 
 # Select variable
 
-
 # Model training settings
 max_epochs    = 10 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
-
 cnnlayers     = 2                     # Set CNN # of layers, 1 or 2
-
 
 # 1 layer CNN settings (2 currently fixed, need to implement more customization)
 nchannels     = 32                    # Number of out_channels for the first convolution
@@ -221,8 +218,6 @@ for v in range(nvar): # Loop for each variable
                             nn.Conv2d(in_channels=channels, out_channels=nchannels, kernel_size=filtersize1),
                             nn.ReLU(),
                             nn.MaxPool2d(kernel_size=poolsize1),
-                            
-                            
                             
                             nn.Flatten(),
                             nn.Linear(in_features=firstlineardim,out_features=128),
