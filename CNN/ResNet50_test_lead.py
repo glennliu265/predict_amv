@@ -48,14 +48,14 @@ leads          = np.arange(0,25,1)    # Time ahead (in months) to forecast AMV
 tstep          = 1032                  # Total number of months
 
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 42    # Ensemble members to use
+ens           = 1   # Ensemble members to use
 
 # Select variable
 varname = 'ALL' #['SST', 'SSS', 'PSL', or 'ALL']
 
 
 # Model training settings
-max_epochs    = 10
+max_epochs    = 1
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
@@ -155,7 +155,7 @@ elif varname == 'ALL':
     channels = 3 # 3 channelsfor 'ALL', 1 otherwise.
     invars = [sst_normed,sss_normed,psl_normed]
     
-outname = "/leadtime_testing_%s_%s.npz" % (varname,expname)
+
 
 
 # Preallocate variables
@@ -224,6 +224,7 @@ for l,lead in enumerate(leads):
     torch.save(model.state_dict(),modout)
     
     # Save Data
+    outname = "/leadtime_testing_%s_%s_lead%02i.npz" % (varname,expname,lead)
     np.savez(outpath+outname,**{
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
