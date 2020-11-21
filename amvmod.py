@@ -106,6 +106,97 @@ def eof_simple(pattern,N_mode,remove_timemean):
         eofs[:,II] = np.squeeze(U[:,II]*sigma[II]/np.sqrt(nt-1))
     return eofs, pcs, varexp
 
+def coarsen_byavg(invar,lat,lon,deg,tol,bboxnew=False,latweight=True,verbose=True):
+    """
+    Coarsen an input variable to specified resolution [deg]
+    by averaging values within a search tolerance for each new grid box.
+    To take the area-weighted average, set latweight=True
+    
+    Dependencies: numpy as np
+
+    Parameters
+    ----------
+    invar : ARRAY [TIME x LAT x LON]
+        Input variable to regrid
+    lat : ARRAY [LAT]
+        Latitude values of input
+    lon : ARRAY [LON]
+        Longitude values of input
+    deg : INT
+        Resolution of the new grid (in degrees)
+    tol : TYPE
+        Search tolerance (pulls all lat/lon +/- tol)
+    
+    OPTIONAL ---
+    bboxnew : ARRAY or False
+        New bounds to regrid in order - [lonW, lonE, latS, latN]
+        Set to False to pull directly from first and last coordinates
+    latweight : BOOL
+        Set to true to apply latitude weighted-average
+    verbose : BOOL
+        Set to true to print status
+    
+
+    Returns
+    -------
+    outvar : ARRAY [TIME x LAT x LON]
+        Regridded variable       
+    lat5 : ARRAY [LAT]
+        New Latitude values of input
+    lon5 : ARRAY [LON]
+        New Longitude values of input
+
+    """
+
+    # Make new Arrays
+    if not bboxnew:
+        lon5 = np.arange(lon[0],lon[-1]+deg,deg)
+        lat5 = np.arange(lat[0],lat[-1]+deg,deg)
+    else:
+        lon5 = np.arange(bboxnew[0],bboxnew[1]+deg,deg)
+        lat5 = np.arange(bboxnew[2],bboxnew[3]+deg,deg)
+    
+    # Check to see if any longitude values are degrees Easy
+    if any(lon>180):
+        lonflag = True
+    
+    # Set up latitude weights
+    if latweight:
+        _,Y = np.meshgrid(lon,lat)
+        wgt = np.cos(np.radians(Y)) # [lat x lon]
+        invar *= wgt[None,:,:] # Multiply by latitude weight
+    
+    # Get time dimension and preallocate
+    nt = invar.shape[0]
+    outvar = np.zeros((nt,len(lat5),len(lon5)))
+    
+    # Loop and regrid
+    i=0
+    for o in range(len(lon5)):
+        for a in range(len(lat5)):
+            lonf = lon5[o]
+            latf = lat5[a]
+            
+            # check longitude
+            if lonflag:
+                if lonf < 0:
+                    lonf+=360
+            
+            lons = np.where((lon >= lonf-tol) & (lon <= lonf+tol))[0]
+            lats = np.where((lat >= latf-tol) & (lat <= latf+tol))[0]
+            
+            varf = invar[:,lats[:,None],lons[None,:]]
+            
+            if latweight:
+                wgtbox = wgt[lats[:,None],lons[None,:]]
+                varf = np.sum(varf/np.sum(wgtbox,(0,1)),(1,2)) # Divide by the total weight for the box
+            else:
+                varf = varf.mean((1,2))
+            outvar[:,a,o] = varf.copy()
+            i+= 1
+            msg="\rCompleted %i of %i"% (i,len(lon5)*len(lat5))
+            print(msg,end="\r",flush=True)
+    return outvar,lat5,lon5
 
 def regress_2d(A,B,nanwarn=1):
     """
@@ -622,3 +713,4 @@ def plot_AMV_spatial(var,lon,lat,bbox,cmap,cint=[0,],clab=[0,],ax=None,pcolor=0,
     #cbar.ax.set_yticklabels(['{:.0f}'.format(x) for x in cint], fontsize=10, weight='bold')
     
     return ax
+
