@@ -39,8 +39,8 @@ modpath = "/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/"
 vnames  = ["sst","sss","psl","NHFLX"]
 
 # Coarsen Resolution
-deg = 2
-tol = 0.75 # Search Resolution
+deg  = 2
+tol  = 0.75 # Search Resolution
 bbox = [-90,20,0,90]
 # Debug option
 debug = True
