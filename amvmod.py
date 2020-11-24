@@ -714,3 +714,20 @@ def plot_AMV_spatial(var,lon,lat,bbox,cmap,cint=[0,],clab=[0,],ax=None,pcolor=0,
     
     return ax
 
+def deseason_lazy(ds,return_scycle=False):
+    """
+    Deseason function without reading out the values. Remove the seasonal cycle by subtracting the monthly anomalies
+    Input:
+        ds : DataArray
+            Data to be deseasoned
+        return_scycle : BOOL (Optional)
+            Set to true to return the seasonal cycle that was removed
+    Output:
+        data_deseason : DataArray
+            Deseasoned data
+    """
+    data_deseason = ds.groupby('time.month') - ds.groupby('time.month').mean('time')
+    
+    if return_scycle:
+        return data_deseason,ds.groupby('time.month').mean('time')
+    return data_deseason
