@@ -102,7 +102,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
-    for epoch in tqdm(range(max_epochs)): # loop by epoch
+    #for epoch in tqdm(range(max_epochs)): # loop by epoch
+    for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
     
             if mode == 'train':  # Training, update weights
@@ -148,18 +149,18 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
             
-            if (runningloss < bestloss) and (mode == 'eval'):
-                bestloss = runningloss
-                bestmodel = copy.deepcopy(model)
-                if verbose:
-                    print("Best Loss of %.2f at epoch %i"% (bestloss,epoch))
+            # if (runningloss < bestloss) and (mode == 'eval'):
+            #     bestloss = copy.deepcopy(runningloss/len(data_loader))
+            #     bestmodel = copy.deepcopy(model)
+            #     if verbose:
+            #         print("Best Loss of %.2f at epoch %i"% (bestloss,epoch+1))
                 
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
-    return bestmodel,train_loss,test_loss    
+    return model,train_loss,test_loss        
 
 def calc_AMV_index(region,invar,lat,lon):
     """
@@ -315,6 +316,7 @@ for v in range(nvar): # Loop for each variable
         test_loss_grid  = np.array(testloss)
         
         # Evalute the model
+        model.eval()
         y_pred_val     = model(X_val).detach().numpy()
         y_valdt        = y_val.detach().numpy()
         y_pred_train   = model(X_train).detach().numpy()

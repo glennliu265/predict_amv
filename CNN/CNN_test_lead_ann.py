@@ -50,7 +50,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
-    for epoch in tqdm(range(max_epochs)): # loop by epoch
+    #for epoch in tqdm(range(max_epochs)): # loop by epoch
+    for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
     
             if mode == 'train':  # Training, update weights
@@ -96,18 +97,18 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
             
-            if (runningloss < bestloss) and (mode == 'eval'):
-                bestloss = runningloss
-                bestmodel = copy.deepcopy(model)
-                if verbose:
-                    print("Best Loss of %.2f at epoch %i"% (bestloss,epoch))
+            # if (runningloss < bestloss) and (mode == 'eval'):
+            #     bestloss = copy.deepcopy(runningloss/len(data_loader))
+            #     bestmodel = copy.deepcopy(model)
+            #     if verbose:
+            #         print("Best Loss of %.2f at epoch %i"% (bestloss,epoch+1))
                 
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
-    return bestmodel,train_loss,test_loss         
+    return model,train_loss,test_loss         
 
 def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
     """
@@ -170,8 +171,6 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
     
 #     return int(fcsizes[-1])
 
-
-
 def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
     """
     For a series of N convolutional layers, calculate the size of the first fully-connected 
@@ -188,16 +187,16 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
     
     """
     
-    # ## Debug entry
-    # 2 layer CNN settings 
-    nchannels     = [32,64]
-    filtersizes   = [[2,3],[3,3]]
-    filterstrides = [[1,1],[1,1]]
-    poolsizes     = [[2,3],[2,3]]
-    poolstrides   = [[2,3],[2,3]]
-    nx = 33
-    ny = 41
-    # # ----
+    # # ## Debug entry
+    # # 2 layer CNN settings 
+    # nchannels     = [32,64]
+    # filtersizes   = [[2,3],[3,3]]
+    # filterstrides = [[1,1],[1,1]]
+    # poolsizes     = [[2,3],[2,3]]
+    # poolstrides   = [[2,3],[2,3]]
+    # nx = 33
+    # ny = 41
+    # # # ----
     
     
     N = len(filtersizes)
@@ -305,22 +304,23 @@ max_epochs    = 10
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',0.1,0]    # Name optimizer
-cnnlayers     = 2                   # Set CNN # of layers, 1 or 2
-netname       = 'CNN2'      
+cnnlayers     = 1                  # Set CNN # of layers, 1 or 2
+netname       = 'CNN1'      
 
 # 1 layer CNN settings (2 currently fixed, need to implement more customization)
-nchannels     = [32]                    # Number of out_channels for the first convolution
-filtersizes   = [[5,5]]                     # kernel size for first ConvLayer
-filterstrides = [[1,1]]
-poolsizes     = [[5,5]]                     # kernel size for first pooling layer
-poolstrides   = [[5,5]]
-
-# 2 layer CNN settings 
-nchannels     = [32,64]
-filtersizes   = [[2,3],[3,3]]
-filterstrides = [[1,1],[1,1]]
-poolsizes     = [[2,3],[2,3]]
-poolstrides   = [[2,3],[2,3]]
+if netname == 'CNN1':
+    nchannels     = [32]                    # Number of out_channels for the first convolution
+    filtersizes   = [[5,5]]                     # kernel size for first ConvLayer
+    filterstrides = [[1,1]]
+    poolsizes     = [[5,5]]                     # kernel size for first pooling layer
+    poolstrides   = [[5,5]]
+elif netname == 'CNN2':
+    # 2 layer CNN settings 
+    nchannels     = [32,64]
+    filtersizes   = [[2,3],[3,3]]
+    filterstrides = [[1,1],[1,1]]
+    poolsizes     = [[2,3],[2,3]]
+    poolstrides   = [[2,3],[2,3]]
 
 # ----------------------------------------
 # %% Set-up
@@ -439,13 +439,14 @@ for v in range(nvar): # Loop for each variable
             
         
         # Train the model
-        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=False)
+        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=True)
             
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take minum of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
             
         # Evalute the model
+        model.eval()
         y_pred_val     = model(X_val).detach().numpy()
         y_valdt        = y_val.detach().numpy()
         y_pred_train   = model(X_train).detach().numpy()
@@ -456,7 +457,7 @@ for v in range(nvar): # Loop for each variable
         testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         
         if np.isnan(traincorr) | np.isnan(testcorr):
-            print("Warning, NaN Detected for %s lead %i of %i in %.2fs. Stopping!" % (varname,lead,len(leads)))
+            print("Warning, NaN Detected for %s lead %i of %i in %.2fs. Stopping!" % (varname,lead,len(leads),time.time()))
             break
         
         # Calculate Correlation and RMSE
