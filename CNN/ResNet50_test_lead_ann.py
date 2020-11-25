@@ -142,7 +142,7 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                     
                 
                 runningloss += loss.item()
-                print("Runningloss %.2f"%runningloss)
+                #print("Runningloss %.2f"%runningloss)
                 
             if verbose: # Print message
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
@@ -150,9 +150,9 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
             
             if (runningloss < bestloss) and (mode == 'eval'):
                 bestloss = runningloss
-                #bestparams = model.state_dict()
                 bestmodel = copy.deepcopy(model)
-                print(bestmodel)
+                if verbose:
+                    print("Best Loss of %.2f at epoch %i"% (bestloss,epoch))
                 
             # Save running loss values for the epoch
             if mode == 'train':
