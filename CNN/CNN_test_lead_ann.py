@@ -50,8 +50,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
-    #for epoch in tqdm(range(max_epochs)): # loop by epoch
-    for epoch in range(max_epochs):
+    for epoch in tqdm(range(max_epochs)): # loop by epoch
+    #for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
     
             if mode == 'train':  # Training, update weights
@@ -280,14 +280,9 @@ machine='local-glenn'
 if machine == 'local-glenn':
     os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/')
     outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
-    # sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
-    # sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
-    # psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
+
 else:
     outpath = os.getcwd()
-    # sst_normed = np.load('../../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
-    # sss_normed = np.load('../../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
-    # psl_normed = np.load('../../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
     
 # Data preparation settings
 leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
@@ -303,7 +298,7 @@ ens           = 40    # Ensemble members to use
 max_epochs    = 10 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adam',0.1,0]    # Name optimizer
+opt           = ['Adadelta',0.1,0]    # Name optimizer
 cnnlayers     = 1                  # Set CNN # of layers, 1 or 2
 netname       = 'CNN1'      
 
@@ -321,6 +316,10 @@ elif netname == 'CNN2':
     filterstrides = [[1,1],[1,1]]
     poolsizes     = [[2,3],[2,3]]
     poolstrides   = [[2,3],[2,3]]
+
+# Options
+debug= True # Visualize training and testing loss
+verbose = False # Print loss for each epoch
 
 # ----------------------------------------
 # %% Set-up
@@ -399,8 +398,7 @@ for v in range(nvar): # Loop for each variable
         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
             
         if cnnlayers == 1:
-             
-    
+
             # Set layer architecture
             layers        = [
                             nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
@@ -439,7 +437,7 @@ for v in range(nvar): # Loop for each variable
             
         
         # Train the model
-        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=True)
+        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=False)
             
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take minum of each epoch
@@ -457,14 +455,55 @@ for v in range(nvar): # Loop for each variable
         testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         
         if np.isnan(traincorr) | np.isnan(testcorr):
-            print("Warning, NaN Detected for %s lead %i of %i in %.2fs. Stopping!" % (varname,lead,len(leads),time.time()))
+            print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
+            if debug:
+                fig,ax=plt.subplots(1,1)
+                plt.style.use('seaborn')
+                ax.plot(trainloss[1:],label='train loss')
+                ax.plot(testloss[1:],label='test loss')
+                ax.legend()
+                ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
+                plt.show()
+                
+                
+                fig,ax=plt.subplots(1,1)
+                plt.style.use('seaborn')
+                #ax.plot(y_pred_train,label='train corr')
+                ax.plot(y_pred_val,label='test corr')
+                ax.plot(y_valdt,label='truth')
+                ax.legend()
+                ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
+                plt.show()
             break
         
         # Calculate Correlation and RMSE
         corr_grid_test[l]    = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
-        print("\nCompleted training for %s lead %i of %i in %.2fs" % (varname,lead,len(leads),time.time()-start))
+        
+        if debug:
+            fig,ax=plt.subplots(1,1)
+            plt.style.use('seaborn')
+            ax.plot(trainloss[1:],label='train loss')
+            ax.plot(testloss[1:],label='test loss')
+            ax.legend()
+            ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
+            plt.show()
+            
+            
+            fig,ax=plt.subplots(1,1)
+            plt.style.use('seaborn')
+            #ax.plot(y_pred_train,label='train corr')
+            ax.plot(y_pred_val,label='test corr')
+            ax.plot(y_valdt,label='truth')
+            ax.legend()
+            ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
+            plt.show()
+            
+            
+            
+        
+        print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
     # Save Data
     np.savez(outpath+outname,**{
              'train_loss': train_loss_grid,
@@ -479,7 +518,7 @@ for v in range(nvar): # Loop for each variable
     #          corr_grid_test,
     #          corr_grid_train
     #         )
-    print("Saved data to %s%s. Script ran to completion in %ss"%(outpath,outname,time.time()-start))
+print("Saved data to %s%s. Finished variable ran to completion in %ss"%(outpath,outname,time.time()-start))
 
         
     
@@ -490,85 +529,85 @@ for v in range(nvar): # Loop for each variable
 
 
 
-# -------------
-# %% Make Plots
-# -------------
+# # -------------
+# # %% Make Plots
+# # -------------
 
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
-# Plot the Correlation grid
-data = corr_grid_test.copy()**2
-gsize = data.shape[0]
-cmap = plt.get_cmap("pink",20)
-cmap.set_bad(np.array([0,255,0])/255)
-fig,ax = plt.subplots(1,1,figsize=(8,8))
-im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
-ax.set_title("Correlation $(R^{2})$"+"(CESM - CNN Output); Predictor = %s \n %s vs %s"% (varname,pr1name,pr2name))
-ax.set_xticks(np.arange(0,gsize))
-ax.set_yticks(np.arange(0,gsize))
-ax.set_xticklabels(param1)
-ax.set_yticklabels(param2)
-ax.set_xlabel(pr1name)
-ax.set_ylabel(pr2name)
-plt.gca().invert_yaxis()
-plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
-# Loop over data dimensions and create text annotations.
-for i in range(np1):
-    for j in range(np2):
-        # Set color to black if above threshold, white otherwise
-        if data[i,j] > 0.6:
-            usecolor='k'
-        else:
-            usecolor='w'
+# # Plot the Correlation grid
+# data = corr_grid_test.copy()**2
+# gsize = data.shape[0]
+# cmap = plt.get_cmap("pink",20)
+# cmap.set_bad(np.array([0,255,0])/255)
+# fig,ax = plt.subplots(1,1,figsize=(8,8))
+# im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
+# ax.set_title("Correlation $(R^{2})$"+"(CESM - CNN Output); Predictor = %s \n %s vs %s"% (varname,pr1name,pr2name))
+# ax.set_xticks(np.arange(0,gsize))
+# ax.set_yticks(np.arange(0,gsize))
+# ax.set_xticklabels(param1)
+# ax.set_yticklabels(param2)
+# ax.set_xlabel(pr1name)
+# ax.set_ylabel(pr2name)
+# plt.gca().invert_yaxis()
+# plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
+# # Loop over data dimensions and create text annotations.
+# for i in range(np1):
+#     for j in range(np2):
+#         # Set color to black if above threshold, white otherwise
+#         if data[i,j] > 0.6:
+#             usecolor='k'
+#         else:
+#             usecolor='w'
         
-        if data[i,j] == np.nanmax(data): # Max in Red
-            usecolor='r'
-        elif data[i,j] == np.nanmin(data): # Min in Blue
-            usecolor= np.array([0,202,231])/255
+#         if data[i,j] == np.nanmax(data): # Max in Red
+#             usecolor='r'
+#         elif data[i,j] == np.nanmin(data): # Min in Blue
+#             usecolor= np.array([0,202,231])/255
         
-        text = ax.text(j, i, "%.1e"%data[i, j],
-                       ha="center", va="center", color=usecolor)
+#         text = ax.text(j, i, "%.1e"%data[i, j],
+#                        ha="center", va="center", color=usecolor)
         
-        #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
-plt.savefig("%sCorr_%s.png"% (outpath,expname),dpi=200)
-plt.show()
+#         #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
+# plt.savefig("%sCorr_%s.png"% (outpath,expname),dpi=200)
+# plt.show()
 
 
-# Plot the RMSE grid
-data = test_loss_grid
-gsize = data.shape[0]
-cmap = plt.get_cmap("pink",20)
-cmap.set_bad(np.array([0,255,0])/255)
-fig,ax = plt.subplots(1,1,figsize=(8,8))
-im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
-ax.set_title("MSE (CESM - CNN Output); Predictor %s \n %s vs %s"% (varname,pr1name,pr2name))
-ax.set_xticks(np.arange(0,gsize))
-ax.set_yticks(np.arange(0,gsize))
-ax.set_xticklabels(param1)
-ax.set_yticklabels(param2)
-ax.set_xlabel(pr1name)
-ax.set_ylabel(pr2name)
-plt.gca().invert_yaxis()
-plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
-# Loop over data dimensions and create text annotations.
-for i in range(np1):
-    for j in range(np2):
-        # Set color to black if above threshold, white otherwise
-        if data[i,j] > 0.6:
-            usecolor='k'
-        else:
-            usecolor='w'
+# # Plot the RMSE grid
+# data = test_loss_grid
+# gsize = data.shape[0]
+# cmap = plt.get_cmap("pink",20)
+# cmap.set_bad(np.array([0,255,0])/255)
+# fig,ax = plt.subplots(1,1,figsize=(8,8))
+# im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
+# ax.set_title("MSE (CESM - CNN Output); Predictor %s \n %s vs %s"% (varname,pr1name,pr2name))
+# ax.set_xticks(np.arange(0,gsize))
+# ax.set_yticks(np.arange(0,gsize))
+# ax.set_xticklabels(param1)
+# ax.set_yticklabels(param2)
+# ax.set_xlabel(pr1name)
+# ax.set_ylabel(pr2name)
+# plt.gca().invert_yaxis()
+# plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
+# # Loop over data dimensions and create text annotations.
+# for i in range(np1):
+#     for j in range(np2):
+#         # Set color to black if above threshold, white otherwise
+#         if data[i,j] > 0.6:
+#             usecolor='k'
+#         else:
+#             usecolor='w'
         
-        if data[i,j] == np.nanmax(data): # Max in Red
-            usecolor='r'
-        elif data[i,j] == np.nanmin(data): # Min in Blue
-            usecolor= np.array([0,202,231])/255
+#         if data[i,j] == np.nanmax(data): # Max in Red
+#             usecolor='r'
+#         elif data[i,j] == np.nanmin(data): # Min in Blue
+#             usecolor= np.array([0,202,231])/255
         
-        text = ax.text(j, i, "%.1e"%data[i, j],
-                       ha="center", va="center", color=usecolor)
+#         text = ax.text(j, i, "%.1e"%data[i, j],
+#                        ha="center", va="center", color=usecolor)
         
-        #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
-plt.savefig("%sMSE_%s.png"%(outpath,expname),dpi=200)
-plt.show()
+#         #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
+# plt.savefig("%sMSE_%s.png"%(outpath,expname),dpi=200)
+# plt.show()
 
