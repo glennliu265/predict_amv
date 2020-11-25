@@ -37,7 +37,7 @@ machine='stormtrack'
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
     os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/')
-    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
 
 else:
     outpath = os.getcwd()
@@ -150,18 +150,18 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
             
-            # if (runningloss < bestloss) and (mode == 'eval'):
-            #     bestloss = copy.deepcopy(runningloss/len(data_loader))
-            #     bestmodel = copy.deepcopy(model)
-            #     if verbose:
-            #         print("Best Loss of %.2f at epoch %i"% (bestloss,epoch+1))
+            if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
+                bestloss = runningloss/len(data_loader)
+                bestmodel = copy.deepcopy(model)
+                if verbose:
+                    print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
                 
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
-    return model,train_loss,test_loss        
+    return bestmodel,train_loss,test_loss     
 
 def calc_AMV_index(region,invar,lat,lon):
     """
@@ -241,17 +241,6 @@ corr_grid_test  = np.zeros((nlead))
 train_loss_grid = np.zeros((max_epochs,nlead))
 test_loss_grid  = np.zeros((max_epochs,nlead))
 
-# Set input variables
-channels = 1
-if varname == 'SST':
-    invars = [sst_normed]
-elif varname == 'SSS':
-    invars = [sss_normed]
-elif varname == 'PSL':
-    invars = [psl_normed]
-elif varname == 'ALL':
-    channels = 3 # 3 channelsfor 'ALL', 1 otherwise.
-    invars = [sst_normed,sss_normed,psl_normed]
 
 # ----------------------------------------------
 # %% Train for each variable combination and lead time

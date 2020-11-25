@@ -50,8 +50,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
-    for epoch in tqdm(range(max_epochs)): # loop by epoch
-    #for epoch in range(max_epochs):
+    #for epoch in tqdm(range(max_epochs)): # loop by epoch
+    for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
     
             if mode == 'train':  # Training, update weights
@@ -97,18 +97,18 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
             
-            # if (runningloss < bestloss) and (mode == 'eval'):
-            #     bestloss = copy.deepcopy(runningloss/len(data_loader))
-            #     bestmodel = copy.deepcopy(model)
-            #     if verbose:
-            #         print("Best Loss of %.2f at epoch %i"% (bestloss,epoch+1))
+            if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
+                bestloss = runningloss/len(data_loader)
+                bestmodel = copy.deepcopy(model)
+                if verbose:
+                    print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
                 
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
-    return model,train_loss,test_loss         
+    return bestmodel,train_loss,test_loss         
 
 def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
     """
@@ -267,7 +267,27 @@ def calc_AMV_index(region,invar,lat,lon):
     
     return amv_index
 
+def load_seq_model(layers,modpath):
+    """
+    Load a statedict into a model with the same architecture
+    as specified in the layers tuple.
     
+    Parameters
+    ----------
+    layers : TUPLE
+        NN Layers for input into nn.Sequential()
+    modpath : STR
+        Path to saved state_dict()
+
+    Returns
+    -------
+    model : Network (Pytorch)
+        Loaded network with saved statedict.
+
+    """
+    model = nn.Sequential(**layers)
+    model.load_state_dict(torch.load(modpath))
+    return model
 
 # -------------
 #%% User Edits
@@ -279,7 +299,7 @@ machine='local-glenn'
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
     os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/')
-    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
 
 else:
     outpath = os.getcwd()
@@ -319,7 +339,7 @@ elif netname == 'CNN2':
 
 # Options
 debug= True # Visualize training and testing loss
-verbose = False # Print loss for each epoch
+verbose = True # Print loss for each epoch
 
 # ----------------------------------------
 # %% Set-up
@@ -373,6 +393,8 @@ for v in range(nvar): # Loop for each variable
     
     for l,lead in enumerate(leads):
 
+        
+        
         # Apply lead/lag to data
         y = calc_AMV_index(indexregion,sst_normed[:ens,lead:,:,:],lat,lon)
         y = y.reshape((y.shape[0]*y.shape[1]))[:,None]
@@ -437,7 +459,7 @@ for v in range(nvar): # Loop for each variable
             
         
         # Train the model
-        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=False)
+        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=verbose)
             
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take minum of each epoch
@@ -583,7 +605,7 @@ for v in range(nvar): # Loop for each variable
 # fig,ax = plt.subplots(1,1,figsize=(8,8))
 # im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
 # ax.set_title("MSE (CESM - CNN Output); Predictor %s \n %s vs %s"% (varname,pr1name,pr2name))
-# ax.set_xticks(np.arange(0,gsize))
+# ax.set_xticks(np.arange(0,gsize))n
 # ax.set_yticks(np.arange(0,gsize))
 # ax.set_xticklabels(param1)
 # ax.set_yticklabels(param2)
@@ -611,4 +633,6 @@ for v in range(nvar): # Loop for each variable
 #         #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
 # plt.savefig("%sMSE_%s.png"%(outpath,expname),dpi=200)
 # plt.show()
+
+
 
