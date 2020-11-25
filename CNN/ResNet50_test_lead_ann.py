@@ -23,6 +23,7 @@ from torchvision import datasets, transforms as T
 
 import os
 import time
+import copy
  
 ## -------------
 #%% User Edits
@@ -90,6 +91,7 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         
     """
     model = nn.Sequential(*layers) # Set up model
+    bestloss = np.infty
     
     # Set optimizer
     if optimizer[0] == "Adadelta":
@@ -101,13 +103,13 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
     for epoch in tqdm(range(max_epochs)): # loop by epoch
-        for mode,data_loader in [('train',trainloader),('test',testloader)]: # train/test for each epoch
-                
+        for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
+    
             if mode == 'train':  # Training, update weights
                 model.train()
             elif mode == 'eval': # Testing, freeze weights
                 model.eval()
-                
+               
             runningloss = 0
             for i,data in enumerate(data_loader):
                 
@@ -118,31 +120,46 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 opt.zero_grad()
                 
                 # Forward pass
-                with torch.set_grad_enabled(mode=='train'):
+                pred_y = model(batch_x).squeeze()
                 
-                    # Forward pass
-                    pred_y = model(batch_x).squeeze()
+                # Calculate losslay
+                loss = loss_fn(pred_y,batch_y.squeeze())
                 
-                    # Calculate loss
-                    loss = loss_fn(pred_y,batch_y.squeeze())
+                # Update weights
+                if mode == 'train':
+                    loss.backward() # Backward pass to calculate gradients w.r.t. loss
+                    opt.step()      # Update weights using optimizer
+                    
+                    
+                    ## Investigate need for model.eval() in calculating train loss
+                    # model.eval()
+                    
+                    # # Forward pass
+                    # pred_y = model(batch_x).squeeze()
+                    
+                    # # Calculate loss
+                    # loss = loss_fn(pred_y,batch_y.squeeze())
+                    
                 
-                    # Update weights
-                    if mode == 'train':
-                        loss.backward() # Backward pass to calculate gradients w.r.t. loss
-                        opt.step()      # Update weights using optimizer
-                        
                 runningloss += loss.item()
+                print("Runningloss %.2f"%runningloss)
                 
             if verbose: # Print message
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
+            
+            if (runningloss < bestloss) and (mode == 'eval'):
+                bestloss = runningloss
+                #bestparams = model.state_dict()
+                bestmodel = copy.deepcopy(model)
+                print(bestmodel)
+                
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
-                
-    return model,train_loss,test_loss 
+    return bestmodel,train_loss,test_loss    
 
 def calc_AMV_index(region,invar,lat,lon):
     """

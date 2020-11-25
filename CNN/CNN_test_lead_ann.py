@@ -17,6 +17,7 @@ from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
+import copy
 
 #%% Functions
 def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose=True):
@@ -38,6 +39,7 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         
     """
     model = nn.Sequential(*layers) # Set up model
+    bestloss = np.infty
     
     # Set optimizer
     if optimizer[0] == "Adadelta":
@@ -46,17 +48,16 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
-        
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
     for epoch in tqdm(range(max_epochs)): # loop by epoch
-        for mode,data_loader in [('train',trainloader),('test',testloader)]: # train/test for each epoch
+        for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
     
             if mode == 'train':  # Training, update weights
                 model.train()
             elif mode == 'eval': # Testing, freeze weights
                 model.eval()
-                
+               
             runningloss = 0
             for i,data in enumerate(data_loader):
                 
@@ -69,7 +70,7 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 # Forward pass
                 pred_y = model(batch_x).squeeze()
                 
-                # Calculate loss
+                # Calculate losslay
                 loss = loss_fn(pred_y,batch_y.squeeze())
                 
                 # Update weights
@@ -89,18 +90,24 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                     
                 
                 runningloss += loss.item()
+                print("Runningloss %.2f"%runningloss)
                 
             if verbose: # Print message
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
             
+            if (runningloss < bestloss) and (mode == 'eval'):
+                bestloss = runningloss
+                #bestparams = model.state_dict()
+                bestmodel = copy.deepcopy(model)
+                print(bestmodel)
+                
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
-                
-    return model,train_loss,test_loss         
+    return bestmodel,train_loss,test_loss         
 
 def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
     """
@@ -117,7 +124,6 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
     
     """
     return int(np.floor((nlat-filtersize+1)/poolsize) * np.floor((nlon-filtersize+1)/poolsize) * nchannels)
-
 
 # def calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
 #     """
@@ -165,14 +171,15 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
 #     return int(fcsizes[-1])
 
 
-def calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
+
+def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
     """
     For a series of N convolutional layers, calculate the size of the first fully-connected 
     layer
     
     Inputs:
-        nlat:         latitude dimensions of input
-        nlon:         longitude dimensions of input
+        nx:           x dimensions of input
+        ny:           y dimensions of input
         filtersize:   [ARRAY,length N] sizes of the filter in each layer [(x1,y1),[x2,y2]]
         poolsize:     [ARRAY,length N] sizes of the maxpooling kernel in each layer
         nchannels:    [ARRAY,] number of out_channels in each layer
@@ -181,33 +188,33 @@ def calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nch
     
     """
     
-    ## Debug entry
+    # ## Debug entry
     # 2 layer CNN settings 
     nchannels     = [32,64]
     filtersizes   = [[2,3],[3,3]]
     filterstrides = [[1,1],[1,1]]
     poolsizes     = [[2,3],[2,3]]
     poolstrides   = [[2,3],[2,3]]
-    nlat = 33
-    nlon = 41
-    # ----
+    nx = 33
+    ny = 41
+    # # ----
     
     
     N = len(filtersizes)
-    latsizes = [nlat]
-    lonsizes = [nlon]
+    xsizes = [nx]
+    ysizes = [ny]
     fcsizes  = []
     
     for i in range(N):
         
-        latsizes.append(np.floor((latsizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
-        lonsizes.append(np.floor((lonsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
+        xsizes.append(np.floor((xsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
+        ysizes.append(np.floor((ysizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
         
         
-        latsizes[i+1] = np.floor((latsizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
-        lonsizes[i+1] = np.floor((lonsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
+        xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
+        ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
         
-        fcsizes.append(np.floor(latsizes[i+1]*lonsizes[i+1]*nchannels[i]))
+        fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
     
     return int(fcsizes[-1])
 
