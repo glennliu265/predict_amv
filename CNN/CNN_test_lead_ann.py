@@ -500,8 +500,9 @@ for v in range(nvar): # Loop for each variable
             ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
             plt.show()
             
-            
-            
+        # Save the model
+        modout = "%s%s_lead%i.pt" %(outpath,expname,lead)
+        torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
     # Save Data
@@ -518,7 +519,7 @@ for v in range(nvar): # Loop for each variable
     #          corr_grid_test,
     #          corr_grid_train
     #         )
-print("Saved data to %s%s. Finished variable ran to completion in %ss"%(outpath,outname,time.time()-start))
+    print("Saved data to %s%s. Finished variable ran to completion in %ss"%(outpath,outname,time.time()-start))
 
         
     

@@ -24,6 +24,7 @@ from torchvision import datasets, transforms as T
 import os
 import time
 import copy
+import matplotlib.pyplot as plt
  
 ## -------------
 #%% User Edits
@@ -31,7 +32,7 @@ import copy
 allstart = time.time()
 
 # Indicate machine to set path
-machine='local-glenn'
+machine='stormtrack'
 
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
@@ -52,15 +53,11 @@ indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO",
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 1   # Ensemble members to use
 
-# Select variable
-varname = 'ALL' #['SST', 'SSS', 'PSL', or 'ALL']
-
-
 # Model training settings
-max_epochs    = 1
+max_epochs    = 10
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adam',0.1,0]    # Name optimizer
+opt           = ['Adadelta',0.1,0]    # Name optimizer
 
 # Set model architecture
 netname = 'RN18'
@@ -68,8 +65,12 @@ resnet50 = models.resnet18(pretrained=True)
 # model = nn.Sequential(nn.Conv2d(in_channels=channels, out_channels=3, kernel_size=(1,1),padding=(95,67)),
 #                       resnet50,
 #                       nn.Linear(in_features=1000,out_features=1))
-
 #
+
+# Options
+debug= True # Visualize training and testing loss
+verbose = False # Print loss for each epoch
+
 #%% Functions
 #
 def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose=True):
@@ -240,9 +241,6 @@ corr_grid_test  = np.zeros((nlead))
 train_loss_grid = np.zeros((max_epochs,nlead))
 test_loss_grid  = np.zeros((max_epochs,nlead))
 
-
-
-
 # Set input variables
 channels = 1
 if varname == 'SST':
@@ -309,7 +307,7 @@ for v in range(nvar): # Loop for each variable
                           nn.Linear(in_features=1000,out_features=1)]
         
         # Train CNN
-        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=False)
+        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=verbose)
         
         # Save train/test loss
         train_loss_grid = np.array(trainloss)# Take minum of each epoch
@@ -327,7 +325,25 @@ for v in range(nvar): # Loop for each variable
         testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         
         if np.isnan(traincorr) | np.isnan(testcorr):
-            print("Warning, NaN Detected for lead %i of %i in %.2fs. Stopping!" % (lead,len(leads)))
+            if debug:
+                fig,ax=plt.subplots(1,1)
+                plt.style.use('seaborn')
+                ax.plot(trainloss[1:],label='train loss')
+                ax.plot(testloss[1:],label='test loss')
+                ax.legend()
+                ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
+                plt.show()
+                
+                
+                fig,ax=plt.subplots(1,1)
+                plt.style.use('seaborn')
+                #ax.plot(y_pred_train,label='train corr')
+                ax.plot(y_pred_val,label='test corr')
+                ax.plot(y_valdt,label='truth')
+                ax.legend()
+                ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
+                plt.show()
+            print("Warning, NaN Detected for lead %i of %i. Stopping!" % (lead,len(leads)))
             break
         
         # Calculate Correlation and RMSE
@@ -346,6 +362,25 @@ for v in range(nvar): # Loop for each variable
                  'test_corr': corr_grid_test,
                  'train_corr': corr_grid_train}
                 )
+        
+        if debug:
+            fig,ax=plt.subplots(1,1)
+            plt.style.use('seaborn')
+            ax.plot(trainloss[1:],label='train loss')
+            ax.plot(testloss[1:],label='test loss')
+            ax.legend()
+            ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
+            plt.show()
+            
+            
+            fig,ax=plt.subplots(1,1)
+            plt.style.use('seaborn')
+            #ax.plot(y_pred_train,label='train corr')
+            ax.plot(y_pred_val,label='test corr')
+            ax.plot(y_valdt,label='truth')
+            ax.legend()
+            ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
+            plt.show()
         print("\nCompleted training for lead %i of %i in %.2fs" % (lead,len(leads),time.time()-start))
 
 print("Saved data to %s%s. Script ran to completion in %ss"%(outpath,outname,time.time()-start))
