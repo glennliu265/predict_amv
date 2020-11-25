@@ -44,6 +44,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == "SGD":
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+    elif optimizer[0] == 'Adam':
+        opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
         
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
@@ -74,11 +76,24 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
+                    
+                    
+                    ## Investigate need for model.eval() in calculating train loss
+                    # model.eval()
+                    
+                    # # Forward pass
+                    # pred_y = model(batch_x).squeeze()
+                    
+                    # # Calculate loss
+                    # loss = loss_fn(pred_y,batch_y.squeeze())
+                    
+                
                 runningloss += loss.item()
                 
             if verbose: # Print message
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
+            
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
@@ -103,6 +118,98 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
     """
     return int(np.floor((nlat-filtersize+1)/poolsize) * np.floor((nlon-filtersize+1)/poolsize) * nchannels)
 
+
+# def calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
+#     """
+#     For a series of N convolutional layers, calculate the size of the first fully-connected 
+#     layer
+    
+#     Inputs:
+#         nlat:         latitude dimensions of input
+#         nlon:         longitude dimensions of input
+#         filtersize:   [ARRAY,length N] sizes of the filter in each layer [(x1,y1),[x2,y2]]
+#         poolsize:     [ARRAY,length N] sizes of the maxpooling kernel in each layer
+#         nchannels:    [ARRAY,] number of out_channels in each layer
+#     output:
+#         flattensize:  flattened dimensions of layer for input into FC layer
+    
+#     """
+#     N = len(filtersizes)
+#     latsizes = [nlat]
+#     lonsizes = [nlon]
+#     fcsizes  = []
+    
+#     for i in range(N):
+#         oddy=0
+#         oddx=0
+#         if filtersizes[i][1]%2 != 0:
+#             oddy=1
+#         if filtersizes[i][0]%2 != 0:
+#             oddx=1
+        
+#         latsizes.append(np.floor((latsizes[i]-filtersizes[i][1]+oddy)/filterstrides[i][1]))
+#         lonsizes.append(np.floor((lonsizes[i]-filtersizes[i][0]+oddx)/filterstrides[i][0]))
+        
+#         oddy=0
+#         oddx=0
+#         if poolsizes[i][1]%2 != 0:
+#             oddy=1
+#         if poolsizes[i][0]%2 != 0:
+#             oddx=1
+        
+#         latsizes[i+1] = np.floor((latsizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+oddy)
+#         lonsizes[i+1] = np.floor((lonsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+oddx)
+        
+#         fcsizes.append(np.floor(latsizes[i+1]*lonsizes[i+1]*nchannels[i]))
+    
+#     return int(fcsizes[-1])
+
+
+def calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
+    """
+    For a series of N convolutional layers, calculate the size of the first fully-connected 
+    layer
+    
+    Inputs:
+        nlat:         latitude dimensions of input
+        nlon:         longitude dimensions of input
+        filtersize:   [ARRAY,length N] sizes of the filter in each layer [(x1,y1),[x2,y2]]
+        poolsize:     [ARRAY,length N] sizes of the maxpooling kernel in each layer
+        nchannels:    [ARRAY,] number of out_channels in each layer
+    output:
+        flattensize:  flattened dimensions of layer for input into FC layer
+    
+    """
+    
+    ## Debug entry
+    # 2 layer CNN settings 
+    nchannels     = [32,64]
+    filtersizes   = [[2,3],[3,3]]
+    filterstrides = [[1,1],[1,1]]
+    poolsizes     = [[2,3],[2,3]]
+    poolstrides   = [[2,3],[2,3]]
+    nlat = 33
+    nlon = 41
+    # ----
+    
+    
+    N = len(filtersizes)
+    latsizes = [nlat]
+    lonsizes = [nlon]
+    fcsizes  = []
+    
+    for i in range(N):
+        
+        latsizes.append(np.floor((latsizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
+        lonsizes.append(np.floor((lonsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
+        
+        
+        latsizes[i+1] = np.floor((latsizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
+        lonsizes[i+1] = np.floor((lonsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
+        
+        fcsizes.append(np.floor(latsizes[i+1]*lonsizes[i+1]*nchannels[i]))
+    
+    return int(fcsizes[-1])
 
 def calc_AMV_index(region,invar,lat,lon):
     """
@@ -178,7 +285,6 @@ else:
     
 # Data preparation settings
 leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
-tstep          = 86                 # Total number of years
 resolution     = '2deg'               # Resolution of input (2deg or full)
 season         = 'Ann'                # Season to take mean over
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
@@ -188,17 +294,26 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-max_epochs    = 1 
+max_epochs    = 10 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',0.1,0]    # Name optimizer
-cnnlayers     = 2                     # Set CNN # of layers, 1 or 2
+opt           = ['Adam',0.1,0]    # Name optimizer
+cnnlayers     = 2                   # Set CNN # of layers, 1 or 2
 netname       = 'CNN2'      
 
 # 1 layer CNN settings (2 currently fixed, need to implement more customization)
-nchannels     = 32                    # Number of out_channels for the first convolution
-filtersize1   = 5                     # kernel size for first ConvLayer
-poolsize1     = 5                     # kernel size for first pooling layer
+nchannels     = [32]                    # Number of out_channels for the first convolution
+filtersizes   = [[5,5]]                     # kernel size for first ConvLayer
+filterstrides = [[1,1]]
+poolsizes     = [[5,5]]                     # kernel size for first pooling layer
+poolstrides   = [[5,5]]
+
+# 2 layer CNN settings 
+nchannels     = [32,64]
+filtersizes   = [[2,3],[3,3]]
+filterstrides = [[1,1],[1,1]]
+poolsizes     = [[2,3],[2,3]]
+poolstrides   = [[2,3],[2,3]]
 
 # ----------------------------------------
 # %% Set-up
@@ -219,7 +334,7 @@ psl_normed = np.load('../../CESM_data/CESM_psl_normalized_lat_weighted_%s_NAT_%s
 # Load lat/lon
 lon = np.load("../../CESM_data/lon_%s_NAT.npy"%(resolution))
 lat = np.load("../../CESM_data/lat_%s_NAT.npy"%(resolution))
-nens,ntime,nlat,nlon = sst_normed.shape
+nens,tstep,nlat,nlon = sst_normed.shape
 
 # Preallocate Relevant Variables...
 corr_grid_train = np.zeros((nlead))
@@ -228,7 +343,7 @@ train_loss_grid = np.zeros((max_epochs,nlead))
 test_loss_grid  = np.zeros((max_epochs,nlead))
 
 # ----------------------------------------------
-# %% Manual Hyperparameter Testing: Testing Loop
+# %% Train for each variable combination and lead time
 # ----------------------------------------------
 
 channels = 1
@@ -273,42 +388,44 @@ for v in range(nvar): # Loop for each variable
         # Set up CNN
         ndat,_,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
         
+        # Calculate dimensions of first FC layer
+        firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+            
         if cnnlayers == 1:
-             # Calculate dimensions of first FC layer
-            firstlineardim = calc_layerdim(nlat,nlon,filtersize1,poolsize1,nchannels)
+             
     
             # Set layer architecture
             layers        = [
-                            nn.Conv2d(in_channels=channels, out_channels=nchannels, kernel_size=filtersize1),
+                            nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                             nn.ReLU(),
-                            nn.MaxPool2d(kernel_size=poolsize1),
+                            nn.MaxPool2d(kernel_size=poolsizes[0]),
                             
                             nn.Flatten(),
                             nn.Linear(in_features=firstlineardim,out_features=128),
                             nn.ReLU(),
                             nn.Linear(in_features=128,out_features=64),
                             nn.ReLU(),
-                            nn.Dropout(p=0.5),
+                            #nn.Dropout(p=0.5),
                             nn.Linear(in_features=64,out_features=1)
                             ]
         elif cnnlayers == 2:
             # Set layer architecture
             layers        = [
-                            nn.Conv2d(in_channels=channels, out_channels=32, kernel_size=(2,3)),
+                            nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                             nn.ReLU(),
-                            nn.MaxPool2d(kernel_size=(2,3)),
+                            nn.MaxPool2d(kernel_size=poolsizes[0]),
                                           
-                            nn.Conv2d(in_channels=32, out_channels=64, kernel_size=(3,3)),
+                            nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
                             nn.ReLU(),
-                            nn.MaxPool2d(kernel_size=(2,3)),            
+                            nn.MaxPool2d(kernel_size=poolsizes[1]),            
                                           
                             nn.Flatten(),
-                            nn.Linear(in_features=7*9*64,out_features=64),
+                            nn.Linear(in_features=firstlineardim,out_features=64),
                             nn.ReLU(),
                               #nn.Linear(in_features=128,out_features=64),
                               #nn.ReLU(),
                               
-                            nn.Dropout(p=0.5),
+                            #nn.Dropout(p=0.5),
                             nn.Linear(in_features=64,out_features=1)
                             ]
             
