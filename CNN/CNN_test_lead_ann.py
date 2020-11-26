@@ -356,8 +356,8 @@ elif netname == 'CNN2':
     poolstrides   = [[2,3],[2,3]]
 
 # Options
-debug= True # Visualize training and testing loss
-verbose = True # Print loss for each epoch
+debug= False # Visualize training and testing loss
+verbose = False # Print loss for each epoch
 
 # ----------------------------------------
 # %% Set-up
