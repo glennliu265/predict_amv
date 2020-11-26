@@ -16,6 +16,7 @@ import torch
 from torch import nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset,Dataset
+import torchvision.models as models
 import os
 import copy
 
@@ -291,8 +292,7 @@ max_epochs    = 10                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
-netname       = 'CNN2'      
-
+netname       = 'CNN2'                # See Choices under Network Settings below for strings that can be used
 
 # Network Settings
 if netname == 'CNN1':
@@ -308,8 +308,12 @@ elif netname == 'CNN2':
     filterstrides = [[1,1],[1,1]]
     poolsizes     = [[2,3],[2,3]]
     poolstrides   = [[2,3],[2,3]]
-
-
+elif netname == 'RN18': # ResNet18
+    #resnet = models.resnet18(pretrained=True)
+    inpadding = [95,67]
+elif netname == 'RN50': # ResNet50
+    inpadding = [95,67]
+    #resnet = models.resnet50(pretrained=True)
 # Options
 debug   = False # Visualize training and testing loss
 verbose = False # Print loss for each epoch
@@ -356,8 +360,12 @@ print("\tOptimizer      : "+ opt[0])
 # %% Train for each variable combination and lead time
 # ----------------------------------------------
 
-channels = 1
+
 for v in range(nvar): # Loop for each variable
+    # -------------------
+    # Set input variables
+    # -------------------
+    channels = 1
     start = time.time()
     if v == 0:
         varname = 'SST'
@@ -373,18 +381,24 @@ for v in range(nvar): # Loop for each variable
         varname = 'ALL'
         invars = [sst_normed,sss_normed,psl_normed]
     
+    # Set output path
     outname = "/leadtime_testing_%s_%s.npz" % (varname,expname)
     
     for l,lead in enumerate(leads):
-
+        
+        # ----------------------
         # Apply lead/lag to data
+        # ----------------------
         y = calc_AMV_index(indexregion,sst_normed[:ens,lead:,:,:],lat,lon)
         y = y.reshape((y.shape[0]*y.shape[1]))[:,None]
         X = np.transpose(
             np.array(invars)[:,:ens,0:tstep-lead,:,:].reshape(channels,(tstep-lead)*ens,nlat,nlon),
             (1,0,2,3))
         
+        
+        # ---------------------------------
         # Split into training and test sets
+        # ---------------------------------
         X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:] )
         y_train = torch.from_numpy( y[0:int(np.floor(percent_train*(tstep-lead)*ens)),:] )
         
@@ -394,16 +408,17 @@ for v in range(nvar): # Loop for each variable
         # Put into pytorch DataLoader
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
-            
-        # Set up CNN
-        ndat,_,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
         
-        # Calculate dimensions of first FC layer
+        
+        
+        # -------------------------------
+        # Initialize Network Architecture
+        # -------------------------------
+        
+        # Calculate dimensions of first FC layer (for CNNs)
         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
-            
-        if netname == 'CNN1':
-
-            # Set layer architecture
+        
+        if netname == 'CNN1': # 1-layer CNN
             layers        = [
                             nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                             nn.ReLU(),
@@ -414,11 +429,11 @@ for v in range(nvar): # Loop for each variable
                             nn.ReLU(),
                             nn.Linear(in_features=128,out_features=64),
                             nn.ReLU(),
+                            
                             #nn.Dropout(p=0.5),
                             nn.Linear(in_features=64,out_features=1)
                             ]
-        elif netname == 'CNN2':
-            # Set layer architecture
+        elif netname == 'CNN2': # 2-layer CNN
             layers        = [
                             nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                             nn.ReLU(),
@@ -431,21 +446,36 @@ for v in range(nvar): # Loop for each variable
                             nn.Flatten(),
                             nn.Linear(in_features=firstlineardim,out_features=64),
                             nn.ReLU(),
-                              #nn.Linear(in_features=128,out_features=64),
-                              #nn.ReLU(),
                               
                             #nn.Dropout(p=0.5),
                             nn.Linear(in_features=64,out_features=1)
                             ]
-
+        elif netname == 'RN18':
+            
+            resnet18 = models.resnet18(pretrained=True)
+            layers = [nn.Conv2d(in_channels=channels, out_channels=3, kernel_size=(1,1),padding=inpadding),
+                              resnet18,
+                              nn.Linear(in_features=1000,out_features=1)]
+        elif netname == 'RN50':
+            
+            resnet50 = models.resnet50(pretrained=True)
+            layers = [nn.Conv2d(in_channels=channels, out_channels=3, kernel_size=(1,1),padding=inpadding),
+                              resnet50,
+                              nn.Linear(in_features=1000,out_features=1)]
+            
+        
+        # ---------------
         # Train the model
+        # ---------------
         model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
             
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
-            
+        
+        # -----------------
         # Evalute the model
+        # -----------------
         model.eval()
         y_pred_val     = model(X_val).detach().numpy()
         y_valdt        = y_val.detach().numpy()
@@ -501,14 +531,18 @@ for v in range(nvar): # Loop for each variable
             ax.legend()
             ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
             plt.show()
-            
+        
+        # --------------
         # Save the model
+        # --------------
         modout = "%s%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
-        
-    # Save Data
+    
+    # -----------------
+    # Save Eval Metrics
+    # -----------------
     np.savez(outpath+outname,**{
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,

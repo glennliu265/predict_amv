@@ -103,8 +103,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
-    #for epoch in tqdm(range(max_epochs)): # loop by epoch
-    for epoch in range(max_epochs):
+    for epoch in tqdm(range(max_epochs)): # loop by epoch
+    #for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
     
             if mode == 'train':  # Training, update weights
@@ -340,7 +340,7 @@ for v in range(nvar): # Loop for each variable
         corr_grid_train   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
         # Save the model
-        modout = "%s%s_lead%i.pt" %(outpath,expname,lead)
+        modout = "%s%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
         torch.save(model.state_dict(),modout)
         
         # Save Data
