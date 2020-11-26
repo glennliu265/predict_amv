@@ -135,7 +135,7 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
 # -------------
 
 # Indicate machine to set path
-machine='stormtrack'
+machine='local-glenn'
 
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
@@ -156,13 +156,13 @@ leads          = np.arange(0,25,1)    # Time ahead (in tunits) to forecast AMV
 tstep          = 1032             # Total number of time units
 
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 42    # Ensemble members to use
+ens           = 1    # Ensemble members to use
 
 # Select variable
 
 
 # Model training settings
-max_epochs    = 10 
+max_epochs    = 1 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
@@ -270,11 +270,11 @@ for v in range(nvar): # Loop for each variable
         
         print("\nCompleted training for %s lead %i of %i in %.2fs" % (varname,lead,len(leads),time.time()-start))
     # Save Data
-    np.savez(outpath+outname,
-             train_loss_grid,
-             test_loss_grid,
-             corr_grid_test,
-             corr_grid_train
+    np.savez(outpath+outname,**{
+             'train_loss': train_loss_grid,
+             'test_loss': test_loss_grid,
+             'test_corr': corr_grid_test,
+             'train_corr': corr_grid_train}
             )
     print("Saved data to %s%s. Script ran to completion in %ss"%(outpath,outname,time.time()-start))
 

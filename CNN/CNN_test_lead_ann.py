@@ -8,19 +8,81 @@ testing different lead times for a specified CNN architecture
 
 import numpy as np
 import matplotlib.pyplot as plt
-import pandas as pd
-import scipy
 import time
 from tqdm import tqdm
 import torch
 from torch import nn
 import torch.optim as optim
-from torch.utils.data import DataLoader, TensorDataset,Dataset
 import torchvision.models as models
 import os
 import copy
 
+# -------------
+#%% User Edits
+# -------------
+
+# Indicate machine to set path
+machine='stormtrack'
+
+# Set directory and load data depending on machine
+if machine == 'local-glenn':
+    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/')
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
+
+else:
+    outpath = os.getcwd()
+    
+# Data preparation settings
+leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
+resolution     = '2deg'               # Resolution of input (2deg or full)
+season         = 'Ann'                # Season to take mean over
+indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
+
+# Training/Testing Subsets
+percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
+ens           = 40    # Ensemble members to use
+
+# Model training settings
+early_stop    = 3                     # Number of epochs where validation loss increases before stopping
+max_epochs    = 10                    # Maximum number of epochs
+batch_size    = 32                    # Pairs of predictions
+loss_fn       = nn.MSELoss()          # Loss Function
+opt           = ['Adadelta',0.1,0]    # Name optimizer
+netname       = 'FNN2'                # See Choices under Network Settings below for strings that can be used
+
+# Network Settings
+if netname == 'CNN1':
+    nchannels     = [32]                    # Number of out_channels for the first convolution
+    filtersizes   = [[5,5]]                     # kernel size for first ConvLayer
+    filterstrides = [[1,1]]
+    poolsizes     = [[5,5]]                     # kernel size for first pooling layer
+    poolstrides   = [[5,5]]
+elif netname == 'CNN2':
+    # 2 layer CNN settings 
+    nchannels     = [32,64]
+    filtersizes   = [[2,3],[3,3]]
+    filterstrides = [[1,1],[1,1]]
+    poolsizes     = [[2,3],[2,3]]
+    poolstrides   = [[2,3],[2,3]]
+elif netname == 'RN18': # ResNet18
+    #resnet = models.resnet18(pretrained=True)
+    inpadding = [95,67]
+elif netname == 'RN50': # ResNet50
+    inpadding = [95,67]
+    #resnet = models.resnet50(pretrained=True)
+elif netname == 'FNN2': # 2-layer Fully Connected NN
+    nlayers = 2
+    nunits  = [20,20]
+    activations = [nn.ReLU(),nn.ReLU()]
+    outsize = 1
+
+# Options
+debug   = False # Visualize training and testing loss
+verbose = False # Print loss for each epoch
+
+# -----------
 #%% Functions
+# -----------
 def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
     """
     inputs:
@@ -261,62 +323,47 @@ def load_seq_model(layers,modpath):
     model.load_state_dict(torch.load(modpath))
     return model
 
-# -------------
-#%% User Edits
-# -------------
-
-# Indicate machine to set path
-machine='stormtrack'
-
-# Set directory and load data depending on machine
-if machine == 'local-glenn':
-    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/')
-    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
-
-else:
-    outpath = os.getcwd()
+def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
+    """
+    Build a Feed-foward neural network with N layers, each with corresponding
+    number of units indicated in nunits and activations. 
     
-# Data preparation settings
-leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
-resolution     = '2deg'               # Resolution of input (2deg or full)
-season         = 'Ann'                # Season to take mean over
-indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
-
-# Training/Testing Subsets
-percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
-
-# Model training settings
-early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 10                    # Maximum number of epochs
-batch_size    = 32                    # Pairs of predictions
-loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',0.1,0]    # Name optimizer
-netname       = 'CNN2'                # See Choices under Network Settings below for strings that can be used
-
-# Network Settings
-if netname == 'CNN1':
-    nchannels     = [32]                    # Number of out_channels for the first convolution
-    filtersizes   = [[5,5]]                     # kernel size for first ConvLayer
-    filterstrides = [[1,1]]
-    poolsizes     = [[5,5]]                     # kernel size for first pooling layer
-    poolstrides   = [[5,5]]
-elif netname == 'CNN2':
-    # 2 layer CNN settings 
-    nchannels     = [32,64]
-    filtersizes   = [[2,3],[3,3]]
-    filterstrides = [[1,1],[1,1]]
-    poolsizes     = [[2,3],[2,3]]
-    poolstrides   = [[2,3],[2,3]]
-elif netname == 'RN18': # ResNet18
-    #resnet = models.resnet18(pretrained=True)
-    inpadding = [95,67]
-elif netname == 'RN50': # ResNet50
-    inpadding = [95,67]
-    #resnet = models.resnet50(pretrained=True)
-# Options
-debug   = False # Visualize training and testing loss
-verbose = False # Print loss for each epoch
+    A dropbout layer is included at the end
+    
+    inputs:
+        inputsize:  INT - size of the input layer
+        outputsize: INT  - size of output layer
+        nlayers:    INT - number of hidden layers to include 
+        nunits:     Tuple of units in each layer
+        activations: Tuple of pytorch.nn activations
+        --optional--
+        dropout: percentage of units to dropout before last layer
+        
+    outputs:
+        Tuple containing FNN layers
+        
+    dependencies:
+        from pytorch import nn
+        
+    """
+    layers = []
+    for n in range(nlayers+1):
+        #print(n)
+        if n == 0:
+            #print("First Layer")
+            layers.append(nn.Linear(inputsize,nunits[n]))
+            layers.append(activations[n])
+            
+        elif n == (nlayers):
+            #print("Last Layer")
+            layers.append(nn.Dropout(p=dropout))
+            layers.append(nn.Linear(nunits[n-1],outsize))
+            
+        else:
+            #print("Intermediate")
+            layers.append(nn.Linear(nunits[n-1],nunits[n]))
+            layers.append(activations[n])
+    return layers
 
 # ----------------------------------------
 # %% Set-up
@@ -340,7 +387,7 @@ lon = np.load("../../CESM_data/lon_%s_NAT.npy"%(resolution))
 lat = np.load("../../CESM_data/lat_%s_NAT.npy"%(resolution))
 nens,tstep,nlat,nlon = sst_normed.shape
 
-# Preallocate Relevant Variables...
+# Preallocate Evaluation Metrics...
 corr_grid_train = np.zeros((nlead))
 corr_grid_test  = np.zeros((nlead))
 train_loss_grid = np.zeros((max_epochs,nlead))
@@ -395,19 +442,28 @@ for v in range(nvar): # Loop for each variable
             np.array(invars)[:,:ens,0:tstep-lead,:,:].reshape(channels,(tstep-lead)*ens,nlat,nlon),
             (1,0,2,3))
         
-        
         # ---------------------------------
         # Split into training and test sets
         # ---------------------------------
-        X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:] )
+        if netname == 'FNN2': # Flatten inputs for FNN 2
+            ndat,nchan,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
+            inputsize = nchan*nlat*nlon
+            X = X.reshape(ndat,inputsize)
+            
+            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:] )
+            X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:] )
+        else:
+            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:] )
+            X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:,:,:] )
+
         y_train = torch.from_numpy( y[0:int(np.floor(percent_train*(tstep-lead)*ens)),:] )
-        
-        X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:,:,:] )
         y_val = torch.from_numpy( y[int(np.floor(percent_train*(tstep-lead)*ens)):,:] )
         
         # Put into pytorch DataLoader
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
+        
+        
         
         
         
@@ -462,7 +518,9 @@ for v in range(nvar): # Loop for each variable
             layers = [nn.Conv2d(in_channels=channels, out_channels=3, kernel_size=(1,1),padding=inpadding),
                               resnet50,
                               nn.Linear(in_features=1000,out_features=1)]
-            
+        elif netname == "FNN2":
+            # Set up FNN
+            layers = build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0)
         
         # ---------------
         # Train the model
@@ -535,7 +593,7 @@ for v in range(nvar): # Loop for each variable
         # --------------
         # Save the model
         # --------------
-        modout = "%s%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
+        modout = "%s/../../CESM_Data/Models/%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
@@ -543,7 +601,7 @@ for v in range(nvar): # Loop for each variable
     # -----------------
     # Save Eval Metrics
     # -----------------
-    np.savez(outpath+outname,**{
+    np.savez(outpath+"/../../CESM_Data/Metrics"+outname,**{
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
