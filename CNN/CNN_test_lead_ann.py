@@ -120,7 +120,7 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,early_s
                         lossprev = runningloss/len(data_loader)
                         
                 if (epoch != 0) and (i_incr >= i_thres):
-                    print("Stopping at epoch %i "% (epoch+1))
+                    print("\tEarly stop at epoch %i "% (epoch+1))
                     return bestmodel,train_loss,test_loss  
                 
                 
@@ -141,51 +141,6 @@ def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
     
     """
     return int(np.floor((nlat-filtersize+1)/poolsize) * np.floor((nlon-filtersize+1)/poolsize) * nchannels)
-
-# def calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
-#     """
-#     For a series of N convolutional layers, calculate the size of the first fully-connected 
-#     layer
-    
-#     Inputs:
-#         nlat:         latitude dimensions of input
-#         nlon:         longitude dimensions of input
-#         filtersize:   [ARRAY,length N] sizes of the filter in each layer [(x1,y1),[x2,y2]]
-#         poolsize:     [ARRAY,length N] sizes of the maxpooling kernel in each layer
-#         nchannels:    [ARRAY,] number of out_channels in each layer
-#     output:
-#         flattensize:  flattened dimensions of layer for input into FC layer
-    
-#     """
-#     N = len(filtersizes)
-#     latsizes = [nlat]
-#     lonsizes = [nlon]
-#     fcsizes  = []
-    
-#     for i in range(N):
-#         oddy=0
-#         oddx=0
-#         if filtersizes[i][1]%2 != 0:
-#             oddy=1
-#         if filtersizes[i][0]%2 != 0:
-#             oddx=1
-        
-#         latsizes.append(np.floor((latsizes[i]-filtersizes[i][1]+oddy)/filterstrides[i][1]))
-#         lonsizes.append(np.floor((lonsizes[i]-filtersizes[i][0]+oddx)/filterstrides[i][0]))
-        
-#         oddy=0
-#         oddx=0
-#         if poolsizes[i][1]%2 != 0:
-#             oddy=1
-#         if poolsizes[i][0]%2 != 0:
-#             oddx=1
-        
-#         latsizes[i+1] = np.floor((latsizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+oddy)
-#         lonsizes[i+1] = np.floor((lonsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+oddx)
-        
-#         fcsizes.append(np.floor(latsizes[i+1]*lonsizes[i+1]*nchannels[i]))
-    
-#     return int(fcsizes[-1])
 
 def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
     """
@@ -336,11 +291,10 @@ max_epochs    = 10                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
-cnnlayers     = 2                  # Set CNN # of layers, 1 or 2
 netname       = 'CNN2'      
 
 
-# 1 layer CNN settings (2 currently fixed, need to implement more customization)
+# Network Settings
 if netname == 'CNN1':
     nchannels     = [32]                    # Number of out_channels for the first convolution
     filtersizes   = [[5,5]]                     # kernel size for first ConvLayer
@@ -355,13 +309,15 @@ elif netname == 'CNN2':
     poolsizes     = [[2,3],[2,3]]
     poolstrides   = [[2,3],[2,3]]
 
+
 # Options
-debug= False # Visualize training and testing loss
+debug   = False # Visualize training and testing loss
 verbose = False # Print loss for each epoch
 
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
+allstart = time.time()
 
 # Set experiment names ----
 nvar  = 4 # Combinations of variables to test
@@ -386,6 +342,16 @@ corr_grid_test  = np.zeros((nlead))
 train_loss_grid = np.zeros((max_epochs,nlead))
 test_loss_grid  = np.zeros((max_epochs,nlead))
 
+# Print Message
+print("Running CNN_test_lead_ann.py with the following settings:")
+print("\tNetwork Type   : "+netname)
+print("\tPred. Region   : "+indexregion)
+print("\tPred. Season   : "+season)
+print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
+print("\tMax Epochs     : " + str(max_epochs))
+print("\tEarly Stop     : " + str(early_stop))
+print("\t# Ens. Members : "+ str(ens))
+print("\tOptimizer      : "+ opt[0])
 # ----------------------------------------------
 # %% Train for each variable combination and lead time
 # ----------------------------------------------
@@ -435,7 +401,7 @@ for v in range(nvar): # Loop for each variable
         # Calculate dimensions of first FC layer
         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
             
-        if cnnlayers == 1:
+        if netname == 'CNN1':
 
             # Set layer architecture
             layers        = [
@@ -451,7 +417,7 @@ for v in range(nvar): # Loop for each variable
                             #nn.Dropout(p=0.5),
                             nn.Linear(in_features=64,out_features=1)
                             ]
-        elif cnnlayers == 2:
+        elif netname == 'CNN2':
             # Set layer architecture
             layers        = [
                             nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
@@ -541,6 +507,7 @@ for v in range(nvar): # Loop for each variable
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
+        
     # Save Data
     np.savez(outpath+outname,**{
              'train_loss': train_loss_grid,
@@ -548,14 +515,10 @@ for v in range(nvar): # Loop for each variable
              'test_corr': corr_grid_test,
              'train_corr': corr_grid_train}
             )
-    # np.savez(outpath+outname,
-    #          train_loss_grid,
-    #          test_loss_grid,
-    #          corr_grid_test,
-    #          corr_grid_train
-    #         )
     print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 
+
+print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
 #%%
 
 
