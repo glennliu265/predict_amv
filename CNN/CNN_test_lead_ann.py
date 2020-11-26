@@ -20,7 +20,7 @@ import os
 import copy
 
 #%% Functions
-def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose=True):
+def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
     """
     inputs:
         layers      - tuple of NN layers
@@ -30,6 +30,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
         trainloader - (torch.utils.data.DataLoader) for training datasetmo
         testloader  - (torch.utils.data.DataLoader) for testing dataset
         max_epochs  - number of training epochs
+        early_stop  - BOOL or INT, Stop training after N epochs of increasing validation error
+                     (set to False to stop at max epoch, or INT for number of epochs)
         verbose     - set to True to display training messages
     
     output:
@@ -49,9 +51,18 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
     elif optimizer[0] == 'Adam':
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     
+    # Set early stopping threshold and counter
+    if early_stop is False:
+        i_thres = max_epochs
+    else:
+        i_thres = early_stop
+    i_incr    = 0 # Number of epochs for which the validation loss increases
+    prev_loss = 0 # Variable to store previous loss
+    
+    # Main Loop
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
-    #for epoch in tqdm(range(max_epochs)): # loop by epoch
-    for epoch in range(max_epochs):
+    for epoch in tqdm(range(max_epochs)): # loop by epoch
+    #for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
     
             if mode == 'train':  # Training, update weights
@@ -78,25 +89,14 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
-                    
-                    
-                    ## Investigate need for model.eval() in calculating train loss
-                    # model.eval()
-                    
-                    # # Forward pass
-                    # pred_y = model(batch_x).squeeze()
-                    
-                    # # Calculate loss
-                    # loss = loss_fn(pred_y,batch_y.squeeze())
-                    
                 
                 runningloss += loss.item()
-                #print("Runningloss %.2f"%runningloss)
-                
-            if verbose: # Print message
+
+            if verbose: # Print progress message
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
             
+            # Save model if this is the best loss
             if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
                 bestloss = runningloss/len(data_loader)
                 bestmodel = copy.deepcopy(model)
@@ -108,6 +108,22 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,verbose
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
+                
+                # Evaluate if early stopping is needed
+                if epoch == 0: # Save previous loss
+                    lossprev = runningloss/len(data_loader)
+                else: # Add to counter if validation loss increases
+                    if runningloss/len(data_loader) > lossprev:
+                        if verbose:
+                            print("Validation loss has increased at epoch %i"%(epoch+1))
+                        i_incr += 1
+                        lossprev = runningloss/len(data_loader)
+                        
+                if (epoch != 0) and (i_incr >= i_thres):
+                    print("Stopping at epoch %i "% (epoch+1))
+                    return bestmodel,train_loss,test_loss  
+                
+                
     return bestmodel,train_loss,test_loss         
 
 def calc_layerdim(nlat,nlon,filtersize,poolsize,nchannels):
@@ -294,7 +310,7 @@ def load_seq_model(layers,modpath):
 # -------------
 
 # Indicate machine to set path
-machine='local-glenn'
+machine='stormtrack'
 
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
@@ -315,12 +331,14 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-max_epochs    = 10 
+early_stop    = 3                     # Number of epochs where validation loss increases before stopping
+max_epochs    = 10                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
-cnnlayers     = 1                  # Set CNN # of layers, 1 or 2
-netname       = 'CNN1'      
+cnnlayers     = 2                  # Set CNN # of layers, 1 or 2
+netname       = 'CNN2'      
+
 
 # 1 layer CNN settings (2 currently fixed, need to implement more customization)
 if netname == 'CNN1':
@@ -393,8 +411,6 @@ for v in range(nvar): # Loop for each variable
     
     for l,lead in enumerate(leads):
 
-        
-        
         # Apply lead/lag to data
         y = calc_AMV_index(indexregion,sst_normed[:ens,lead:,:,:],lat,lon)
         y = y.reshape((y.shape[0]*y.shape[1]))[:,None]
@@ -455,14 +471,12 @@ for v in range(nvar): # Loop for each variable
                             #nn.Dropout(p=0.5),
                             nn.Linear(in_features=64,out_features=1)
                             ]
-            
-            
-        
+
         # Train the model
-        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,verbose=verbose)
+        model,trainloss,testloss = train_CNN(layers,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
             
         # Save train/test loss
-        train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take minum of each epoch
+        train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
             
         # Evalute the model
@@ -471,22 +485,22 @@ for v in range(nvar): # Loop for each variable
         y_valdt        = y_val.detach().numpy()
         y_pred_train   = model(X_train).detach().numpy()
         y_traindt      = y_train.detach().numpy()
-            
+        
         # Get the correlation (save these)
         traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         
+        # Stop if model is just predicting the same value (usually need to examine optimizer settings)
         if np.isnan(traincorr) | np.isnan(testcorr):
             print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
             if debug:
                 fig,ax=plt.subplots(1,1)
                 plt.style.use('seaborn')
-                ax.plot(trainloss[1:],label='train loss')
-                ax.plot(testloss[1:],label='test loss')
+                ax.plot(trainloss,label='train loss')
+                ax.plot(testloss,label='test loss')
                 ax.legend()
                 ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
                 plt.show()
-                
                 
                 fig,ax=plt.subplots(1,1)
                 plt.style.use('seaborn')
@@ -502,12 +516,12 @@ for v in range(nvar): # Loop for each variable
         corr_grid_test[l]    = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
-        
+        # Visualize loss vs epoch for training/testing and correlation
         if debug:
             fig,ax=plt.subplots(1,1)
             plt.style.use('seaborn')
-            ax.plot(trainloss[1:],label='train loss')
-            ax.plot(testloss[1:],label='test loss')
+            ax.plot(trainloss,label='train loss')
+            ax.plot(testloss,label='test loss')
             ax.legend()
             ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
             plt.show()
@@ -523,7 +537,7 @@ for v in range(nvar): # Loop for each variable
             plt.show()
             
         # Save the model
-        modout = "%s%s_lead%i.pt" %(outpath,expname,lead)
+        modout = "%s%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
@@ -534,19 +548,13 @@ for v in range(nvar): # Loop for each variable
              'test_corr': corr_grid_test,
              'train_corr': corr_grid_train}
             )
-    
     # np.savez(outpath+outname,
     #          train_loss_grid,
     #          test_loss_grid,
     #          corr_grid_test,
     #          corr_grid_train
     #         )
-    print("Saved data to %s%s. Finished variable ran to completion in %ss"%(outpath,outname,time.time()-start))
-
-        
-    
-    
-
+    print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 
 #%%
 
