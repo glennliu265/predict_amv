@@ -14,6 +14,7 @@ import torch
 from torch import nn
 import torch.optim as optim
 import torchvision.models as models
+from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
 import copy
 from torch.utils.data import DataLoader, TensorDataset
@@ -23,7 +24,7 @@ from torch.utils.data import DataLoader, TensorDataset
 # -------------
 
 # Indicate machine to set path
-machine='stormtrack'
+machine='local-glenn'
 
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
@@ -37,7 +38,7 @@ else:
 leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
 resolution     = '2deg'               # Resolution of input (2deg or full)
 season         = 'Ann'                # Season to take mean over
-indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
+indexregion    = 'SPG'                # One of the following ("SPG","STG","TRO","NAT")
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
