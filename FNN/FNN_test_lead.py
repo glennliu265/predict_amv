@@ -135,7 +135,7 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
 # -------------
 
 # Indicate machine to set path
-machine='local-glenn'
+machine='pdwang'
 
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
@@ -146,9 +146,9 @@ if machine == 'local-glenn':
     psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
 else:
     outpath = os.getcwd()
-    sst_normed = np.load('../../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
-    sss_normed = np.load('../../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
-    psl_normed = np.load('../../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
+    sst_normed = np.load('../../CESM_data/CESM_sst_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
+    sss_normed = np.load('../../CESM_data/CESM_sss_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
+    psl_normed = np.load('../../CESM_data/CESM_psl_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
     
 # Data preparation settings
 #tunits         = 'year'               # Indicate units of time ('month' or 'year)
@@ -156,13 +156,13 @@ leads          = np.arange(0,25,1)    # Time ahead (in tunits) to forecast AMV
 tstep          = 1032             # Total number of time units
 
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 1    # Ensemble members to use
+ens           = 40    # Ensemble members to use
 
 # Select variable
 
 
 # Model training settings
-max_epochs    = 1 
+max_epochs    = 10 
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
