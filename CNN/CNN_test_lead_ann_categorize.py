@@ -49,7 +49,7 @@ max_epochs    = 10                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
-netname       = 'CNN2'                # See Choices under Network Settings below for strings that can be used
+netname       = 'FNN2'                # See Choices under Network Settings below for strings that can be used
 
 # Network Settings
 if netname == 'CNN1':
@@ -74,7 +74,7 @@ elif netname == 'RN50': # ResNet50
 elif netname == 'FNN2': # 2-layer Fully Connected NN
     nlayers = 2
     nunits  = [20,20]
-    activations = [nn.ReLU(),nn.ReLU()]
+    activations = [nn.Sigmoid(),nn.Sigmoid()]
     outsize = 1
 
 # Options
@@ -144,8 +144,8 @@ def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,early_s
                 opt.zero_grad()
                 
                 # Forward pass
-                pred_y = model(batch_x).squeeze()
-                
+                pred_y = model(batch_x)
+               
                 # Calculate losslay
                 loss = loss_fn(pred_y,batch_y.squeeze())
                 
@@ -444,7 +444,9 @@ for v in range(nvar): # Loop for each variable
         X = np.transpose(
             np.array(invars)[:,:ens,0:tstep-lead,:,:].reshape(channels,(tstep-lead)*ens,nlat,nlon),
             (1,0,2,3))
-        
+        y = np.where(y<=0, 0, y)
+        y = np.where(y>0, 1, y)
+
         # ---------------------------------
         # Split into training and test sets
         # ---------------------------------
@@ -466,8 +468,7 @@ for v in range(nvar): # Loop for each variable
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
         
-        
-        
+       
         
         
         # -------------------------------
@@ -544,7 +545,7 @@ for v in range(nvar): # Loop for each variable
         y_valdt        = y_val.detach().numpy()
         y_pred_train   = model(X_train).detach().numpy()
         y_traindt      = y_train.detach().numpy()
-        
+
         # Get the correlation (save these)
         traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
@@ -574,8 +575,8 @@ for v in range(nvar): # Loop for each variable
         # Calculate Correlation and RMSE
         corr_grid_test[l]    = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
-        percent_grid_test[l] = np.sum(y_pred_val.T[0,:]*y_valdt.T[0,:]>=0)/len(y_pred_val.T[0,:])
-        percent_grid_train[l] = np.sum(y_pred_train.T[0,:]*y_traindt.T[0,:]>=0)/len(y_pred_train.T[0,:])
+        percent_grid_test[l] = np.sum((y_pred_val.T[0,:]-0.5)*(y_valdt.T[0,:]-0.5)>=0)/len(y_pred_val.T[0,:])
+        percent_grid_train[l] = np.sum((y_pred_train.T[0,:]-0.5)*(y_traindt.T[0,:]-0.5)>=0)/len(y_pred_train.T[0,:])
         
         # Visualize loss vs epoch for training/testing and correlation
         if debug:
