@@ -38,7 +38,7 @@ else:
 leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
 resolution     = '2deg'               # Resolution of input (2deg or full)
 season         = 'Ann'                # Season to take mean over
-indexregion    = 'SPG'                # One of the following ("SPG","STG","TRO","NAT")
+indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
