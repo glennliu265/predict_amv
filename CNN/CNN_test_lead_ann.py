@@ -28,7 +28,7 @@ machine='local-glenn'
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
     os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/')
-    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/'
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/'
 
 else:
     outpath = os.getcwd()
@@ -36,8 +36,8 @@ else:
 # Data preparation settings
 leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
 resolution     = '2deg'               # Resolution of input (2deg or full)
-season         = 'Ann'                # Season to take mean over
-indexregion    = 'SPG'                # One of the following ("SPG","STG","TRO","NAT")
+season         = 'MAM'                # Season to take mean over ['Ann','DJF','MAM',...]
+indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -594,7 +594,7 @@ for v in range(nvar): # Loop for each variable
         # --------------
         # Save the model
         # --------------
-        modout = "%s/../../CESM_Data/Models/%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
+        modout = "%s../../CESM_data/Models/%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
@@ -602,7 +602,7 @@ for v in range(nvar): # Loop for each variable
     # -----------------
     # Save Eval Metrics
     # -----------------
-    np.savez(outpath+"/../../CESM_Data/Metrics"+outname,**{
+    np.savez(outpath+"/../../CESM_data/Metrics"+outname,**{
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
