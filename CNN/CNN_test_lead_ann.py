@@ -17,7 +17,6 @@ import torchvision.models as models
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
 import copy
-from torch.utils.data import DataLoader, TensorDataset
 
 # -------------
 #%% User Edits
@@ -35,10 +34,10 @@ else:
     outpath = os.getcwd()
     
 # Data preparation settings
-leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,40,1)    # Time ahead (in years) to forecast AMV
 resolution     = '2deg'               # Resolution of input (2deg or full)
-season         = 'Ann'                # Season to take mean over
-indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
+season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
+indexregion    = 'SPG'                # One of the following ("SPG","STG","TRO","NAT")
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -85,6 +84,7 @@ verbose = False # Print loss for each epoch
 # -----------
 #%% Functions
 # -----------
+
 def train_CNN(layers,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
     """
     inputs:
@@ -392,8 +392,6 @@ nens,tstep,nlat,nlon = sst_normed.shape
 # Preallocate Evaluation Metrics...
 corr_grid_train = np.zeros((nlead))
 corr_grid_test  = np.zeros((nlead))
-percent_grid_train = np.zeros((nlead))
-percent_grid_test  = np.zeros((nlead))
 train_loss_grid = np.zeros((max_epochs,nlead))
 test_loss_grid  = np.zeros((max_epochs,nlead))
 
@@ -475,10 +473,11 @@ for v in range(nvar): # Loop for each variable
         # Initialize Network Architecture
         # -------------------------------
         
-        
-        if netname == 'CNN1': # 1-layer CNN
+        if (netname == 'CNN1') | (netname == 'CNN2'):
             # Calculate dimensions of first FC layer (for CNNs)
             firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+        
+        if netname == 'CNN1': # 1-layer CNN
             layers        = [
                             nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                             nn.ReLU(),
@@ -494,8 +493,6 @@ for v in range(nvar): # Loop for each variable
                             nn.Linear(in_features=64,out_features=1)
                             ]
         elif netname == 'CNN2': # 2-layer CNN
-            # Calculate dimensions of first FC layer (for CNNs)
-            firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
             layers        = [
                             nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                             nn.ReLU(),
@@ -575,8 +572,6 @@ for v in range(nvar): # Loop for each variable
         # Calculate Correlation and RMSE
         corr_grid_test[l]    = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
-        percent_grid_test[l] = np.sum(y_pred_val.T[0,:]*y_valdt.T[0,:]>=0)/len(y_pred_val.T[0,:])
-        percent_grid_train[l] = np.sum(y_pred_train.T[0,:]*y_traindt.T[0,:]>=0)/len(y_pred_train.T[0,:])
         
         # Visualize loss vs epoch for training/testing and correlation
         if debug:
@@ -592,10 +587,22 @@ for v in range(nvar): # Loop for each variable
             fig,ax=plt.subplots(1,1)
             plt.style.use('seaborn')
             #ax.plot(y_pred_train,label='train corr')
-            ax.plot(y_pred_val,label='test corr')
-            ax.plot(y_valdt,label='truth')
+            #ax.plot(y_pred_val,label='test corr')
+            #ax.plot(y_valdt,label='truth')
+            ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
+            ax.scatter(y_pred_train,y_traindt,label="Train",marker='x',zorder=1,alpha=0.3)
             ax.legend()
-            ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
+            ax.set_ylim([-1.5,1.5])
+            ax.set_xlim([-1.5,1.5])
+            lims = [
+                np.min([ax.get_xlim(), ax.get_ylim()]),  # min of both axes
+                np.max([ax.get_xlim(), ax.get_ylim()]),  # max of both axes
+                    ]
+            ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
+            ax.legend()
+            ax.set_xlabel("Actual AMV Index")
+            ax.set_ylabel("Predict AMV Index")
+            ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(corr_grid_test[l],varname,lead))
             plt.show()
         
         # --------------
@@ -613,9 +620,7 @@ for v in range(nvar): # Loop for each variable
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
-             'train_corr': corr_grid_train,
-             'train_percent': percent_grid_train,
-             'test_percent':percent_grid_test}
+             'train_corr': corr_grid_train}
             )
     print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 
