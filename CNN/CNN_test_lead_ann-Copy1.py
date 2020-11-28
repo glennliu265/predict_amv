@@ -46,11 +46,11 @@ ens           = 40    # Ensemble members to use
 
 # Model training settings
 early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 10                    # Maximum number of epochs
+max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
-netname       = 'FNN2'                # See Choices under Network Settings below for strings that can be used
+netname       = 'FNN1'                # See Choices under Network Settings below for strings that can be used
 
 # Network Settings
 if netname == 'CNN1':
@@ -74,8 +74,13 @@ elif netname == 'RN50': # ResNet50
     #resnet = models.resnet50(pretrained=True)
 elif netname == 'FNN2': # 2-layer Fully Connected NN
     nlayers = 2
-    nunits  = [20,20]
-    activations = [nn.ReLU(),nn.ReLU()]
+    nunits  = [1,1]
+    activations = []
+    outsize = 1
+elif netname == 'FNN1': # 2-layer Fully Connected NN
+    nlayers = 1
+    nunits  = [1]
+    activations = []
     outsize = 1
 
 # Options
@@ -354,7 +359,7 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
         if n == 0:
             #print("First Layer")
             layers.append(nn.Linear(inputsize,nunits[n]))
-            layers.append(activations[n])
+            #layers.append(activations[n])
             
         elif n == (nlayers):
             #print("Last Layer")
@@ -364,7 +369,7 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
         else:
             #print("Intermediate")
             layers.append(nn.Linear(nunits[n-1],nunits[n]))
-            layers.append(activations[n])
+            #layers.append(activations[n])
     return layers
 
 # ----------------------------------------
@@ -433,7 +438,7 @@ for v in range(nvar): # Loop for each variable
         invars = [sst_normed,sss_normed,psl_normed]
     
     # Set output path
-    outname = "/leadtime_testing_%s_%s.npz" % (varname,expname)
+    outname = "/linear_reg_leadtime_testing_%s_%s.npz" % (varname,expname)
     
     for l,lead in enumerate(leads):
         
@@ -449,7 +454,7 @@ for v in range(nvar): # Loop for each variable
         # ---------------------------------
         # Split into training and test sets
         # ---------------------------------
-        if netname == 'FNN2': # Flatten inputs for FNN 2
+        if netname == 'FNN2' or netname == 'FNN1': # Flatten inputs for FNN 2
             ndat,nchan,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
             inputsize = nchan*nlat*nlon
             X = X.reshape(ndat,inputsize)
@@ -524,10 +529,10 @@ for v in range(nvar): # Loop for each variable
             layers = [nn.Conv2d(in_channels=channels, out_channels=3, kernel_size=(1,1),padding=inpadding),
                               resnet50,
                               nn.Linear(in_features=1000,out_features=1)]
-        elif netname == "FNN2":
+        elif netname == "FNN2" or netname == "FNN1":
             # Set up FNN
             layers = build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0)
-        
+     
         # ---------------
         # Train the model
         # ---------------
@@ -601,7 +606,7 @@ for v in range(nvar): # Loop for each variable
         # --------------
         # Save the model
         # --------------
-        modout = "%s/../../CESM_Data/Models/%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
+        modout = "%s/../../CESM_Data/Models/linear_reg_%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
