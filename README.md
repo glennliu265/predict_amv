@@ -12,6 +12,7 @@
 <br>
 ./Analysis/plot_leadtime_seasonal_comparisons.ipynb: code to plot the seasonal NAT region AMV predictive skill from FNN and CNN.
 <br>
+<br>
 
 
 <b>./Data/ directory:</b>
@@ -20,11 +21,13 @@
 <br>
 ./Data/leadtime*: stored output including correlation and loss for training and validation set for each model, trained at each leadtime, for each input variable combination.
 <br>
+<br>
 
 
 <b>./Figures/ directory:</b>
 <br>
 ./*: all the figures appeared in the final report
+<br>
 <br>
 
 
@@ -32,11 +35,13 @@
 <br>
 ./Linear_regression/build_plot_linear_regression_at_lags.ipynb: build the linear regression model (using NAT averaged SST, SSS, PSL all together) from CESM and calculate the correlation for predicted AMV using linear regression model.
 <br>
+<br>
 
 
 <b>./NNs/ directory:</b>
 <br>
 ./NNs/NN_test_lead_ann.py: code to train and validate FNN and CNN in CESM. Detailed function descriptions in the code. The results (e.g. loss, correlation) are stored as output in the ./Data/ directory with prefix leadtime*.
+<br>
 <br>
 
 
@@ -45,6 +50,7 @@
 ./Preprocessing/coarsen_data.py: code to re-grid the CESM and reanalysis data to 2 degrees horizontal resolution.
 <br>
 ./Preprocessing/output_normalized_data.ipynb: code to de-seasonlize the data, and normalize the data before training and validation. 
+<br>
 <br>
 
 
@@ -56,9 +62,11 @@
 <br>
 ./Reanalysis_validation/validate_reanalysis.ipynb: code to use the weights learned by NNs with CESM data and directly apply the weights and model to reanalysis data. Correlation is output in the corrs_for_best_models.csv file.
 <br>
+<br>
+
 
 <b>./Scrap/ directory:
 <br>
 ./*: code used for testing purposes in milestone and other prior tests, and are not used in producing the results for the final report.
 <br>
-
+<br>
