@@ -65,7 +65,7 @@
 <br>
 
 
-<b>./Scrap/ directory:
+<b>./Scrap/ directory:</b>
 <br>
 ./*: code used for testing purposes in milestone and other prior tests, and are not used in producing the results for the final report.
 <br>
