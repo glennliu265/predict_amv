@@ -601,7 +601,7 @@ for v in range(nvar): # Loop for each variable
             ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
             ax.legend()
             ax.set_xlabel("Actual AMV Index")
-            ax.set_ylabel("Predict AMV Index")
+            ax.set_ylabel("Predicted AMV Index")
             ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(corr_grid_test[l],varname,lead))
             plt.show()
         
