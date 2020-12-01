@@ -1,8 +1,14 @@
 
 """
-CNN Test Lead Annual
+NN Test Lead Annual
 
-testing different lead times for a specified CNN architecture
+Train/test NN prediction skill at various leadtimes.  Currently supports
+FNN, CNN, and ResNet.
+
+Uses data that has been preprocessed by "output_normalized_data.ipynb"
+in /Preprocessing
+
+See user edits below for further specifications.
 
 """
 
@@ -222,18 +228,6 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
         flattensize:  flattened dimensions of layer for input into FC layer
     
     """
-    
-    # # ## Debug entry
-    # # 2 layer CNN settings 
-    # nchannels     = [32,64]
-    # filtersizes   = [[2,3],[3,3]]
-    # filterstrides = [[1,1],[1,1]]
-    # poolsizes     = [[2,3],[2,3]]
-    # poolstrides   = [[2,3],[2,3]]
-    # nx = 33
-    # ny = 41
-    # # # ----
-    
     
     N = len(filtersizes)
     xsizes = [nx]
@@ -626,91 +620,4 @@ for v in range(nvar): # Loop for each variable
 
 
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
-#%%
-
-
-
-# # -------------
-# # %% Make Plots
-# # -------------
-
-
-# import matplotlib.pyplot as plt
-
-# # Plot the Correlation grid
-# data = corr_grid_test.copy()**2
-# gsize = data.shape[0]
-# cmap = plt.get_cmap("pink",20)
-# cmap.set_bad(np.array([0,255,0])/255)
-# fig,ax = plt.subplots(1,1,figsize=(8,8))
-# im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
-# ax.set_title("Correlation $(R^{2})$"+"(CESM - CNN Output); Predictor = %s \n %s vs %s"% (varname,pr1name,pr2name))
-# ax.set_xticks(np.arange(0,gsize))
-# ax.set_yticks(np.arange(0,gsize))
-# ax.set_xticklabels(param1)
-# ax.set_yticklabels(param2)
-# ax.set_xlabel(pr1name)
-# ax.set_ylabel(pr2name)
-# plt.gca().invert_yaxis()
-# plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
-# # Loop over data dimensions and create text annotations.
-# for i in range(np1):
-#     for j in range(np2):
-#         # Set color to black if above threshold, white otherwise
-#         if data[i,j] > 0.6:
-#             usecolor='k'
-#         else:
-#             usecolor='w'
-        
-#         if data[i,j] == np.nanmax(data): # Max in Red
-#             usecolor='r'
-#         elif data[i,j] == np.nanmin(data): # Min in Blue
-#             usecolor= np.array([0,202,231])/255
-        
-#         text = ax.text(j, i, "%.1e"%data[i, j],
-#                        ha="center", va="center", color=usecolor)
-        
-#         #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
-# plt.savefig("%sCorr_%s.png"% (outpath,expname),dpi=200)
-# plt.show()
-
-
-# # Plot the RMSE grid
-# data = test_loss_grid
-# gsize = data.shape[0]
-# cmap = plt.get_cmap("pink",20)
-# cmap.set_bad(np.array([0,255,0])/255)
-# fig,ax = plt.subplots(1,1,figsize=(8,8))
-# im = ax.imshow(data,vmin=0,vmax=1,cmap=cmap)
-# ax.set_title("MSE (CESM - CNN Output); Predictor %s \n %s vs %s"% (varname,pr1name,pr2name))
-# ax.set_xticks(np.arange(0,gsize))n
-# ax.set_yticks(np.arange(0,gsize))
-# ax.set_xticklabels(param1)
-# ax.set_yticklabels(param2)
-# ax.set_xlabel(pr1name)
-# ax.set_ylabel(pr2name)
-# plt.gca().invert_yaxis()
-# plt.colorbar(im,ax=ax,fraction=0.046, pad=0.04)
-# # Loop over data dimensions and create text annotations.
-# for i in range(np1):
-#     for j in range(np2):
-#         # Set color to black if above threshold, white otherwise
-#         if data[i,j] > 0.6:
-#             usecolor='k'
-#         else:
-#             usecolor='w'
-        
-#         if data[i,j] == np.nanmax(data): # Max in Red
-#             usecolor='r'
-#         elif data[i,j] == np.nanmin(data): # Min in Blue
-#             usecolor= np.array([0,202,231])/255
-        
-#         text = ax.text(j, i, "%.1e"%data[i, j],
-#                        ha="center", va="center", color=usecolor)
-        
-#         #text.set_path_effects([path_effects.Stroke(linewidth=0.25,foreground='k')])
-# plt.savefig("%sMSE_%s.png"%(outpath,expname),dpi=200)
-# plt.show()
-
-
 
