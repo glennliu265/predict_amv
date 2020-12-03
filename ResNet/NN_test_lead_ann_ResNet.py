@@ -44,8 +44,9 @@ batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
 netname       = 'ResNet50'                # See Choices under Network Settings below for strings that can be used
-
-
+resolution    = '244pix'
+tstep         = 86
+outpath       = ''
 # Options
 debug   = False # Visualize training and testing loss
 verbose = False # Print loss for each epoch
@@ -170,7 +171,7 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
 allstart = time.time()
 
 # Set experiment names ----
-nvar  = 4 # Combinations of variables to test
+nvar  = 1 # Combinations of variables to test
 nlead = len(leads)
 
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
@@ -318,7 +319,7 @@ for v in range(nvar): # Loop for each variable
         # --------------
         # Save the model
         # --------------
-        modout = "%s../../CESM_data/Models/%s_%s_lead%i.pt" %(outpath,expname,varname,lead)
+        modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
@@ -326,7 +327,7 @@ for v in range(nvar): # Loop for each variable
     # -----------------
     # Save Eval Metrics
     # -----------------
-    np.savez(outpath+"/../../CESM_data/Metrics"+outname,**{
+    np.savez("../../CESM_data/Metrics"+outname,**{
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
