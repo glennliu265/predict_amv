@@ -65,6 +65,19 @@
 <br>
 
 
+<b>./ResNet/ directory:</b>
+<br>
+./ResNet/NN_test_lead_ann_ResNet.py: main code modified from ./NNs/NN_test_lead_ann.py that works for ResNet50 directly using pre-processed features and labels.
+<br>
+./ResNet/prepare_training_validation_data.ipynb: prepare the features and labels used in NN_test_lead_ann_ResNet.py.
+<br>
+./ResNet/prepare_training_validation_data.py: same code as prepare_training_validation_data.ipynb.
+<br>
+./ResNet/train_resnet50.ipynb: this is a initial test code with single lead-lag time training for resnet50, a more generalized (multiple lead-lag time) code is in NN_test_lead_ann_ResNet.py.
+<br>
+<br>
+
+
 <b>./Scrap/ directory:</b>
 <br>
 ./Scrap/*: code used for testing purposes in milestone and other prior tests, and are not used in producing the results for the final report.
