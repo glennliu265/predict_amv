@@ -48,7 +48,7 @@ resolution    = '244pix'
 tstep         = 86
 outpath       = ''
 # Options
-debug   = False # Visualize training and testing loss
+debug   = True # Visualize training and testing loss
 verbose = False # Print loss for each epoch
 
 # -----------
@@ -75,6 +75,7 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
         from torch import nn,optim
         
     """
+    
     model = model = models.resnet50(pretrained=True) # read in resnet model
     for param in model.parameters():
         param.requires_grad = False
@@ -215,6 +216,10 @@ for v in range(nvar): # Loop for each variable
     # Set output path
     outname = "/leadtime_testing_%s_%s.npz" % (varname,expname)
     
+    ytrainpred   = []
+    ytrainlabels = []
+    yvalpred     = []
+    yvallabels   = []
     for l,lead in enumerate(leads):
         
         # ----------------------
@@ -253,6 +258,13 @@ for v in range(nvar): # Loop for each variable
         y_valdt        = y_val.detach().numpy()
         y_pred_train   = model(X_train).detach().numpy()
         y_traindt      = y_train.detach().numpy()
+        
+        
+        # Save the actual and predicted values
+        ytrainpred.append(y_pred_train)
+        ytrainlabels.append(y_traindt)
+        yvalpred.append(y_pred_val)
+        yvallabels.append(y_valdt)
         
         # Get the correlation (save these)
         traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
@@ -293,6 +305,7 @@ for v in range(nvar): # Loop for each variable
             ax.legend()
             ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
             plt.show()
+            plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
             
             
             fig,ax=plt.subplots(1,1)
@@ -315,6 +328,7 @@ for v in range(nvar): # Loop for each variable
             ax.set_ylabel("Predicted AMV Index")
             ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(corr_grid_test[l],varname,lead))
             plt.show()
+            plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
         
         # --------------
         # Save the model
@@ -331,7 +345,12 @@ for v in range(nvar): # Loop for each variable
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
-             'train_corr': corr_grid_train}
+             'train_corr': corr_grid_train,
+             'ytrainpred': ytrainpred,
+             'ytrainlabels': ytrainlabels,
+             'yvalpred': yvalpred,
+             'yvallabels' : yvallabels
+             }
             )
     print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 
