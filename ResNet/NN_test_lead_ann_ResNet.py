@@ -39,10 +39,10 @@ ens           = 40    # Ensemble members to use
 
 # Model training settings
 early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 10                    # Maximum number of epochs
+max_epochs    = 15                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',0.1,0]    # Name optimizer
+opt           = ['Adam']    # Name optimizer
 netname       = 'ResNet50'                # See Choices under Network Settings below for strings that can be used
 resolution    = '244pix'
 tstep         = 86
@@ -88,7 +88,7 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
     elif optimizer[0] == "SGD":
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
-        opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+        opt = optim.Adam(model.parameters())
     
     # Set early stopping threshold and counter
     if early_stop is False:
