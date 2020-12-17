@@ -47,10 +47,11 @@ netname       = 'ResNet50'                # See Choices under Network Settings b
 resolution    = '244pix'
 tstep         = 86
 outpath       = ''
+
 # Options
 debug   = True # Visualize training and testing loss
 verbose = False # Print loss for each epoch
-
+checkgpu = True # Set to true to check for GPU otherwise run on CPU
 # -----------
 #%% Functions
 # -----------
@@ -80,12 +81,20 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
     for param in model.parameters():
         param.requires_grad = False
     model.fc = nn.Linear(2048, 1)                    # freeze all layers except the last one
-    
     bestloss = np.infty
+    
+    # Check if there is GPU
+    if checkgpu:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else:
+        device = torch.device('cpu')
+    model.to(device)
+        
+    
     
     # Set optimizer
     if optimizer[0] == "Adadelta":
-        opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+        opt = optim.Adadelta(model.parameters())
     elif optimizer[0] == "SGD":
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
@@ -115,6 +124,8 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
                 
                 # Get mini batch
                 batch_x, batch_y = data
+                batch_x = batch_x.to(device)
+                batch_y = batch_y.to(device)
                 
                 # Set gradients to zero
                 opt.zero_grad()
@@ -179,9 +190,9 @@ nlead = len(leads)
 expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
 
 # Load the data for whole North Atlantic
-data = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
+data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
 target = np.load('../../CESM_data/CESM_label_amv_index.npy')
-data = data[:,0:ens,:,:,:]
+data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
 
 # Preallocate Evaluation Metrics...
@@ -250,6 +261,18 @@ for v in range(nvar): # Loop for each variable
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
         
+        
+        # -----------------------------------------------
+        # Pass to GPU or CPU for evaluation of best model
+        # -----------------------------------------------
+        if checkgpu:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            device = torch.device('cpu')
+        model.to(device)
+        X_train,X_val=X_train.to(device),X_val.to(device)
+        y_train,y_val=y_train.to(device),y_val.to(device)
+
         # -----------------
         # Evalute the model
         # -----------------
