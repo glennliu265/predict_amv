@@ -14,9 +14,9 @@ import xesmf as xe
 
 
 # 
-sst_ds = xr.open_dataset('../../CESM_data/CESM1LE_sst_NAtl_19200101_20051201.nc')['sst'][0:69,8:-16,:,:].astype(np.float32)
-sss_ds = xr.open_dataset('../../CESM_data/CESM1LE_sss_NAtl_19200101_20051201.nc')['sss'][0:69,8:-32,:,:].astype(np.float32)
-psl_ds = xr.open_dataset('../../CESM_data/CESM1LE_psl_NAtl_19200101_20051201.nc')['psl'][0:69,8:-32,:,:].astype(np.float32)
+sst_ds = xr.open_dataset('../../CESM_data/CESM1LE_sst_NAtl_19200101_20051201.nc',chunks={'ensemble':1})['sst'][0:69,8:-16,:,:].astype(np.float32)
+sss_ds = xr.open_dataset('../../CESM_data/CESM1LE_sss_NAtl_19200101_20051201.nc',chunks={'ensemble':1})['sss'][0:69,8:-32,:,:].astype(np.float32)
+psl_ds = xr.open_dataset('../../CESM_data/CESM1LE_psl_NAtl_19200101_20051201.nc',chunks={'ensemble':1})['psl'][0:69,8:-32,:,:].astype(np.float32)
 
 
 sst_deseason = (sst_ds.groupby('time.month') - sst_ds.groupby('time.month').mean('time')).groupby('time.year').mean('time')
@@ -54,18 +54,18 @@ regridder = xe.Regridder(sst_ds, ds_out, 'nearest_s2d')
 #regridder
 
 # Apply Regridder
-sst_out = regridder( sst_normalized.transpose('ensemble','year','lat','lon') )
-sss_out = regridder( sss_normalized.transpose('ensemble','year','lat','lon') )
-psl_out = regridder( psl_normalized.transpose('ensemble','year','lat','lon') )
+sst_out = regridder( sst_normalized.transpose('ensemble','year','lat','lon').astype(np.float32) )
+sss_out = regridder( sss_normalized.transpose('ensemble','year','lat','lon').astype(np.float32) )
+psl_out = regridder( psl_normalized.transpose('ensemble','year','lat','lon').astype(np.float32) )
 print("Regridding Data")
 
 # Calculatte AMV Index
 amv_index = (np.cos(np.pi*sst_out.lat/180) * sst_out).mean(dim=('lat','lon'))
 print("Calculated AMV Index")
 
-sst_out_values = sst_out.values
-sss_out_values = sss_out.values
-psl_out_values = psl_out.values
+sst_out_values = sst_out.astype(np.float32).values
+sss_out_values = sss_out.astype(np.float32).values
+psl_out_values = psl_out.astype(np.float32).values
 print("Read out data")
 
 sst_out_values[np.isnan(sst_out_values)] = 0
