@@ -278,8 +278,8 @@ for v in range(nvar): # Loop for each variable
         # Evalute the model
         # -----------------
         model.eval()
-        y_pred_val     = model(X_val).detach().numpy()
-        y_valdt        = y_val.detach().numpy()
+        y_pred_val     = model(X_val).cpu().detach().numpy()
+        y_valdt        = y_val.cpu().detach().numpy()
         #y_pred_train   = model(X_train).detach().numpy()
         #y_traindt      = y_train.detach().numpy()
         
