@@ -270,8 +270,9 @@ for v in range(nvar): # Loop for each variable
         else:
             device = torch.device('cpu')
         model.to(device)
-        X_train,X_val=X_train.to(device),X_val.to(device)
-        y_train,y_val=y_train.to(device),y_val.to(device)
+        #X_train,X_val=X_train.to(device),X_val.to(device)
+        X_val,y_val = X_val.to(device),y_val.to(device)
+        #y_train,y_val=y_train.to(device),y_val.to(device)
 
         # -----------------
         # Evalute the model
@@ -279,18 +280,18 @@ for v in range(nvar): # Loop for each variable
         model.eval()
         y_pred_val     = model(X_val).detach().numpy()
         y_valdt        = y_val.detach().numpy()
-        y_pred_train   = model(X_train).detach().numpy()
-        y_traindt      = y_train.detach().numpy()
+        #y_pred_train   = model(X_train).detach().numpy()
+        #y_traindt      = y_train.detach().numpy()
         
         
         # Save the actual and predicted values
-        ytrainpred.append(y_pred_train)
-        ytrainlabels.append(y_traindt)
+        #ytrainpred.append(y_pred_train)
+        #ytrainlabels.append(y_traindt)
         yvalpred.append(y_pred_val)
         yvallabels.append(y_valdt)
         
         # Get the correlation (save these)
-        traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
+        #traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         
         # Stop if model is just predicting the same value (usually need to examine optimizer settings)
@@ -317,7 +318,7 @@ for v in range(nvar): # Loop for each variable
         
         # Calculate Correlation and RMSE
         corr_grid_test[l]    = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
-        corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
+        #corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
         # Visualize loss vs epoch for training/testing and correlation
         if debug:
@@ -337,7 +338,7 @@ for v in range(nvar): # Loop for each variable
             #ax.plot(y_pred_val,label='test corr')
             #ax.plot(y_valdt,label='truth')
             ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
-            ax.scatter(y_pred_train,y_traindt,label="Train",marker='x',zorder=1,alpha=0.3)
+            #ax.scatter(y_pred_train,y_traindt,label="Train",marker='x',zorder=1,alpha=0.3)
             ax.legend()
             ax.set_ylim([-1.5,1.5])
             ax.set_xlim([-1.5,1.5])
@@ -368,9 +369,9 @@ for v in range(nvar): # Loop for each variable
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
-             'train_corr': corr_grid_train,
-             'ytrainpred': ytrainpred,
-             'ytrainlabels': ytrainlabels,
+             #'train_corr': corr_grid_train,
+             #'ytrainpred': ytrainpred,
+             #'ytrainlabels': ytrainlabels,
              'yvalpred': yvalpred,
              'yvallabels' : yvallabels
              }
