@@ -26,11 +26,12 @@ print("Deseasoned Data")
 
 
 
-landmask = np.isnan( sst_ds[:,:,0,0].values )
-for ilat in range(len(psl_ds.lat)):
-    for ilon in range(len(psl_ds.lon)):
-        if landmask[ilat,ilon] == True:
-            psl_deseason[ilat,ilon,:,:] = np.nan
+landmask = ~np.isnan( sst_ds[:,:,0,0].values )
+psl_deseason *= landmask[:,:,None,None]
+# for ilat in range(len(psl_ds.lat)):
+#     for ilon in range(len(psl_ds.lon)):
+#         if landmask[ilat,ilon] == True:
+#             psl_deseason[ilat,ilon,:,:] = np.nan
 print("Applied Land Mask")
 
 
