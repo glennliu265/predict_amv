@@ -295,7 +295,8 @@ for v in range(nvar): # Loop for each variable
         testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         
         # Stop if model is just predicting the same value (usually need to examine optimizer settings)
-        if np.isnan(traincorr) | np.isnan(testcorr):
+        #if np.isnan(traincorr) | np.isnan(testcorr):
+        if np.isnan(testcorr):
             print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
             if debug:
                 fig,ax=plt.subplots(1,1)
