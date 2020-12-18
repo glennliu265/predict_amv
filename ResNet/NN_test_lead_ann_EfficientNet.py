@@ -178,9 +178,11 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
                     return bestmodel,train_loss,test_loss  
             
             # Clear some memory
+            print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated))
             del batch_x
             del batch_y
             torch.cuda.empty_cache() 
+            print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated))
                 
                 
     return bestmodel,train_loss,test_loss         
@@ -239,7 +241,7 @@ for v in range(nvar): # Loop for each variable
     yvalpred     = []
     yvallabels   = []
     for l,lead in enumerate(leads):
-        
+        print("Starting lead %i memory is %i"%(lead,torch.cuda.memory_allocated))
         # ----------------------
         # Apply lead/lag to data
         # ----------------------
@@ -268,6 +270,7 @@ for v in range(nvar): # Loop for each variable
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
         
+        print("After train function memory is %i"%(torch.cuda.memory_allocated))
         # -----------------------------------------------
         # Pass to GPU or CPU for evaluation of best model
         # -----------------------------------------------
@@ -379,6 +382,7 @@ for v in range(nvar): # Loop for each variable
         del X_train
         del y_train
         torch.cuda.empty_cache()  # Save some memory
+        print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated))
     # -----------------
     # Save Eval Metrics
     # -----------------
