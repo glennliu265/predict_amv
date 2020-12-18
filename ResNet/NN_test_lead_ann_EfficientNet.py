@@ -271,17 +271,19 @@ for v in range(nvar): # Loop for each variable
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             device = torch.device('cpu')
-        model.to(device)
-        #X_train,X_val=X_train.to(device),X_val.to(device)
-        X_val,y_val = X_val.to(device),y_val.to(device)
-        #y_train,y_val=y_train.to(device),y_val.to(device)
-
-        # -----------------
-        # Evalute the model
-        # -----------------
-        model.eval()
-        y_pred_val     = model(X_val).cpu().detach().numpy()
-        y_valdt        = y_val.cpu().detach().numpy()
+        with torch.no_grad():
+            #model.to(device)
+            #X_train,X_val=X_train.to(device),X_val.to(device)
+            X_val,y_val = X_val.to(device),y_val.to(device)
+            #y_train,y_val=y_train.to(device),y_val.to(device)
+    
+            # -----------------
+            # Evalute the model
+            # -----------------
+            
+            model.eval()
+            y_pred_val     = model(X_val).cpu().detach().numpy()
+            y_valdt        = y_val.cpu().detach().numpy()
         #y_pred_train   = model(X_train).detach().numpy()
         #y_traindt      = y_train.detach().numpy()
         
