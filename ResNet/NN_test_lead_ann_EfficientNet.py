@@ -364,7 +364,9 @@ for v in range(nvar): # Loop for each variable
         torch.save(model.state_dict(),modout)
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
-    
+        
+        del model
+        torch.cuda.empty_cache()  # Save some memory
     # -----------------
     # Save Eval Metrics
     # -----------------
