@@ -144,7 +144,7 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
                 
-                runningloss += loss.item()
+                runningloss += float(loss.item())
 
             if verbose: # Print progress message
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
@@ -176,6 +176,11 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))
                     return bestmodel,train_loss,test_loss  
+            
+            # Clear some memory
+            del batch_x
+            del batch_y
+            torch.cuda.empty_cache() 
                 
                 
     return bestmodel,train_loss,test_loss         
@@ -367,7 +372,11 @@ for v in range(nvar): # Loop for each variable
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
         
+        # Clear some memory
         del model
+        del X_val
+        del X
+        del y
         torch.cuda.empty_cache()  # Save some memory
     # -----------------
     # Save Eval Metrics
