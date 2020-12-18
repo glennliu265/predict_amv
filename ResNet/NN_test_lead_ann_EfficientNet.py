@@ -298,7 +298,7 @@ for v in range(nvar): # Loop for each variable
                 # Make prediction and concatenate
                 batch_pred = model(batch_x).squeeze()
                 y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
-                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze])
+                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
             
             
             
