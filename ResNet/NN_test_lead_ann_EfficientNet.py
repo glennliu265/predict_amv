@@ -178,11 +178,11 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
                     return bestmodel,train_loss,test_loss  
             
             # Clear some memory
-            print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated))
+            print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
             del batch_x
             del batch_y
             torch.cuda.empty_cache() 
-            print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated))
+            print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
                 
                 
     return bestmodel,train_loss,test_loss         
@@ -241,7 +241,11 @@ for v in range(nvar): # Loop for each variable
     yvalpred     = []
     yvallabels   = []
     for l,lead in enumerate(leads):
-        print("Starting lead %i memory is %i"%(lead,torch.cuda.memory_allocated))
+        if checkgpu:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        else:
+            device = torch.device('cpu')
+        print("Starting lead %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
         # ----------------------
         # Apply lead/lag to data
         # ----------------------
@@ -270,14 +274,10 @@ for v in range(nvar): # Loop for each variable
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
         
-        print("After train function memory is %i"%(torch.cuda.memory_allocated))
+        print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
         # -----------------------------------------------
         # Pass to GPU or CPU for evaluation of best model
         # -----------------------------------------------
-        if checkgpu:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        else:
-            device = torch.device('cpu')
         with torch.no_grad():
             #model.to(device)
             #X_train,X_val=X_train.to(device),X_val.to(device)
@@ -382,7 +382,7 @@ for v in range(nvar): # Loop for each variable
         del X_train
         del y_train
         torch.cuda.empty_cache()  # Save some memory
-        print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated))
+        print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
     # -----------------
     # Save Eval Metrics
     # -----------------
