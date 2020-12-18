@@ -351,7 +351,7 @@ for v in range(nvar): # Loop for each variable
             break
         
         # Calculate Correlation and RMSE
-        corr_grid_test[l]    = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
+        corr_grid_test[l]    = testcorr#np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         #corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
         # Visualize loss vs epoch for training/testing and correlation
