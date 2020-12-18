@@ -44,7 +44,7 @@ max_epochs    = 15                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam']    # Name optimizer
-netname       = 'EffNet-L2-ns'                # See Choices under Network Settings below for strings that can be used
+netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
 resolution    = '244pix'
 tstep         = 86
 outpath       = ''
@@ -78,11 +78,13 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
         
     """
     
-    model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
+    #model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
+    model = timm.create_model("tf_efficientnet_b7_ns")
     for param in model.parameters():
         param.requires_grad = False
     
-    model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one
+    #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
+    model.classifier=nn.Linear(2560,1)
     bestloss = np.infty
     
     # Check if there is GPU
@@ -251,7 +253,7 @@ for v in range(nvar): # Loop for each variable
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
         
-
+        
         # ---------------
         # Train the model
         # ---------------
