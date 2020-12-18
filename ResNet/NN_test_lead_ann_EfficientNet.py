@@ -289,9 +289,9 @@ for v in range(nvar): # Loop for each variable
             # -----------------
             y_pred_val = np.asarray([])
             y_valdt = np.asarray([])
-            for i,data in enumerate(val_loader):
+            for i,vdata in enumerate(val_loader):
                 # Get mini batch
-                batch_x, batch_y = data
+                batch_x, batch_y = vdata
                 batch_x = batch_x.to(device)
                 batch_y = batch_y.to(device)
                 
