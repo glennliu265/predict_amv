@@ -40,7 +40,7 @@ ens           = 40    # Ensemble members to use
 
 # Model training settings
 early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 15                    # Maximum number of epochs
+max_epochs    = 1                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam']    # Name optimizer
@@ -298,7 +298,7 @@ for v in range(nvar): # Loop for each variable
                 # Make prediction and concatenate
                 batch_pred = model(batch_x).squeeze()
                 y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
-                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy()])
+                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze])
             
             
             
