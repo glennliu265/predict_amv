@@ -287,9 +287,24 @@ for v in range(nvar): # Loop for each variable
             # -----------------
             # Evalute the model
             # -----------------
-            model.eval()
-            y_pred_val     = model(X_val).cpu().detach().numpy()
-            y_valdt        = y_val.detach().numpy()
+            y_pred_val = np.asarray([])
+            y_valdt = np.asarray([])
+            for i,data in enumerate(val_loader):
+                # Get mini batch
+                batch_x, batch_y = data
+                batch_x = batch_x.to(device)
+                batch_y = batch_y.to(device)
+                
+                # Make prediction and concatenate
+                batch_pred = model(batch_x).squeeze()
+                y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
+                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy()])
+            
+            
+            
+            # model.eval()
+            # y_pred_val     = model(X_val).cpu().detach().numpy()
+            #y_valdt        = y_val.detach().numpy()
         #y_pred_train   = model(X_train).detach().numpy()
         #y_traindt      = y_train.detach().numpy()
         
