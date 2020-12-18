@@ -40,7 +40,7 @@ ens           = 40    # Ensemble members to use
 
 # Model training settings
 early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 15                    # Maximum number of epochs
+max_epochs    = 1                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam']    # Name optimizer
@@ -321,9 +321,11 @@ for v in range(nvar): # Loop for each variable
         yvalpred.append(y_pred_val)
         yvallabels.append(y_valdt)
         
+        print(y_pred_val.shape)
+        print(y_valdt.shape)
         # Get the correlation (save these)
         #traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
-        testcorr  = np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
+        testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
         
         # Stop if model is just predicting the same value (usually need to examine optimizer settings)
         #if np.isnan(traincorr) | np.isnan(testcorr):
