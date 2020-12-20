@@ -60,7 +60,7 @@ checkgpu = True # Set to true to check for GPU otherwise run on CPU
 
 def transfer_model(modelname):
     
-    if modelname == 'ResNet50': # Load from torchvision
+    if modelname == 'resnet50': # Load from torchvision
         model = models.resnet50(pretrained=True) # read in resnet model
         
         # Freeze all layers except the last
