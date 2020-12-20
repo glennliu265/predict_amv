@@ -39,11 +39,11 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 2                     # Number of epochs where validation loss increases before stopping
+early_stop    = 3                     # Number of epochs where validation loss increases before stopping
 max_epochs    = 10                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta']    # Name optimizer
+opt           = ['Adadelta',.1,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
 netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
 resolution    = '244pix'
@@ -117,11 +117,11 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     
     # Set optimizer
     if optimizer[0] == "Adadelta":
-        opt = optim.Adadelta(model.parameters())
+        opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == "SGD":
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
-        opt = optim.Adam(model.parameters())
+        opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     
     # Set early stopping threshold and counter
     if early_stop is False:
