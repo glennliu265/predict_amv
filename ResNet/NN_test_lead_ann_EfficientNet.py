@@ -39,13 +39,13 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 15                    # Maximum number of epochs
+early_stop    = 2                     # Number of epochs where validation loss increases before stopping
+max_epochs    = 10                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adam']    # Name optimizer
+opt           = ['Adadelta']    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
-netname       = 'ResNet50'
+netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
 resolution    = '244pix'
 tstep         = 86
 outpath       = ''
@@ -74,9 +74,6 @@ def transfer_model(modelname):
             param.requires_grad = False
         model.classifier=nn.Linear(model.classifier.in_features,1)
     return model
-    
-
-
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
     """
