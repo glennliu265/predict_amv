@@ -52,7 +52,7 @@ outpath       = ''
 
 # Options
 debug   = True # Visualize training and testing loss
-verbose = False # Print loss for each epoch
+verbose = True # Print loss for each epoch
 checkgpu = True # Set to true to check for GPU otherwise run on CPU
 # -----------
 #%% Functions
