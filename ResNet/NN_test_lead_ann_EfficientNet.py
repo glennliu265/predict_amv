@@ -39,8 +39,8 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 15                    # Maximum number of epochs
+early_stop    = 2                     # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
