@@ -186,8 +186,8 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             # Save model if this is the best loss
             if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
                 bestloss = runningloss/len(data_loader)
-                #bestmodel = copy.deepcopy(model)
-                best_model_wts = copy.deepcopy(model.state_dict())
+                bestmodel = copy.deepcopy(model)
+                #best_model_wts = copy.deepcopy(model.state_dict())
                 if verbose:
                     print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
                 
@@ -218,7 +218,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             torch.cuda.empty_cache() 
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
                 
-    bestmodel=model.load_state_dict(best_model_wts)         
+    #bestmodel.load_state_dict(best_model_wts)         
     return bestmodel,train_loss,test_loss         
 
 # ----------------------------------------
