@@ -44,7 +44,8 @@ max_epochs    = 15                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam']    # Name optimizer
-netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
+#netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
+netname       = 'ResNet50'
 resolution    = '244pix'
 tstep         = 86
 outpath       = ''
@@ -57,7 +58,27 @@ checkgpu = True # Set to true to check for GPU otherwise run on CPU
 #%% Functions
 # -----------
 
-def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
+def transfer_model(modelname):
+    
+    if modelname == 'ResNet50': # Load from torchvision
+        model = models.resnet50(pretrained=True) # read in resnet model
+        
+        # Freeze all layers except the last
+        for param in model.parameters():
+            param.requires_grad = False
+        model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
+    else: # Load from timm
+        model = timm.create_model(modelname)
+        # Freeze all layers except the last
+        for param in model.parameters():
+            param.requires_grad = False
+        model.classifier=nn.Linear(model.classifier.in_features,1)
+    return model
+    
+
+
+
+def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
     """
     inputs:
         model       - Resnet model
@@ -78,13 +99,15 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
         
     """
     
-    #model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
-    model = timm.create_model("tf_efficientnet_b7_ns")
-    for param in model.parameters():
-        param.requires_grad = False
+    # #model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
+    # model = timm.create_model("tf_efficientnet_b7_ns")
+    # for param in model.parameters():
+    #     print(param)
+    #     print(param.requires_grad)
+    #     param.requires_grad = False
     
-    #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
-    model.classifier=nn.Linear(2560,1)
+    # #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
+    # model.classifier=nn.Linear(model.classifier.in_features,1)
     bestloss = np.infty
     
     # Check if there is GPU
@@ -93,7 +116,7 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
     else:
         device = torch.device('cpu')
     model.to(device)
-        
+    
     
     # Set optimizer
     if optimizer[0] == "Adadelta":
@@ -178,11 +201,11 @@ def train_ResNet(loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=
                     return bestmodel,train_loss,test_loss  
             
             # Clear some memory
-            print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
+            #print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
             del batch_x
             del batch_y
             torch.cuda.empty_cache() 
-            print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
+            #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
                 
                 
     return bestmodel,train_loss,test_loss         
@@ -268,8 +291,9 @@ for v in range(nvar): # Loop for each variable
         # ---------------
         # Train the model
         # ---------------
-        model,trainloss,testloss = train_ResNet(loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
-            
+        pmodel = transfer_model(netname)
+        model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
+        
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
@@ -321,8 +345,6 @@ for v in range(nvar): # Loop for each variable
         yvalpred.append(y_pred_val)
         yvallabels.append(y_valdt)
         
-        print(y_pred_val.shape)
-        print(y_valdt.shape)
         # Get the correlation (save these)
         #traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
