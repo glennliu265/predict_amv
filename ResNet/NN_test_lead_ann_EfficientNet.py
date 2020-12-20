@@ -45,7 +45,7 @@ batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
-netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
+netname       = 'resnet50'#'ResNet50'
 resolution    = '244pix'
 tstep         = 86
 outpath       = ''
@@ -186,7 +186,8 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             # Save model if this is the best loss
             if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
                 bestloss = runningloss/len(data_loader)
-                bestmodel = copy.deepcopy(model)
+                #bestmodel = copy.deepcopy(model)
+                best_model_wts = copy.deepcopy(model.state_dict())
                 if verbose:
                     print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
                 
@@ -211,13 +212,13 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                     return bestmodel,train_loss,test_loss  
             
             # Clear some memory
-            #print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
+            print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
             del batch_x
             del batch_y
             torch.cuda.empty_cache() 
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
                 
-                
+    bestmodel=model.load_state_dict(best_model_wts)         
     return bestmodel,train_loss,test_loss         
 
 # ----------------------------------------
@@ -323,7 +324,7 @@ for v in range(nvar): # Loop for each variable
             # Evalute the model
             # -----------------
             y_pred_val = np.asarray([])
-            y_valdt = np.asarray([])
+            y_valdt    = np.asarray([])
             for i,vdata in enumerate(val_loader):
                 # Get mini batch
                 batch_x, batch_y = vdata
@@ -384,6 +385,9 @@ for v in range(nvar): # Loop for each variable
             break
         
         # Calculate Correlation and RMSE
+        if verbose:
+            print("Correlation for lead %i was %f"%(lead,testcorr))
+            
         corr_grid_test[l]    = testcorr#np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         #corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
