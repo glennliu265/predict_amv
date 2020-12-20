@@ -40,10 +40,10 @@ ens           = 40    # Ensemble members to use
 
 # Model training settings
 early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 10                    # Maximum number of epochs
+max_epochs    = 15                    # Maximum number of epochs
 batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.1,0]    # Name optimizer
+opt           = ['Adadelta',.01,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
 netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
 resolution    = '244pix'
@@ -105,6 +105,9 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     
     # #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
     # model.classifier=nn.Linear(model.classifier.in_features,1)
+    
+    
+    
     bestloss = np.infty
     
     # Check if there is GPU
@@ -112,16 +115,26 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device('cpu')
-    model.to(device)
+    model = model.to(device)
+    
+    
+    # Get list of params to update
+    params_to_update = []
+    for name,param in model.named_parameters():
+        if param.requires_grad == True:
+            params_to_update.append(param)
+            if verbose:
+                print("Params to learn:")
+                print("\t",name)
     
     
     # Set optimizer
     if optimizer[0] == "Adadelta":
-        opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+        opt = optim.Adadelta(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == "SGD":
-        opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+        opt = optim.SGD(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
-        opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+        opt = optim.Adam(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
     
     # Set early stopping threshold and counter
     if early_stop is False:
@@ -208,6 +221,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     return bestmodel,train_loss,test_loss         
 
 # ----------------------------------------
+
 # %% Set-up
 # ----------------------------------------
 allstart = time.time()
