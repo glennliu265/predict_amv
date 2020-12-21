@@ -41,7 +41,7 @@ tstep         = 86    # Size of time dimension
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                    # Maximum number of epochs
+max_epochs    = 1                    # Maximum number of epochs
 batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
@@ -52,13 +52,14 @@ sequence_len  = 12                      # Length of sequence (same units as data
 cnn_out       = 3                       # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                       # Number of rnn layers
 outsize       = 1                       # Final output size
+outactivation = torch.tanh              # Activation for final output
 
 resolution    = '224pix'
 outpath       = ''
 
 # Options
-debug   = True # Visualize training and testing loss
-verbose = True # Print loss for each epoch
+debug    = True # Visualize training and testing loss
+verbose  = True # Print loss for each epoch
 checkgpu = True # Set to true to check for GPU otherwise run on CPU
 # -----------
 #%% Functions
@@ -92,6 +93,27 @@ def transfer_model(modelname,outsize):
             param.requires_grad = False
         model.classifier=nn.Linear(model.classifier.in_features,outsize)
     return model
+
+class Combine(nn.Module):
+    """
+    Model that combines a feature extractor, RNN (LSTM or GRU), and linear classifier
+    """
+    def __init__(self,feature_extractor,rnn,classifier,activation):
+        super(Combine, self).__init__()
+        self.cnn        = feature_extractor # Pretrained CNN (last layer unfrozen)
+        self.rnn        = rnn # RNN unit (LSTM or GRU)
+        self.linear     = classifier # Classifier Layer
+        self.activation = activation
+    
+    def forward(self, x):
+        batch_size, timesteps, C, H, W = x.size()
+        c_in = x.view(batch_size * timesteps, C, H, W)
+        c_out = self.cnn(c_in)
+        r_in = c_out.view(batch_size, timesteps, -1)
+        r_out, (h_n, h_c) = self.rnn(r_in)
+        r_out2 = self.linear(r_out[:, :, :])
+        
+        return self.activation(r_out2)
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
     """
@@ -250,30 +272,35 @@ nvar  = 1 # Combinations of variables to test
 nlead = len(leads)
 
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
+expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i_%s_sqlen%i" % (season,resolution,indexregion,
+                                                                  netname,max_epochs,ens,len(leads)-1,
+                                                                  rnnname,sequence_len)
 
 # Load the data for whole North Atlantic
+# Data : [channel, ensemble, time, lat, lon]
+# Label: [ensemble, time]
 data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
 target = np.load('../../CESM_data/CESM_label_amv_index.npy')
 data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
 
 # Preallocate Evaluation Metrics...
-corr_grid_train = np.zeros((nlead))
-corr_grid_test  = np.zeros((nlead))
+#corr_grid_train = np.zeros((nlead))
+corr_grid_test  = []
 train_loss_grid = np.zeros((max_epochs,nlead))
 test_loss_grid  = np.zeros((max_epochs,nlead))
 
 # Print Message
-print("Running CNN_test_lead_ann.py with the following settings:")
-print("\tNetwork Type   : "+netname)
-print("\tPred. Region   : "+indexregion)
-print("\tPred. Season   : "+season)
-print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
-print("\tMax Epochs     : " + str(max_epochs))
-print("\tEarly Stop     : " + str(early_stop))
-print("\t# Ens. Members : "+ str(ens))
-print("\tOptimizer      : "+ opt[0])
+print("Running ENN_test_lead_ann.py with the following settings:")
+print("\tNetwork Type       : "+netname)
+print("\tRNN Type           : "+rnnname)
+print("\tSequence Length    : "+str(sequence_len))
+print("\tFeatures Extracted : "+str(cnn_out))
+print("\tLeadtimes          : %i to %i" % (leads[0],leads[-1]))
+print("\tMax Epochs         : " + str(max_epochs))
+print("\tEarly Stop         : " + str(early_stop))
+print("\t# Ens. Members     : "+ str(ens))
+print("\tOptimizer          : "+ opt[0])
 # ----------------------------------------------
 # %% Train for each variable combination and lead time
 # ----------------------------------------------
@@ -293,36 +320,66 @@ for v in range(nvar): # Loop for each variable
     ytrainlabels = []
     yvalpred     = []
     yvallabels   = []
+    
     for l,lead in enumerate(leads):
         if checkgpu:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             device = torch.device('cpu')
-        print("Starting lead %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
+        #print("Starting lead %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
         # ----------------------
         # Apply lead/lag to data
         # ----------------------
-        y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-        X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),244,244).transpose(1,0,2,3)
+        y = target[:ens,lead:]
+        X = (data[:,:,:tstep-lead,:,:].transpose(1,2,0,3,4)) # [Transpose to ens x time x channel x lat x lon]
         
         # ---------------------------------
         # Split into training and test sets
         # ---------------------------------
-        X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:].astype(np.float32) )
-        X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:,:,:].astype(np.float32) )
-        y_train = torch.from_numpy(  y[0:int(np.floor(percent_train*(tstep-lead)*ens)),:].astype(np.float32)  )
-        y_val = torch.from_numpy( y[int(np.floor(percent_train*(tstep-lead)*ens)):,:].astype(np.float32)  )
+        X_train = torch.from_numpy( X[0:int(np.floor(percent_train*ens)),:,:,:,:].astype(np.float32) )
+        X_val = torch.from_numpy( X[int(np.floor(percent_train*ens)):,:,:,:,:].astype(np.float32) )
+        y_train = torch.from_numpy(  y[0:int(np.floor(percent_train*ens)),:,None].astype(np.float32)  )
+        y_val = torch.from_numpy( y[int(np.floor(percent_train*ens)):,:,None].astype(np.float32)  )
         
         # Put into pytorch DataLoader
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
         
         
+        # -----------------------
+        # Set up component models
+        # -----------------------
+        
+        # Set pretrained CNN as feature extractor
+        pmodel = transfer_model(netname,cnn_out)
+        
+        # Set either a LTSM or GRU unit
+        if rnnname == 'LSTM':
+            rnn = nn.LSTM(
+                    input_size=cnn_out,
+                    hidden_size=sequence_len,
+                    num_layers=rnn_layers,
+                    batch_first=True # Input is [batch,seq,feature]
+                    )
+        elif rnnname == 'GRU':
+            rnn = nn.GRU(
+                    input_size=cnn_out,
+                    hidden_size=sequence_len,
+                    num_layers=rnn_layers,
+                    batch_first=True # Input is [batch,seq,feature]
+                    )
+        
+        # Set fully-connected layer for classification
+        classifier = nn.Linear(sequence_len,outsize)
+        
+        # Combine all into sequence model
+        seqmodel = Combine(pmodel,rnn,classifier,outactivation)
+        
         # ---------------
         # Train the model
         # ---------------
-        pmodel = transfer_model(netname)
-        model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
+        
+        model,trainloss,testloss = train_ResNet(seqmodel,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
         
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
@@ -341,8 +398,6 @@ for v in range(nvar): # Loop for each variable
             # -----------------
             # Evalute the model
             # -----------------
-            y_pred_val = np.asarray([])
-            y_valdt    = np.asarray([])
             for i,vdata in enumerate(val_loader):
                 # Get mini batch
                 batch_x, batch_y = vdata
@@ -350,9 +405,13 @@ for v in range(nvar): # Loop for each variable
                 batch_y = batch_y.to(device)
                 
                 # Make prediction and concatenate
-                batch_pred = model(batch_x).squeeze()
-                y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
-                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
+                batch_pred = model(batch_x)
+                if i == 0:
+                    y_pred_val=batch_pred.detach().cpu().numpy().squeeze()
+                    y_valdt = batch_y.detach().cpu().numpy().squeeze()
+                else:
+                    y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy().squeeze()])
+                    y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
             
             
             
@@ -375,13 +434,18 @@ for v in range(nvar): # Loop for each variable
         yvalpred.append(y_pred_val)
         yvallabels.append(y_valdt)
         
-        # Get the correlation (save these)
-        #traincorr = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
-        testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
+        # Calculate correlation between each timeseries
+        testcorr = []
+        for i in range(y_pred_val.shape[0]):
+            testcorr.append(np.corrcoef( y_pred_val.T[i,:], y_valdt.T[i,:])[0,1])
+        #testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
+        
+        
+        
         
         # Stop if model is just predicting the same value (usually need to examine optimizer settings)
         #if np.isnan(traincorr) | np.isnan(testcorr):
-        if np.isnan(testcorr):
+        if np.any(np.isnan(testcorr)):
             print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
             if debug:
                 fig,ax=plt.subplots(1,1)
@@ -406,7 +470,7 @@ for v in range(nvar): # Loop for each variable
         if verbose:
             print("Correlation for lead %i was %f"%(lead,testcorr))
             
-        corr_grid_test[l]    = testcorr#np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
+        corr_grid_test.append(testcorr)#np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         #corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
         
         # Visualize loss vs epoch for training/testing and correlation
@@ -454,7 +518,7 @@ for v in range(nvar): # Loop for each variable
         del X_train
         del y_train
         torch.cuda.empty_cache()  # Save some memory
-        print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
+        #print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
     # -----------------
     # Save Eval Metrics
     # -----------------
