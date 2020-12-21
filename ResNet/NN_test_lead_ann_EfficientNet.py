@@ -45,7 +45,7 @@ batch_size    = 32                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
-netname       = 'resnet50'#'ResNet50'
+netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
 resolution    = '244pix'
 tstep         = 86
 outpath       = ''
@@ -65,6 +65,7 @@ def transfer_model(modelname):
         model = timm.create_model(modelname)
         # Freeze all layers except the last
         for param in model.parameters():
+   
             param.requires_grad = False
         model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
     else: # Load from timm
