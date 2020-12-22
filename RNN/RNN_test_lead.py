@@ -39,12 +39,11 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
-
 # Model architecture settings
-netname       = 'tf_efficientnet_b7_ns'            # Name of pretrained network (timm module)
+netname       = 'resnet50'# Name of pretrained network (timm module)
 rnnname       = 'LSTM'                # LSTM or GRU
-sequence_len  = 12                    # Length of sequence (same units as data [years])
-cnn_out       = 3                     # Number of features to be extracted by CNN and input into RNN
+sequence_len  = 5                     # Length of sequence (same units as data [years])
+cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = torch.tanh            # Activation for final output
@@ -93,11 +92,12 @@ class Combine(nn.Module):
         c_in = x.view(batch_size * timesteps, C, H, W)   # Combine batch + time
         c_out = self.cnn(c_in)                           # Extract features
         r_in = c_out.view(batch_size, timesteps, -1)     # Separate batch + time
-        #r_out, (h_n, h_c) = self.rnn(r_in)               # Pass through RNN
-        self.rnn.flatten_parameters()  # Suppress warning 
-        r_out,_ = self.rnn(r_in) # Pass through RNN
+        #r_out, (h_n, h_c) = self.rnn(r_in)               
+        self.rnn.flatten_parameters()                    # Suppress warning 
+        r_out,_ = self.rnn(r_in)                         # Pass through RNN 
         r_out2 = self.linear(r_out[:, :, :])             # Classify
         return self.activation(r_out2)
+    
 
 def transfer_model(modelname,outsize):
     """
