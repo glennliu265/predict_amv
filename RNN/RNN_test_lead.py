@@ -41,7 +41,7 @@ tstep         = 86    # Size of time dimension
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 1                    # Maximum number of epochs
+max_epochs    = 1                     # Maximum number of epochs
 batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
@@ -103,7 +103,7 @@ class Combine(nn.Module):
         self.cnn        = feature_extractor # Pretrained CNN (last layer unfrozen)
         self.rnn        = rnn # RNN unit (LSTM or GRU)
         self.linear     = classifier # Classifier Layer
-        self.activation = activation
+        self.activation = activation # activation funcion
     
     def forward(self, x):
         batch_size, timesteps, C, H, W = x.size()
@@ -118,7 +118,7 @@ class Combine(nn.Module):
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
     """
     inputs:
-        model       - Resnet model
+        model       - model
         loss_fn     - (torch.nn) loss function
         opt         - tuple of [optimizer_name, learning_rate, weight_decay] for updating the weights
                       currently supports "Adadelta" and "SGD" optimizers
@@ -252,7 +252,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                     return bestmodel,train_loss,test_loss  
             
             # Clear some memory
-            print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
+            #print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
             del batch_x
             del batch_y
             torch.cuda.empty_cache() 
@@ -385,7 +385,7 @@ for v in range(nvar): # Loop for each variable
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
         
-        print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
+        #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
         # -----------------------------------------------
         # Pass to GPU or CPU for evaluation of best model
         # -----------------------------------------------
@@ -437,7 +437,7 @@ for v in range(nvar): # Loop for each variable
         # Calculate correlation between each timeseries
         testcorr = []
         for i in range(y_pred_val.shape[0]):
-            testcorr.append(np.corrcoef( y_pred_val.T[i,:], y_valdt.T[i,:])[0,1])
+            testcorr.append(np.corrcoef( y_pred_val[i,:], y_valdt[i,:])[0,1])
         #testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
         
         
@@ -468,7 +468,7 @@ for v in range(nvar): # Loop for each variable
         
         # Calculate Correlation and RMSE
         if verbose:
-            print("Correlation for lead %i was %f"%(lead,testcorr))
+            print("Correlation for lead %i was %f"%(lead,np.mean(testcorr)))
             
         corr_grid_test.append(testcorr)#np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         #corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
@@ -519,20 +519,20 @@ for v in range(nvar): # Loop for each variable
         del y_train
         torch.cuda.empty_cache()  # Save some memory
         #print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
-    # -----------------
-    # Save Eval Metrics
-    # -----------------
-    np.savez("../../CESM_data/Metrics"+outname,**{
-             'train_loss': train_loss_grid,
-             'test_loss': test_loss_grid,
-             'test_corr': corr_grid_test,
-             #'train_corr': corr_grid_train,
-             #'ytrainpred': ytrainpred,
-             #'ytrainlabels': ytrainlabels,
-             'yvalpred': yvalpred,
-             'yvallabels' : yvallabels
-             }
-            )
+        # -----------------
+        # Save Eval Metrics
+        # -----------------
+        np.savez("../../CESM_data/Metrics"+outname,**{
+                 'train_loss': train_loss_grid,
+                 'test_loss': test_loss_grid,
+                 'test_corr': corr_grid_test,
+                 #'train_corr': corr_grid_train,
+                 #'ytrainpred': ytrainpred,
+                 #'ytrainlabels': ytrainlabels,
+                 'yvalpred': yvalpred,
+                 'yvallabels' : yvallabels
+                 }
+                )
     print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 
 
