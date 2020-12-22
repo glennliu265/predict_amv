@@ -30,7 +30,7 @@ import timm
 # -------------
     
 # Data preparation settings
-leads          = np.arange(17,25,1)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(20,25,1)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
@@ -41,7 +41,7 @@ ens           = 40    # Ensemble members to use
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 32                    # Pairs of predictions
+batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
@@ -51,9 +51,10 @@ tstep         = 86
 outpath       = ''
 
 # Options
-debug   = True # Visualize training and testing loss
-verbose = True # Print loss for each epoch
+debug    = True # Visualize training and testing loss
+verbose  = True # Print loss for each epoch
 checkgpu = True # Set to true to check for GPU otherwise run on CPU
+savemodel = False # Set to true to save model dict.
 # -----------
 #%% Functions
 # -----------
@@ -233,7 +234,7 @@ nvar  = 1 # Combinations of variables to test
 nlead = len(leads)
 
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-expname = "%s%s_%s_%s_nepoch%02i_nens%02i_17-lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
+expname = "%s%s_%s_%s_nepoch%02i_nens%02i_20-lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
 
 # Load the data for whole North Atlantic
 data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
@@ -349,9 +350,10 @@ for v in range(nvar): # Loop for each variable
         # --------------
         # Save the model
         # --------------
-        modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
-        torch.save(model.state_dict(),modout)
-
+        if savemodel:
+            modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
+            torch.save(model.state_dict(),modout)
+            
         # Save the actual and predicted values
         #ytrainpred.append(y_pred_train)
         #ytrainlabels.append(y_traindt)
