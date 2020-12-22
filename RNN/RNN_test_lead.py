@@ -42,11 +42,12 @@ tstep         = 86    # Size of time dimension (in years)
 # Model architecture settings
 netname       = 'resnet50'# Name of pretrained network (timm module)
 rnnname       = 'LSTM'                # LSTM or GRU
-sequence_len  = 5                     # Length of sequence (same units as data [years])
+hidden_size   = 5                     # The size of the hidden layer in the RNN
 cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = torch.tanh            # Activation for final output
+seq_len       =  5                    # Length of sequence (same units as data [years])
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
@@ -95,9 +96,12 @@ class Combine(nn.Module):
         #r_out, (h_n, h_c) = self.rnn(r_in)               
         self.rnn.flatten_parameters()                    # Suppress warning 
         r_out,_ = self.rnn(r_in)                         # Pass through RNN 
-        r_out2 = self.linear(r_out[:, :, :])             # Classify
+        r_out2 = self.linear(r_out[:, -1, :])             # Classify
         return self.activation(r_out2)
+            
+        
     
+
 
 def transfer_model(modelname,outsize):
     """
@@ -204,7 +208,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                 # Forward pass
                 pred_y = model(batch_x)
                 
-                # Calculate losslay
+                # Calculate loss
                 loss = loss_fn(pred_y,batch_y)
                 
                 # Update weights
@@ -254,8 +258,54 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
                 
     #bestmodel.load_state_dict(best_model_wts)         
-    return bestmodel,train_loss,test_loss         
+    return bestmodel,train_loss,test_loss
+         
+def make_sequences(X,y,seq_len):
+        
+        """
+        Prepares inputs and labels for input in RNN. Splits in sequences of
+        length [sequence length] and combines the ensemble and sample dimensions
+        
+        Inputs
+        ------
+            1. X [ndarray: ens x time x channel x lat x lon]: Input 2d maps (predictors)
+            2. y [ndarray: ens x time]: Labels for actual values  
+        
+        Outputs
+        -------
+            1. Xseq [ndarray: ens*sample x time x channel x lat x lon]
+            2. yseq [ndarray: ens*sample]
+        
+        """
 
+        nens,ntime,nchan,nlat,nlon = X.shape
+        
+        nsamples= ntime-seq_len
+        
+        Xseq = np.zeros([nens,nsamples,seq_len,nchan,nlat,nlon])
+        yseq = np.zeros([nens,nsamples])
+        
+        for i in range(ntime):
+            # Find end of pattern
+            end_ix = i+seq_len
+            
+            # Check if index is at end of timeseries
+            if end_ix > ntime-1: # leave 1 for the label
+                #print(i)
+                break
+            
+            # Gather input/output:
+            seqx,seqy = X[:,i:end_ix,...],y[:,end_ix]
+            
+            # Save in output
+            Xseq[:,i,...] = seqx
+            yseq[:,i] = seqy
+        
+        # Combine the n_samples and n_ens  dimensions
+        Xseq = Xseq.reshape(nens*nsamples,seq_len,nchan,nlat,nlon)
+        yseq = yseq.reshape(nens*nsamples)
+        
+        return Xseq,yseq
 # ----------------------------------------
 
 # %% Set-up
@@ -270,7 +320,7 @@ varname = 'ALL'
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
 expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i_%s_sqlen%i" % (season,resolution,indexregion,
                                                                   netname,max_epochs,ens,len(leads)-1,
-                                                                  rnnname,sequence_len)
+                                                                  rnnname,hidden_size)
 # Load the data for whole North Atlantic
 # Data : [channel, ensemble, time, lat, lon]
 # Label: [ensemble, time]
@@ -290,7 +340,7 @@ yvallabels      = []
 print("Running ENN_test_lead_ann.py with the following settings:")
 print("\tNetwork Type       : "+netname)
 print("\tRNN Type           : "+rnnname)
-print("\tSequence Length    : "+str(sequence_len))
+print("\tRNN hiddden states : "+str(hidden_size))
 print("\tFeatures Extracted : "+str(cnn_out))
 print("\tLeadtimes          : %i to %i" % (leads[0],leads[-1]))
 print("\tMax Epochs         : " + str(max_epochs))
@@ -322,13 +372,24 @@ for l,lead in enumerate(leads):
     y = target[:ens,lead:]
     X = (data[:,:,:tstep-lead,:,:].transpose(1,2,0,3,4)) # [Transpose to ens x time x channel x lat x lon]
     
+    
+    # -------------------------
+    # Preprocess into sequences
+    # -------------------------
+    Xseq,yseq = make_sequences(X,y,seq_len)
+    
+    nsamples = Xseq.shape[0]
+
+    
     # ---------------------------------
     # Split into training and test sets
     # ---------------------------------
-    X_train = torch.from_numpy( X[0:int(np.floor(percent_train*ens)),:,:,:,:].astype(np.float32) )
-    X_val = torch.from_numpy( X[int(np.floor(percent_train*ens)):,:,:,:,:].astype(np.float32) )
-    y_train = torch.from_numpy(  y[0:int(np.floor(percent_train*ens)),:,None].astype(np.float32)  )
-    y_val = torch.from_numpy( y[int(np.floor(percent_train*ens)):,:,None].astype(np.float32)  )
+    
+    X_train = torch.from_numpy( Xseq[0:int(np.floor(percent_train*nsamples)),...].astype(np.float32) )
+    X_val = torch.from_numpy( Xseq[int(np.floor(percent_train*nsamples)):,...].astype(np.float32) )
+    
+    y_train = torch.from_numpy(  yseq[0:int(np.floor(percent_train*nsamples)),None].astype(np.float32)  )
+    y_val = torch.from_numpy( yseq[int(np.floor(percent_train*nsamples)):,None].astype(np.float32)  )
     
     # Put into pytorch DataLoader
     train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size,num_workers=4)
@@ -344,20 +405,20 @@ for l,lead in enumerate(leads):
     if rnnname == 'LSTM':
         rnn = nn.LSTM(
                 input_size=cnn_out,
-                hidden_size=sequence_len,
+                hidden_size=hidden_size,
                 num_layers=rnn_layers,
                 batch_first=True # Input is [batch,seq,feature]
                 )
     elif rnnname == 'GRU':
         rnn = nn.GRU(
                 input_size=cnn_out,
-                hidden_size=sequence_len,
+                hidden_size=hidden_size,
                 num_layers=rnn_layers,
                 batch_first=True # Input is [batch,seq,feature]
                 )
     
     # Set fully-connected layer for classification
-    classifier = nn.Linear(sequence_len,outsize)
+    classifier = nn.Linear(hidden_size,outsize)
     
     # Combine all into sequence model
     seqmodel = Combine(pmodel,rnn,classifier,outactivation)
