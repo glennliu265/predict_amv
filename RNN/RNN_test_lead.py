@@ -28,9 +28,9 @@ import timm
 # -------------
 #%% User Edits
 # -------------
-    
+
 # Data preparation settings
-leads           = np.arange(1,2,1)    # Time ahead (in years) to forecast AMV
+leads           = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
