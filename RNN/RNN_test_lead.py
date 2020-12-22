@@ -503,7 +503,7 @@ for v in range(nvar): # Loop for each variable
             ax.legend()
             ax.set_xlabel("Actual AMV Index")
             ax.set_ylabel("Predicted AMV Index")
-            ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(corr_grid_test[l],varname,lead))
+            ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(np.mean(corr_grid_test[l]),varname,lead))
             plt.show()
             plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
         
