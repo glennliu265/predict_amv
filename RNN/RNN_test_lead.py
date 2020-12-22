@@ -58,9 +58,10 @@ resolution    = '224pix'
 outpath       = ''
 
 # Options
-debug    = True # Visualize training and testing loss
-verbose  = True # Print loss for each epoch
-checkgpu = True # Set to true to check for GPU otherwise run on CPU
+debug     = True  # Visualize training and testing loss
+verbose   = True  # Print loss for each epoch
+checkgpu  = True  # Set to true to check for GPU otherwise run on CPU
+savemodel = False # Set to true to save model dict.
 # -----------
 #%% Functions
 # -----------
@@ -301,6 +302,7 @@ print("\tMax Epochs         : " + str(max_epochs))
 print("\tEarly Stop         : " + str(early_stop))
 print("\t# Ens. Members     : "+ str(ens))
 print("\tOptimizer          : "+ opt[0])
+
 # ----------------------------------------------
 # %% Train for each variable combination and lead time
 # ----------------------------------------------
@@ -378,7 +380,6 @@ for v in range(nvar): # Loop for each variable
         # ---------------
         # Train the model
         # ---------------
-        
         model,trainloss,testloss = train_ResNet(seqmodel,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
         
         # Save train/test loss
@@ -386,18 +387,15 @@ for v in range(nvar): # Loop for each variable
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
         
         #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
+        
         # -----------------------------------------------
         # Pass to GPU or CPU for evaluation of best model
         # -----------------------------------------------
         with torch.no_grad():
-            #model.to(device)
-            #X_train,X_val=X_train.to(device),X_val.to(device)
-            X_val = X_val.to(device)
-            #y_train,y_val=y_train.to(device),y_val.to(device)
-            model.eval()
             # -----------------
             # Evalute the model
             # -----------------
+            model.eval()
             for i,vdata in enumerate(val_loader):
                 # Get mini batch
                 batch_x, batch_y = vdata
@@ -425,12 +423,11 @@ for v in range(nvar): # Loop for each variable
         # --------------
         # Save the model
         # --------------
-        modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
-        torch.save(model.state_dict(),modout)
+        if savemodel:
+            modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
+            torch.save(model.state_dict(),modout)
 
         # Save the actual and predicted values
-        #ytrainpred.append(y_pred_train)
-        #ytrainlabels.append(y_traindt)
         yvalpred.append(y_pred_val)
         yvallabels.append(y_valdt)
         
@@ -438,10 +435,6 @@ for v in range(nvar): # Loop for each variable
         testcorr = []
         for i in range(y_pred_val.shape[0]):
             testcorr.append(np.corrcoef( y_pred_val[i,:], y_valdt[i,:])[0,1])
-        #testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
-        
-        
-        
         
         # Stop if model is just predicting the same value (usually need to examine optimizer settings)
         #if np.isnan(traincorr) | np.isnan(testcorr):
@@ -475,6 +468,8 @@ for v in range(nvar): # Loop for each variable
         
         # Visualize loss vs epoch for training/testing and correlation
         if debug:
+            
+            # Train vs Test Loss Plot
             fig,ax=plt.subplots(1,1)
             plt.style.use('seaborn')
             ax.plot(trainloss,label='train loss')
@@ -484,14 +479,10 @@ for v in range(nvar): # Loop for each variable
             plt.show()
             plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
             
-            
+            # Scatterplot of predictions vs Labels
             fig,ax=plt.subplots(1,1)
             plt.style.use('seaborn')
-            #ax.plot(y_pred_train,label='train corr')
-            #ax.plot(y_pred_val,label='test corr')
-            #ax.plot(y_valdt,label='truth')
             ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
-            #ax.scatter(y_pred_train,y_traindt,label="Train",marker='x',zorder=1,alpha=0.3)
             ax.legend()
             ax.set_ylim([-1.5,1.5])
             ax.set_xlim([-1.5,1.5])
@@ -506,9 +497,7 @@ for v in range(nvar): # Loop for each variable
             ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(np.mean(corr_grid_test[l]),varname,lead))
             plt.show()
             plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
-        
 
-        
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
         
         # Clear some memory
@@ -519,6 +508,7 @@ for v in range(nvar): # Loop for each variable
         del y_train
         torch.cuda.empty_cache()  # Save some memory
         #print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
+        
         # -----------------
         # Save Eval Metrics
         # -----------------
