@@ -41,7 +41,7 @@ tstep         = 86    # Size of time dimension (in years)
 
 
 # Model architecture settings
-netname       = 'resnet50'            # Name of pretrained network (timm module)
+netname       = 'tf_efficientnet_b7_ns'            # Name of pretrained network (timm module)
 rnnname       = 'LSTM'                # LSTM or GRU
 sequence_len  = 12                    # Length of sequence (same units as data [years])
 cnn_out       = 3                     # Number of features to be extracted by CNN and input into RNN
