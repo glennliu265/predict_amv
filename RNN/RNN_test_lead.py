@@ -41,12 +41,12 @@ tstep         = 86    # Size of time dimension
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 1                     # Maximum number of epochs
+max_epochs    = 20                     # Maximum number of epochs
 batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 
-netname       = 'tf_efficientnet_b7_ns' # Name of pretrained network (timm module)
+netname       = 'resnet50' # Name of pretrained network (timm module)
 rnnname       = 'LSTM'                  # LSTM or GRU
 sequence_len  = 12                      # Length of sequence (same units as data)
 cnn_out       = 3                       # Number of features to be extracted by CNN and input into RNN
