@@ -40,19 +40,19 @@ ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
-netname       = 'resnet50'# Name of pretrained network (timm module)
+netname       = 'resnet50'            # Name of pretrained network (timm module)
 rnnname       = 'LSTM'                # LSTM or GRU
-hidden_size   = 5                     # The size of the hidden layer in the RNN
+hidden_size   = 30                    # The size of the hidden layer in the RNN
 cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
-rnn_layers    = 1                     # Number of rnn layers
+rnn_layers    = 2                     # Number of rnn layers
 outsize       = 1                     # Final output size
-outactivation = torch.tanh            # Activation for final output
-seq_len       =  5                    # Length of sequence (same units as data [years])
+outactivation = False                 # Activation for final output
+seq_len       = 5                    # Length of sequence (same units as data [years])
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 4                     # Number of ensemble members to use per step
+max_epochs    = 5                    # Maximum number of epochs
+batch_size    = 16                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 
@@ -81,7 +81,7 @@ class Combine(nn.Module):
         3) classifier [nn.Linear] - Fully connected layer for classification
         4) activation [function[ - Activation function for final output
     """
-    def __init__(self,feature_extractor,rnn,classifier,activation):
+    def __init__(self,feature_extractor,rnn,classifier,activation=False):
         super(Combine, self).__init__()
         self.cnn        = feature_extractor # Pretrained CNN (last layer unfrozen)
         self.rnn        = rnn               # RNN unit (LSTM or GRU)
@@ -97,13 +97,16 @@ class Combine(nn.Module):
         self.rnn.flatten_parameters()                    # Suppress warning 
         r_out,_ = self.rnn(r_in)                         # Pass through RNN 
         r_out2 = self.linear(r_out[:, -1, :])             # Classify
-        return self.activation(r_out2)
+        if ~self.activation:
+            return r_out2
+        else:
+            return self.activation(r_out2)
             
         
     
 
 
-def transfer_model(modelname,outsize):
+def transfer_model(modelname,outsize,freeze_all=False):
     """
     Loads in pretrained model [modelname] for feature extraction
     All weights are frozen except the last layer, which is replaced with 
@@ -122,10 +125,14 @@ def transfer_model(modelname,outsize):
     for param in model.parameters():
         param.requires_grad = False
     
+    if freeze_all: # Freeze all weights
+        return model
+    
     if modelname == 'resnet50': # Load from torchvision
         model.fc = nn.Linear(model.fc.in_features, outsize)
     else:
         model.classifier = nn.Linear(model.classifier.in_features,outsize)
+    
     return model
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
@@ -342,13 +349,12 @@ print("\tNetwork Type       : "+netname)
 print("\tRNN Type           : "+rnnname)
 print("\tRNN hiddden states : "+str(hidden_size))
 print("\tFeatures Extracted : "+str(cnn_out))
+print("\tSequence Length    : "+str(seq_len))
 print("\tLeadtimes          : %i to %i" % (leads[0],leads[-1]))
 print("\tMax Epochs         : " + str(max_epochs))
 print("\tEarly Stop         : " + str(early_stop))
 print("\t# Ens. Members     : "+ str(ens))
 print("\tOptimizer          : "+ opt[0])
-
-
 
 # Check if device has GPU
 if checkgpu:
@@ -365,7 +371,6 @@ for l,lead in enumerate(leads):
     # Set output path
     outname = "/leadtime_testing_%s_%s_leadnum%02i.npz" % (varname,expname,lead)
     
-
     # ----------------------
     # Apply lead/lag to data
     # ----------------------
@@ -377,7 +382,6 @@ for l,lead in enumerate(leads):
     # Preprocess into sequences
     # -------------------------
     Xseq,yseq = make_sequences(X,y,seq_len)
-    
     nsamples = Xseq.shape[0]
 
     
@@ -443,31 +447,28 @@ for l,lead in enumerate(leads):
         # -----------------
         model.eval()
         for i,vdata in enumerate(val_loader):
+            
+            
             # Get mini batch
             batch_x, batch_y = vdata
             batch_x = batch_x.to(device)
             batch_y = batch_y.to(device)
-            
+
             # Make prediction and concatenate for each batch
             batch_pred = model(batch_x)
+            
             if i == 0:
                 y_pred_val=batch_pred.detach().cpu().numpy().squeeze()
                 y_valdt = batch_y.detach().cpu().numpy().squeeze()
             else:
-                y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy().squeeze()])
-                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])    
+                y_pred_val = np.hstack([y_pred_val,batch_pred.detach().cpu().numpy().squeeze()])
+                y_valdt = np.hstack([y_valdt,batch_y.detach().cpu().numpy().squeeze()])    
     
-    # Save the actual and predicted values
-    #yvalpred.append(y_pred_val)
-    #yvallabels.append(y_valdt)
-    
-    # Calculate correlation between prediction+label for each member in validation set
-    testcorr = []
-    for i in range(y_pred_val.shape[0]):
-        testcorr.append(np.corrcoef( y_pred_val[i,:], y_valdt[i,:])[0,1])
-    
+    # Calculate correlation between prediction+label 
+    testcorr = np.corrcoef( y_pred_val[:].T, y_valdt[:].T)[0,1]
+
     if verbose:
-        print("Correlation for lead %i was %f"%(lead,np.mean(testcorr)))
+        print("Correlation for lead %i was %f"%(lead,testcorr))
     corr_grid_test.append(testcorr)
     
     # --------------
