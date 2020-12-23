@@ -40,7 +40,7 @@ ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
-netname       = 'resnet50'            # Name of pretrained network (timm module)
+netname       = 'tf_efficientnet_b7_ns'            # Name of pretrained network (timm module)
 rnnname       = 'LSTM'                # LSTM or GRU
 hidden_size   = 30                    # The size of the hidden layer in the RNN
 cnn_out       = 1000                      # Number of features to be extracted by CNN and input into RNN
@@ -54,7 +54,7 @@ early_stop    = 2                     # Number of epochs where validation loss i
 max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.0  1,0]    # Name optimizer
+opt           = ['Adadelta',.01,0]    # Name optimizer
 
 # Misc. saving options
 resolution    = '224pix'
@@ -538,7 +538,7 @@ for l,lead in enumerate(leads):
         plt.show()
         plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
 
-    print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
+    print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
     
     # Clear some memory
     del model
