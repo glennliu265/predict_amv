@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+        #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Created on Wed Dec 16 21:10:05 2020
@@ -43,8 +43,10 @@ print("Normalized Data")
 lat = sst_ds.lat
 lon = sst_ds.lon
 
-lat_out = np.linspace(lat[0],lat[-1],244)
-lon_out = np.linspace(lon[0],lon[-1],244)
+#lat_out = np.linspace(lat[0],lat[-1],244)
+#lon_out = np.linspace(lon[0],lon[-1],244)
+lat_out = np.linspace(lat[0],lat[-1],224)
+lon_out = np.linspace(lon[0],lon[-1],224)
 
 
 ds_out = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
