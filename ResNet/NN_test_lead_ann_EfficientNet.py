@@ -30,7 +30,7 @@ import timm
 # -------------
     
 # Data preparation settings
-leads          = np.arange(20,25,1)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
@@ -75,6 +75,7 @@ def transfer_model(modelname):
         for param in model.parameters():
             param.requires_grad = False
         model.classifier=nn.Linear(model.classifier.in_features,1)
+        
     return model
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
