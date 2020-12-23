@@ -44,15 +44,15 @@ netname       = 'resnet50'            # Name of pretrained network (timm module)
 rnnname       = 'LSTM'                # LSTM or GRU
 hidden_size   = 30                    # The size of the hidden layer in the RNN
 cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
-rnn_layers    = 2                     # Number of rnn layers
+rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
-seq_len       = 5                    # Length of sequence (same units as data [years])
+seq_len       = 10                    # Length of sequence (same units as data [years])
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
 max_epochs    = 5                    # Maximum number of epochs
-batch_size    = 16                     # Number of ensemble members to use per step
+batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 
