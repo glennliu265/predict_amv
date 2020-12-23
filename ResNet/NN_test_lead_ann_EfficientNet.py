@@ -290,7 +290,7 @@ for v in range(nvar): # Loop for each variable
         # Apply lead/lag to data
         # ----------------------
         y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-        X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),244,244).transpose(1,0,2,3)
+        X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
         
         # ---------------------------------
         # Split into training and test sets
