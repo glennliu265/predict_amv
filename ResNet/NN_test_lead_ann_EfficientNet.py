@@ -62,15 +62,17 @@ savemodel = False # Set to true to save model dict.
 def transfer_model(modelname):
     
     if modelname == 'resnet50': # Load from torchvision
+        
         #model = models.resnet50(pretrained=True) # read in resnet model
-        model = timm.create_model(modelname)
+        model = timm.create_model(modelname,pretrained=True)
         # Freeze all layers except the last
         for param in model.parameters():
    
             param.requires_grad = False
         model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
+        
     else: # Load from timm
-        model = timm.create_model(modelname)
+        model = timm.create_model(modelname,pretrained=True)
         # Freeze all layers except the last
         for param in model.parameters():
             param.requires_grad = False

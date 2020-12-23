@@ -30,7 +30,7 @@ import timm
 # -------------------
 
 # Data preparation settings
-leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
@@ -54,7 +54,7 @@ early_stop    = 2                     # Number of epochs where validation loss i
 max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.01,0]    # Name optimizer
+opt           = ['Adadelta',.0  1,0]    # Name optimizer
 
 # Misc. saving options
 resolution    = '224pix'
@@ -121,7 +121,7 @@ def transfer_model(modelname,outsize,freeze_all=False):
     
     """
     # Load Model
-    model = timm.create_model(modelname)
+    model = timm.create_model(modelname,pretrained=True)
     
     # Freeze all layers except the last
     for param in model.parameters():
