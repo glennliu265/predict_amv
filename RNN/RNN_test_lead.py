@@ -289,8 +289,8 @@ def make_sequences(X,y,seq_len):
         
         nsamples= ntime-seq_len
         
-        Xseq = np.zeros([nens,nsamples,seq_len,nchan,nlat,nlon])
-        yseq = np.zeros([nens,nsamples])
+        Xseq = np.zeros([nens,nsamples,seq_len,nchan,nlat,nlon],dtype=np.float32)
+        yseq = np.zeros([nens,nsamples],dtype=np.float32)
         
         for i in range(ntime):
             # Find end of pattern
@@ -374,8 +374,8 @@ for l,lead in enumerate(leads):
     # ----------------------
     # Apply lead/lag to data
     # ----------------------
-    y = target[:ens,lead:]
-    X = (data[:,:,:tstep-lead,:,:].transpose(1,2,0,3,4)) # [Transpose to ens x time x channel x lat x lon]
+    y = target[:ens,lead:].astype(np.float32)
+    X = (data[:,:,:tstep-lead,:,:].transpose(1,2,0,3,4)).astype(np.float32) # [Transpose to ens x time x channel x lat x lon]
     
     
     # -------------------------
@@ -389,11 +389,11 @@ for l,lead in enumerate(leads):
     # Split into training and test sets
     # ---------------------------------
     
-    X_train = torch.from_numpy( Xseq[0:int(np.floor(percent_train*nsamples)),...].astype(np.float32) )
-    X_val = torch.from_numpy( Xseq[int(np.floor(percent_train*nsamples)):,...].astype(np.float32) )
+    X_train = torch.from_numpy( Xseq[0:int(np.floor(percent_train*nsamples)),...].astype(np.float32))
+    X_val = torch.from_numpy( Xseq[int(np.floor(percent_train*nsamples)):,...].astype(np.float32))
     
-    y_train = torch.from_numpy(  yseq[0:int(np.floor(percent_train*nsamples)),None].astype(np.float32)  )
-    y_val = torch.from_numpy( yseq[int(np.floor(percent_train*nsamples)):,None].astype(np.float32)  )
+    y_train = torch.from_numpy(  yseq[0:int(np.floor(percent_train*nsamples)),None].astype(np.float32))
+    y_val = torch.from_numpy( yseq[int(np.floor(percent_train*nsamples)):,None].astype(np.float32))
     
     # Put into pytorch DataLoader
     train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size,num_workers=4)
