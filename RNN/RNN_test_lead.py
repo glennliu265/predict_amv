@@ -43,15 +43,15 @@ tstep         = 86    # Size of time dimension (in years)
 netname       = 'resnet50'            # Name of pretrained network (timm module)
 rnnname       = 'LSTM'                # LSTM or GRU
 hidden_size   = 30                    # The size of the hidden layer in the RNN
-cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
+cnn_out       = 1000                      # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
-seq_len       = 10                    # Length of sequence (same units as data [years])
+seq_len       = 5                    # Length of sequence (same units as data [years])
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 5                    # Maximum number of epochs
+max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
@@ -61,11 +61,11 @@ resolution    = '224pix'
 outpath       = ''
 
 # Options
-debug     = True  # Visualize training and testing loss
-verbose   = True  # Print loss for each epoch
-checkgpu  = True  # Set to true to check for GPU otherwise run on CPU
-savemodel = False # Set to true to save model dict.
-
+debug      = True  # Visualize training and testing loss
+verbose    = True  # Print loss for each epoch
+checkgpu   = True  # Set to true to check for GPU otherwise run on CPU
+savemodel  = False # Set to true to save model dict.
+freeze_all = False # Freeze all layers
 # -----------------------
 #%% Functions and classes
 # -----------------------
@@ -116,6 +116,8 @@ def transfer_model(modelname,outsize,freeze_all=False):
     ------
         1) modelname [STR] - Name of model in timm module
         2) outsize [INT] - Output size for fine tuning
+        3) freeze_all [BOOL] - Set to True to freeze ALL weights , false to just
+                                freeze the last layer
     
     """
     # Load Model
@@ -403,7 +405,7 @@ for l,lead in enumerate(leads):
     # Set up component models
     # -----------------------
     # Set pretrained CNN as feature extractor
-    pmodel = transfer_model(netname,cnn_out)
+    pmodel = transfer_model(netname,cnn_out,freeze_all=freeze_all)
     
     # Set either a LTSM or GRU unit
     if rnnname == 'LSTM':
