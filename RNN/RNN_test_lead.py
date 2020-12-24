@@ -532,8 +532,8 @@ for l,lead in enumerate(leads):
                 ]
         ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
         ax.legend()
-        ax.set_xlabel("Actual AMV Index")
-        ax.set_ylabel("Predicted AMV Index")
+        ax.set_ylabel("Actual AMV Index")
+        ax.set_xlabel("Predicted AMV Index")
         ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(np.mean(corr_grid_test[l]),varname,lead))
         plt.show()
         plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))

@@ -237,7 +237,7 @@ nvar  = 1 # Combinations of variables to test
 nlead = len(leads)
 
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-expname = "%s%s_%s_%s_nepoch%02i_nens%02i_20-lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
+expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
 
 # Load the data for whole North Atlantic
 data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
@@ -425,8 +425,8 @@ for v in range(nvar): # Loop for each variable
                     ]
             ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
             ax.legend()
-            ax.set_xlabel("Actual AMV Index")
-            ax.set_ylabel("Predicted AMV Index")
+            ax.set_ylabel("Actual AMV Index")
+            ax.set_xlabel("Predicted AMV Index")
             ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(corr_grid_test[l],varname,lead))
             plt.show()
             plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
