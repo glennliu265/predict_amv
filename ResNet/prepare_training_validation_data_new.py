@@ -12,8 +12,7 @@ import numpy as np
 import xarray as xr
 import xesmf as xe
 
-
-# 
+#
 sst_ds = xr.open_dataset('../../CESM_data/CESM1LE_sst_NAtl_19200101_20051201.nc',chunks={'ensemble':1})['sst'][0:69,8:-16,:,:].astype(np.float32)
 sss_ds = xr.open_dataset('../../CESM_data/CESM1LE_sss_NAtl_19200101_20051201.nc',chunks={'ensemble':1})['sss'][0:69,8:-32,:,:].astype(np.float32)
 psl_ds = xr.open_dataset('../../CESM_data/CESM1LE_psl_NAtl_19200101_20051201.nc',chunks={'ensemble':1})['psl'][0:69,8:-32,:,:].astype(np.float32)

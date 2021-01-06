@@ -44,6 +44,14 @@ tol  = 0.75 # Search Resolution
 bbox = [-90,20,0,90]
 # Debug option
 debug = True
+
+
+# %% Functions
+
+
+
+        
+    
 #%% Part 1: CESM Data
 
 st = time.time()

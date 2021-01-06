@@ -29,12 +29,12 @@ import copy
 # -------------
 
 # Indicate machine to set path
-machine='pdwang'
+machine='local-glenn'
 
 # Set directory and load data depending on machine
 if machine == 'local-glenn':
-    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/')
-    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/CNN/'
+    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/NNs/')
+    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/NNs/'
 
 else:
     outpath = os.getcwd()
@@ -84,7 +84,7 @@ elif netname == 'FNN2': # 2-layer Fully Connected NN
     outsize = 1
 
 # Options
-debug   = False # Visualize training and testing loss
+debug   = True # Visualize training and testing loss
 verbose = False # Print loss for each epoch
 
 # -----------
@@ -458,10 +458,7 @@ for v in range(nvar): # Loop for each variable
         # Put into pytorch DataLoader
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
-        
-        
-        
-        
+
         
         # -------------------------------
         # Initialize Network Architecture
@@ -614,7 +611,8 @@ for v in range(nvar): # Loop for each variable
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
-             'train_corr': corr_grid_train}
+             'train_corr': corr_grid_train
+             }
             )
     print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 
