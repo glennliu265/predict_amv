@@ -46,7 +46,7 @@ loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
 netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
-resolution    = '244pix'
+resolution    = '224pix'
 tstep         = 86
 outpath       = ''
 
@@ -59,7 +59,42 @@ savemodel = False # Set to true to save model dict.
 #%% Functions
 # -----------
 
+def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
+    """
+    For a series of N convolutional layers, calculate the size of the first fully-connected 
+    layer
+    
+    Inputs:
+        nx:           x dimensions of input
+        ny:           y dimensions of input
+        filtersize:   [ARRAY,length N] sizes of the filter in each layer [(x1,y1),[x2,y2]]
+        poolsize:     [ARRAY,length N] sizes of the maxpooling kernel in each layer
+        nchannels:    [ARRAY,] number of out_channels in each layer
+    output:
+        flattensize:  flattened dimensions of layer for input into FC layer
+    
+    """
+    
+    N = len(filtersizes)
+    xsizes = [nx]
+    ysizes = [ny]
+    fcsizes  = []
+    
+    for i in range(N):
+        
+        xsizes.append(np.floor((xsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
+        ysizes.append(np.floor((ysizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
+        
+        
+        xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
+        ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
+        
+        fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
+    
+    return int(fcsizes[-1])
+
 def transfer_model(modelname):
+    
     
     if modelname == 'resnet50': # Load from torchvision
         
@@ -70,7 +105,39 @@ def transfer_model(modelname):
    
             param.requires_grad = False
         model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
+    
+    elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
+        channels = 3
+        nlat = 224
+        nlon = 224
         
+        # 2 layer CNN settings 
+        nchannels     = [32,64]
+        filtersizes   = [[2,3],[3,3]]
+        filterstrides = [[1,1],[1,1]]
+        poolsizes     = [[2,3],[2,3]]
+        poolstrides   = [[2,3],[2,3]]
+        
+        firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+
+        layers = [
+                nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=poolsizes[0]),
+                              
+                nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                nn.ReLU(),
+                nn.MaxPool2d(kernel_size=poolsizes[1]),            
+                              
+                nn.Flatten(),
+                nn.Linear(in_features=firstlineardim,out_features=64),
+                nn.ReLU(),
+                  
+                #nn.Dropout(p=0.5),
+                nn.Linear(in_features=64,out_features=1)
+                ]
+        model = nn.Sequential(*layers) # Set up model
+    
     else: # Load from timm
         model = timm.create_model(modelname,pretrained=True)
         # Freeze all layers except the last
