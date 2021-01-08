@@ -251,10 +251,13 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                     lossprev = runningloss/len(data_loader)
                 else: # Add to counter if validation loss increases
                     if runningloss/len(data_loader) > lossprev:
+                        i_incr += 1 # Add to counter
                         if verbose:
-                            print("Validation loss has increased at epoch %i"%(epoch+1))
-                        i_incr += 1
-                        lossprev = runningloss/len(data_loader)
+                            print("Validation loss has increased at epoch %i, count=%i"%(epoch+1,i_incr))
+                    else:
+                        i_incr = 0 # Zero out counter
+                    lossprev = runningloss/len(data_loader)
+
 
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))

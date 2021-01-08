@@ -30,23 +30,23 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
+ens           = 1    # Ensemble members to use
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 128                   # Pairs of predictions
+batch_size    = 16                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.01,0]    # Name optimizer
+opt           = ['Adadelta',1,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
 #netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
-netname = 'simplecnn'
+netname       = 'resnet50'
 resolution    = '224pix'
 tstep         = 86
 outpath       = ''
@@ -275,10 +275,13 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                     lossprev = runningloss/len(data_loader)
                 else: # Add to counter if validation loss increases
                     if runningloss/len(data_loader) > lossprev:
+                        i_incr += 1 # Add to counter
                         if verbose:
-                            print("Validation loss has increased at epoch %i"%(epoch+1))
-                        i_incr += 1
-                        lossprev = runningloss/len(data_loader)
+                            print("Validation loss has increased at epoch %i, count=%i"%(epoch+1,i_incr))
+                        
+                    else:
+                        i_incr = 0 # Zero out counter
+                    lossprev = runningloss/len(data_loader)
 
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))
