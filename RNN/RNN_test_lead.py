@@ -73,7 +73,7 @@ freeze_all = False # Freeze all layers
 class Combine(nn.Module):
     """
     Model that combines a feature extractor, RNN (LSTM or GRU), and linear classifier
-    
+
     Inputs
     ------
         1) feature_extractor [nn.Module] - pretrained CNN with last layer unfrozen
@@ -87,54 +87,54 @@ class Combine(nn.Module):
         self.rnn        = rnn               # RNN unit (LSTM or GRU)
         self.linear     = classifier        # Classifier Layer
         self.activation = activation        # activation funcion
-    
+
     def forward(self, x):
         batch_size, timesteps, C, H, W = x.size()        # Get dimension sizes
         c_in = x.view(batch_size * timesteps, C, H, W)   # Combine batch + time
         c_out = self.cnn(c_in)                           # Extract features
         r_in = c_out.view(batch_size, timesteps, -1)     # Separate batch + time
-        #r_out, (h_n, h_c) = self.rnn(r_in)               
-        self.rnn.flatten_parameters()                    # Suppress warning 
-        r_out,_ = self.rnn(r_in)                         # Pass through RNN 
+        #r_out, (h_n, h_c) = self.rnn(r_in)
+        self.rnn.flatten_parameters()                    # Suppress warning
+        r_out,_ = self.rnn(r_in)                         # Pass through RNN
         r_out2 = self.linear(r_out[:, -1, :])             # Classify
         if ~self.activation:
             return r_out2
         else:
             return self.activation(r_out2)
-            
-        
-    
+
+
+
 
 
 def transfer_model(modelname,outsize,freeze_all=False):
     """
     Loads in pretrained model [modelname] for feature extraction
-    All weights are frozen except the last layer, which is replaced with 
+    All weights are frozen except the last layer, which is replaced with
     a fully-connected layer with output size [outsize].
-    
+
     Inputs
     ------
         1) modelname [STR] - Name of model in timm module
         2) outsize [INT] - Output size for fine tuning
         3) freeze_all [BOOL] - Set to True to freeze ALL weights , false to just
                                 freeze the last layer
-    
+
     """
     # Load Model
     model = timm.create_model(modelname,pretrained=True)
-    
+
     # Freeze all layers except the last
     for param in model.parameters():
         param.requires_grad = False
-    
+
     if freeze_all: # Freeze all weights
         return model
-    
+
     if modelname == 'resnet50': # Load from torchvision
         model.fc = nn.Linear(model.fc.in_features, outsize)
     else:
         model.classifier = nn.Linear(model.classifier.in_features,outsize)
-    
+
     return model
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
@@ -150,22 +150,22 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         early_stop  - BOOL or INT, Stop training after N epochs of increasing validation error
                      (set to False to stop at max epoch, or INT for number of epochs)
         verbose     - set to True to display training messages
-    
+
     output:
-    
+
     dependencies:
         from torch import nn,optim
-        
-    """    
-    
-    
+
+    """
+
+
     # Check if there is GPU
     if checkgpu:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device('cpu')
     model = model.to(device)
-    
+
     # Get list of params to update
     params_to_update = []
     for name,param in model.named_parameters():
@@ -174,15 +174,16 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             if verbose:
                 print("Params to learn:")
                 print("\t",name)
-    
+
     # Set optimizer
     if optimizer[0] == "Adadelta":
-        opt = optim.Adadelta(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
+        #opt = optim.Adadelta(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
+        opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == "SGD":
-        opt = optim.SGD(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
+        opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
-        opt = optim.Adam(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
-    
+        opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+
     # Set early stopping threshold and counter
     if early_stop is False:
         i_thres = max_epochs
@@ -191,46 +192,46 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     i_incr    = 0 # Number of epochs for which the validation loss increases
     prev_loss = 0 # Variable to store previous loss
     bestloss  = np.infty
-    
+
     # Main Loop
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
     for epoch in tqdm(range(max_epochs)): # loop by epoch
     #for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
-    
+
             if mode == 'train':  # Training, update weights
                 model.train()
             elif mode == 'eval': # Testing, freeze weights
                 model.eval()
-               
+
             runningloss = 0
             for i,data in enumerate(data_loader):
-                
+
                 # Get mini batch
                 batch_x, batch_y = data
                 batch_x = batch_x.to(device)
                 batch_y = batch_y.to(device)
-                
+
                 # Set gradients to zero
                 opt.zero_grad()
-                
+
                 # Forward pass
                 pred_y = model(batch_x)
-                
+
                 # Calculate loss
                 loss = loss_fn(pred_y,batch_y)
-                
+
                 # Update weights
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
-                
+
                 runningloss += float(loss.item())
 
             if verbose: # Print progress message
                 print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
                                                 runningloss/len(data_loader)))
-            
+
             # Save model if this is the best loss
             if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
                 bestloss = runningloss/len(data_loader)
@@ -238,13 +239,13 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                 #best_model_wts = copy.deepcopy(model.state_dict())
                 if verbose:
                     print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
-                
+
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
             else:
                 test_loss.append(runningloss/len(data_loader))
-                
+
                 # Evaluate if early stopping is needed
                 if epoch == 0: # Save previous loss
                     lossprev = runningloss/len(data_loader)
@@ -254,66 +255,66 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                             print("Validation loss has increased at epoch %i"%(epoch+1))
                         i_incr += 1
                         lossprev = runningloss/len(data_loader)
-                        
+
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))
-                    return bestmodel,train_loss,test_loss  
-            
+                    return bestmodel,train_loss,test_loss
+
             # Clear some memory
             #print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
             del batch_x
             del batch_y
-            torch.cuda.empty_cache() 
+            torch.cuda.empty_cache()
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
-                
-    #bestmodel.load_state_dict(best_model_wts)         
+
+    #bestmodel.load_state_dict(best_model_wts)
     return bestmodel,train_loss,test_loss
-         
+
 def make_sequences(X,y,seq_len):
-        
+
         """
         Prepares inputs and labels for input in RNN. Splits in sequences of
         length [sequence length] and combines the ensemble and sample dimensions
-        
+
         Inputs
         ------
             1. X [ndarray: ens x time x channel x lat x lon]: Input 2d maps (predictors)
-            2. y [ndarray: ens x time]: Labels for actual values  
-        
+            2. y [ndarray: ens x time]: Labels for actual values
+
         Outputs
         -------
             1. Xseq [ndarray: ens*sample x time x channel x lat x lon]
             2. yseq [ndarray: ens*sample]
-        
+
         """
 
         nens,ntime,nchan,nlat,nlon = X.shape
-        
+
         nsamples= ntime-seq_len
-        
+
         Xseq = np.zeros([nens,nsamples,seq_len,nchan,nlat,nlon],dtype=np.float32)
         yseq = np.zeros([nens,nsamples],dtype=np.float32)
-        
+
         for i in range(ntime):
             # Find end of pattern
             end_ix = i+seq_len
-            
+
             # Check if index is at end of timeseries
             if end_ix > ntime-1: # leave 1 for the label
                 #print(i)
                 break
-            
+
             # Gather input/output:
             seqx,seqy = X[:,i:end_ix,...],y[:,end_ix]
-            
+
             # Save in output
             Xseq[:,i,...] = seqx
             yseq[:,i] = seqy
-        
+
         # Combine the n_samples and n_ens  dimensions
         Xseq = Xseq.reshape(nens*nsamples,seq_len,nchan,nlat,nlon)
         yseq = yseq.reshape(nens*nsamples)
-        
+
         return Xseq,yseq
 # ----------------------------------------
 
@@ -321,7 +322,7 @@ def make_sequences(X,y,seq_len):
 # ----------------------------------------
 allstart = time.time()
 
-# Set experiment names ---- 
+# Set experiment names ----
 nvar    = 1 # Combinations of variables to test (currently set to test all 3 variables)
 nlead   = len(leads)
 varname = 'ALL'
@@ -369,44 +370,44 @@ else:
 start = time.time()
 
 for l,lead in enumerate(leads):
-    
+
     # Set output path
     outname = "/leadtime_testing_%s_%s_leadnum%02i.npz" % (varname,expname,lead)
-    
+
     # ----------------------
     # Apply lead/lag to data
     # ----------------------
     y = target[:ens,lead:].astype(np.float32)
     X = (data[:,:,:tstep-lead,:,:].transpose(1,2,0,3,4)).astype(np.float32) # [Transpose to ens x time x channel x lat x lon]
-    
-    
+
+
     # -------------------------
     # Preprocess into sequences
     # -------------------------
     Xseq,yseq = make_sequences(X,y,seq_len)
     nsamples = Xseq.shape[0]
 
-    
+
     # ---------------------------------
     # Split into training and test sets
     # ---------------------------------
-    
+
     X_train = torch.from_numpy( Xseq[0:int(np.floor(percent_train*nsamples)),...].astype(np.float32))
     X_val = torch.from_numpy( Xseq[int(np.floor(percent_train*nsamples)):,...].astype(np.float32))
-    
+
     y_train = torch.from_numpy(  yseq[0:int(np.floor(percent_train*nsamples)),None].astype(np.float32))
     y_val = torch.from_numpy( yseq[int(np.floor(percent_train*nsamples)):,None].astype(np.float32))
-    
+
     # Put into pytorch DataLoader
     train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size,num_workers=4)
     val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size,num_workers=4)
-    
+
     # -----------------------
     # Set up component models
     # -----------------------
     # Set pretrained CNN as feature extractor
     pmodel = transfer_model(netname,cnn_out,freeze_all=freeze_all)
-    
+
     # Set either a LTSM or GRU unit
     if rnnname == 'LSTM':
         rnn = nn.LSTM(
@@ -422,24 +423,24 @@ for l,lead in enumerate(leads):
                 num_layers=rnn_layers,
                 batch_first=True # Input is [batch,seq,feature]
                 )
-    
+
     # Set fully-connected layer for classification
     classifier = nn.Linear(hidden_size,outsize)
-    
+
     # Combine all into sequence model
     seqmodel = Combine(pmodel,rnn,classifier,outactivation)
-    
+
     # ---------------
     # Train the model
     # ---------------
     model,trainloss,testloss = train_ResNet(seqmodel,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
-    
+
     # Save train/test loss
     train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
     test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
-    
+
     #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
-    
+
     # -----------------------------------------------
     # Pass to GPU or CPU and Evaluate Model
     # -----------------------------------------------
@@ -449,8 +450,8 @@ for l,lead in enumerate(leads):
         # -----------------
         model.eval()
         for i,vdata in enumerate(val_loader):
-            
-            
+
+
             # Get mini batch
             batch_x, batch_y = vdata
             batch_x = batch_x.to(device)
@@ -458,29 +459,29 @@ for l,lead in enumerate(leads):
 
             # Make prediction and concatenate for each batch
             batch_pred = model(batch_x)
-            
+
             if i == 0:
                 y_pred_val=batch_pred.detach().cpu().numpy().squeeze()
                 y_valdt = batch_y.detach().cpu().numpy().squeeze()
             else:
                 y_pred_val = np.hstack([y_pred_val,batch_pred.detach().cpu().numpy().squeeze()])
-                y_valdt = np.hstack([y_valdt,batch_y.detach().cpu().numpy().squeeze()])    
-    
-    # Calculate correlation between prediction+label 
+                y_valdt = np.hstack([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
+
+    # Calculate correlation between prediction+label
     testcorr = np.corrcoef( y_pred_val[:].T, y_valdt[:].T)[0,1]
 
     if verbose:
         print("Correlation for lead %i was %f"%(lead,testcorr))
     corr_grid_test.append(testcorr)
-    
+
     # --------------
     # Save the model
     # --------------
     if savemodel:
         modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
         torch.save(model.state_dict(),modout)
-    
-    
+
+
     # Stop if model is just predicting the same value (usually need to examine optimizer settings)
     if np.any(np.isnan(testcorr)):
         print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
@@ -492,7 +493,7 @@ for l,lead in enumerate(leads):
             ax.legend()
             ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
             plt.show()
-            
+
             fig,ax=plt.subplots(1,1)
             plt.style.use('seaborn')
             #ax.plot(y_pred_train,label='train corr')
@@ -502,13 +503,13 @@ for l,lead in enumerate(leads):
             ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
             plt.show()
         break
-    
+
     # Calculate Correlation and RMSE
 
-    
+
     # Visualize loss vs epoch for training/testing and correlation
     if debug:
-        
+
         # Train vs Test Loss Plot
         fig,ax=plt.subplots(1,1)
         plt.style.use('seaborn')
@@ -518,11 +519,11 @@ for l,lead in enumerate(leads):
         ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
         plt.show()
         plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
-        
+
         # Scatterplot of predictions vs Labels
         fig,ax=plt.subplots(1,1)
         plt.style.use('seaborn')
-        ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
+        ax.scatter(y_valdt,y_pred_val,label="Test",marker='+',zorder=2)
         ax.legend()
         ax.set_ylim([-1.5,1.5])
         ax.set_xlim([-1.5,1.5])
@@ -532,14 +533,14 @@ for l,lead in enumerate(leads):
                 ]
         ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
         ax.legend()
-        ax.set_ylabel("Actual AMV Index")
-        ax.set_xlabel("Predicted AMV Index")
+        ax.set_ylabel("Predicted AMV Index")
+        ax.set_xlabel("Actual AMV Index")
         ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(np.mean(corr_grid_test[l]),varname,lead))
         plt.show()
         plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
 
     print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
-    
+
     # Clear some memory
     del model
     del X_val
@@ -548,7 +549,7 @@ for l,lead in enumerate(leads):
     del y_train
     torch.cuda.empty_cache()  # Save some memory
     #print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
-    
+
     # -----------------
     # Save Eval Metrics
     # -----------------
@@ -567,4 +568,3 @@ print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname
 
 
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
-
