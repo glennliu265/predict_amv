@@ -46,7 +46,7 @@ loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
 #netname       = 'tf_efficientnet_b7_ns'#'ResNet50'
-netname       = 'resnet50'
+netname       = 'resnet18'
 resolution    = '224pix'
 tstep         = 86
 outpath       = ''
@@ -97,7 +97,7 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
 def transfer_model(modelname):
 
 
-    if modelname == 'resnet50': # Load from torchvision
+    if 'resnet' in modelname: # Load from torchvision
 
         #model = models.resnet50(pretrained=True) # read in resnet model
         model = timm.create_model(modelname,pretrained=True)

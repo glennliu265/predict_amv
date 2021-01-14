@@ -95,7 +95,7 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
 def transfer_model(modelname):
 
 
-    if 'resnet' in netname: # Load from torchvision
+    if 'resnet' in modelname: # Load from torchvision
 
         #model = models.resnet50(pretrained=True) # read in resnet model
         model = timm.create_model(modelname,pretrained=True)
