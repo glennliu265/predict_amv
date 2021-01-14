@@ -41,7 +41,7 @@ ens           = 10    # Ensemble members to use
 # Model training settings
 early_stop    = 20                     # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 16                   # Pairs of predictions
+batch_size    = 32                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',1,0]    # Name optimizer
 netname       = 'resnet50'
