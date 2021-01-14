@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
@@ -39,9 +39,9 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 25                    # Maximum number of epochs
-batch_size    = 64                    # Pairs of predictions
+early_stop    = 100                     # Number of epochs where validation loss increases before stopping
+max_epochs    = 100                    # Maximum number of epochs
+batch_size    = 128                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
 #netname       = 'EffNet-b7-ns'                # See Choices under Network Settings below for strings that can be used
@@ -350,6 +350,7 @@ for v in range(nvar): # Loop for each variable
 
     # Set output path
     outname = "/leadtime_testing_%s_%s.npz" % (varname,expname)
+    subtitle = "\n LR = %.2e; Batchsize = %i"% (opt[1],batch_size)
 
     ytrainpred   = []
     ytrainlabels = []
@@ -472,25 +473,21 @@ for v in range(nvar): # Loop for each variable
         corr_grid_test[l]    = testcorr#np.corrcoef( y_pred_val.T[0,:], y_valdt.T[0,:])[0,1]
         #corr_grid_train[l]   = np.corrcoef( y_pred_train.T[0,:], y_traindt.T[0,:])[0,1]
 
-        # Visualize loss vs epoch for training/testing and correlation
+  # Visualize loss vs epoch for training/testing and correlation
         if debug:
             fig,ax=plt.subplots(1,1)
-            plt.style.use('seaborn')
+            plt.style.use('default')
             ax.plot(trainloss,label='train loss')
             ax.plot(testloss,label='test loss')
             ax.legend()
-            ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
-            plt.show()
+            ax.set_title("Losses for Predictor %s Leadtime %i %s"%(varname,lead,subtitle))
+            ax.grid(True,linestyle="dotted")
+            #plt.show()
             plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
-
-
+    
             fig,ax=plt.subplots(1,1)
-            plt.style.use('seaborn')
-            #ax.plot(y_pred_train,label='train corr')
-            #ax.plot(y_pred_val,label='test corr')
-            #ax.plot(y_valdt,label='truth')
+            #plt.style.use('seaborn')
             ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
-            #ax.scatter(y_pred_train,y_traindt,label="Train",marker='x',zorder=1,alpha=0.3)
             ax.legend()
             ax.set_ylim([-1.5,1.5])
             ax.set_xlim([-1.5,1.5])
@@ -502,8 +499,9 @@ for v in range(nvar): # Loop for each variable
             ax.legend()
             ax.set_ylabel("Actual AMV Index")
             ax.set_xlabel("Predicted AMV Index")
-            ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(corr_grid_test[l],varname,lead))
-            plt.show()
+            ax.grid(True,linestyle="dotted")
+            ax.set_title("Correlation %.2f for Predictor %s Leadtime %i %s"%(corr_grid_test[l],varname,lead,subtitle))
+            #plt.show()
             plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
 
 
