@@ -36,12 +36,12 @@ indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO",
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 10    # Ensemble members to use
+ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 20                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 16                   # Pairs of predictions
+early_stop    = 100                     # Number of epochs where validation loss increases before stopping
+max_epochs    = 100                    # Maximum number of epochs
+batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.1,0]    # Name optimizer
 netname       = 'resnet50'
@@ -297,7 +297,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 allstart = time.time()
 
 #LRs = [1e-3,1e-2,1e-1,1,2]
-bss = [8,16,32,64,128]
+bss = [128,]
 
 for i in range(len(bss)):
     
