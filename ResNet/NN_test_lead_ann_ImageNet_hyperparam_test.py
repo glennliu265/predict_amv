@@ -41,9 +41,9 @@ ens           = 10    # Ensemble members to use
 # Model training settings
 early_stop    = 20                     # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 32                   # Pairs of predictions
+batch_size    = 16                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',1,0]    # Name optimizer
+opt           = ['Adadelta',.1,0]    # Name optimizer
 netname       = 'resnet50'
 resolution    = '224pix'
 tstep         = 86
@@ -95,7 +95,7 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
 def transfer_model(modelname):
 
 
-    if modelname == 'resnet50': # Load from torchvision
+    if 'resnet' in netname: # Load from torchvision
 
         #model = models.resnet50(pretrained=True) # read in resnet model
         model = timm.create_model(modelname,pretrained=True)
@@ -296,13 +296,13 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 # ----------------------------------------
 allstart = time.time()
 
-LRs = [1e-3,1e-2,1e-1,1,2]
+#LRs = [1e-3,1e-2,1e-1,1,2]
+bss = [8,16,32,64,128]
 
-
-for i in range(len(LRs)):
+for i in range(len(bss)):
     
-    print("Testing LR=%.2e"%LRs[i])
-    opt[1] = LRs[i]
+    print("Testing bss=%.2e"%bss[i])
+    batch_size = bss[i]
     
     # Set experiment names ----
     nlead    = len(leads)
