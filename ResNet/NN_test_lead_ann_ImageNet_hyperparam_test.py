@@ -368,8 +368,6 @@ for i in range(len(testvalues)):
     print("\t# Ens. Members : "+ str(ens))
     print("\t%" +testname +  " : "+ str(testvalues[i]))
     
-    ytrainpred   = []
-    ytrainlabels = []
     yvalpred     = []
     yvallabels   = []
     for l,lead in enumerate(leads):
