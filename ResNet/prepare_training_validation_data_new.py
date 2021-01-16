@@ -37,7 +37,7 @@ print("Applied Land Mask")
 # Detrend the data if option is set
 if detrend:
     sst_deseason = sst_deseason - sst_deseason.mean('ensemble')
-    sss_deseason = sss_deseason - sst_deseason.mean('ensemble')
+    sss_deseason = sss_deseason - sss_deseason.mean('ensemble')
     psl_deseason = psl_deseason - psl_deseason.mean('ensemble')
 
 # Normalize the data
