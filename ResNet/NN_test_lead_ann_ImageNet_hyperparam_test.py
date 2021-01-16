@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 
@@ -39,15 +39,16 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 100                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 100                    # Maximum number of epochs
+early_stop    = 3                     # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.1,0]    # Name optimizer
-netname       = 'resnet50'
+netname       = 'simplecnn'
 resolution    = '224pix'
 tstep         = 86
 outpath       = ''
+cnndropout    = True # Set to 1 to test simple CN with dropout layer
 
 # Options
 debug    = True # Visualize training and testing loss
@@ -118,23 +119,41 @@ def transfer_model(modelname):
         poolstrides   = [[2,3],[2,3]]
 
         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
-
-        layers = [
-                nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=poolsizes[0]),
-
-                nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-                nn.ReLU(),
-                nn.MaxPool2d(kernel_size=poolsizes[1]),
-
-                nn.Flatten(),
-                nn.Linear(in_features=firstlineardim,out_features=64),
-                nn.ReLU(),
-
-                #nn.Dropout(p=0.5),
-                nn.Linear(in_features=64,out_features=1)
-                ]
+        
+        if cnndropout: # Include Dropout
+            layers = [
+                    nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[0]),
+    
+                    nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[1]),
+    
+                    nn.Flatten(),
+                    nn.Linear(in_features=firstlineardim,out_features=64),
+                    nn.ReLU(),
+    
+                    nn.Dropout(p=0.5),
+                    nn.Linear(in_features=64,out_features=1)
+                    ]
+        else:
+            layers = [
+                    nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[0]),
+    
+                    nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[1]),
+    
+                    nn.Flatten(),
+                    nn.Linear(in_features=firstlineardim,out_features=64),
+                    nn.ReLU(),
+    
+                    #nn.Dropout(p=0.5),
+                    nn.Linear(in_features=64,out_features=1)
+                    ]
         model = nn.Sequential(*layers) # Set up model
 
     else: # Load from timm
@@ -313,7 +332,10 @@ for i in range(len(bss)):
     
     # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
     #expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
-    expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_LR%.2e_batchsize%i" % (netname,max_epochs,ens,len(leads)-1,opt[1],batch_size)
+    if netname=='simplecnn': # Include indicate for inclusion of dropout layer
+        expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_LR%.2e_batchsize%i_dropout%i" % (netname,max_epochs,ens,len(leads)-1,opt[1],batch_size,cnndropout)
+    else:
+        expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_LR%.2e_batchsize%i" % (netname,max_epochs,ens,len(leads)-1,opt[1],batch_size)
     outname = "/leadtime_testing_%s_%s.npz" % (varname,expname)
     
     # Load the data for whole North Atlantic
@@ -484,7 +506,7 @@ for i in range(len(bss)):
         del X_train
         del y_train
         torch.cuda.empty_cache()  # Save some memory
-        
+    
     # -----------------
     # Save Eval Metrics
     # -----------------
