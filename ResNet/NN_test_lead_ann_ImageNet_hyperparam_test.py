@@ -33,27 +33,30 @@ import timm
 leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
+resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
+detrend        = True                 # Set to true to use detrended data
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 3                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                    # Maximum number of epochs
+early_stop    = 10                    # Number of epochs where validation loss increases before stopping
+max_epochs    = 100                   # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.1,0]    # Name optimizer
-netname       = 'simplecnn'
-resolution    = '224pix'
+opt           = ['Adadelta',.1,0]     # Name optimizer
+reduceLR      = True                  # Set to true to use LR scheduler
+LRpatience    = 3                     # Set patience for LR scheduler
+netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
-cnndropout    = True # Set to 1 to test simple CN with dropout layer
+cnndropout    = True                  # Set to 1 to test simple CN with dropout layer
 
 # Options
-debug    = True # Visualize training and testing loss
-verbose  = True # Print loss for each epoch
-checkgpu = True # Set to true to check for GPU otherwise run on CPU
+debug     = True # Visualize training and testing loss
+verbose   = True # Print loss for each epoch
+checkgpu  = True # Set to true to check for GPU otherwise run on CPU
 savemodel = False # Set to true to save model dict.
 # -----------
 #%% Functions
@@ -74,30 +77,23 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
         flattensize:  flattened dimensions of layer for input into FC layer
 
     """
-
     N = len(filtersizes)
     xsizes = [nx]
     ysizes = [ny]
     fcsizes  = []
-
     for i in range(N):
-
         xsizes.append(np.floor((xsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
         ysizes.append(np.floor((ysizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
-
 
         xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
         ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
 
         fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
-
     return int(fcsizes[-1])
 
-def transfer_model(modelname):
 
-
+def transfer_model(modelname,cnndropout=False):
     if 'resnet' in modelname: # Load from torchvision
-
         #model = models.resnet50(pretrained=True) # read in resnet model
         model = timm.create_model(modelname,pretrained=True)
         # Freeze all layers except the last
@@ -105,7 +101,6 @@ def transfer_model(modelname):
 
             param.requires_grad = False
         model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
-
     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
         channels = 3
         nlat = 224
@@ -162,10 +157,10 @@ def transfer_model(modelname):
         for param in model.parameters():
             param.requires_grad = False
         model.classifier=nn.Linear(model.classifier.in_features,1)
-
     return model
 
-def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
+def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True,
+                 reduceLR=False,LRpatience=3):
     """
     inputs:
         model       - Resnet model
@@ -178,6 +173,8 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         early_stop  - BOOL or INT, Stop training after N epochs of increasing validation error
                      (set to False to stop at max epoch, or INT for number of epochs)
         verbose     - set to True to display training messages
+        reduceLR    - BOOL, set to true to use LR scheduler
+        LRpatience  - INT, patience for LR scheduler
 
     output:
 
@@ -185,7 +182,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         from torch import nn,optim
 
     """
-
     # #model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
     # model = timm.create_model("tf_efficientnet_b7_ns")
     # for param in model.parameters():
@@ -195,9 +191,8 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 
     # #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
     # model.classifier=nn.Linear(model.classifier.in_features,1)
-
     bestloss = np.infty
-
+    
     # Check if there is GPU
     if checkgpu:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -224,6 +219,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     elif optimizer[0] == 'Adam':
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
 
+    # Add Scheduler
+    if reduceLR:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=LRpatience)
+    
     # Set early stopping threshold and counter
     if early_stop is False:
         i_thres = max_epochs
@@ -263,7 +262,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
-
+                elif mode == 'eval':  # update scheduler after 1st epoch
+                    if reduceLR:
+                        scheduler.step(loss)
+                    
                 runningloss += float(loss.item())
 
             if verbose: # Print progress message
@@ -315,28 +317,28 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 # ----------------------------------------
 allstart = time.time()
 
-#LRs = [1e-3,1e-2,1e-1,1,2]
-bss = [128,]
+#testvalues = [1e-3,1e-2,1e-1,1,2]
+#testname = "LR"
+testvalues = [True,False]
+testname   = "cnndropout" # Note need to manually locate variable and edit
 
-for i in range(len(bss)):
+for i in range(len(testvalues)):
     
-    print("Testing bss=%.2e"%bss[i])
-    batch_size = bss[i]
+    # ********************************************************************
+    # NOTE: Manually assign value here (will implement automatic fix later)
+    cnndropout = testvalues[i]
+    print("Testing %s=%.2e"% (testname,testvalues[i]))
+    # ********************************************************************
     
     # Set experiment names ----
     nlead    = len(leads)
     channels = 3
     start    = time.time()
     varname  = 'ALL'
-    subtitle = "\n LR = %.2e; Batchsize = %i"% (opt[1],batch_size)
+    subtitle = "\n %s = %i"% (testname,testvalues[i])
     
     # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-    #expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i" % (season,resolution,indexregion,netname,max_epochs,ens,len(leads)-1)
-    if netname=='simplecnn': # Include indicate for inclusion of dropout layer
-        expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_LR%.2e_batchsize%i_dropout%i" % (netname,max_epochs,ens,len(leads)-1,opt[1],batch_size,cnndropout)
-    else:
-        expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_LR%.2e_batchsize%i" % (netname,max_epochs,ens,len(leads)-1,opt[1],batch_size)
-    outname = "/leadtime_testing_%s_%s.npz" % (varname,expname)
+    expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_%s%s" % (netname,max_epochs,ens,len(leads)-1,testname,testvalues[i])
     
     # Load the data for whole North Atlantic
     data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
@@ -350,34 +352,38 @@ for i in range(len(bss)):
     train_loss_grid = np.zeros((max_epochs,nlead))
     test_loss_grid  = np.zeros((max_epochs,nlead))
     
+    if checkgpu:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else:
+        device = torch.device('cpu')
+    
     # -------------
     # Print Message
     # -------------
     print("Running CNN_test_lead_ann.py with the following settings:")
     print("\tNetwork Type   : "+netname)
-    print("\tPred. Region   : "+indexregion)
-    print("\tPred. Season   : "+season)
     print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
     print("\tMax Epochs     : " + str(max_epochs))
     print("\tEarly Stop     : " + str(early_stop))
     print("\t# Ens. Members : "+ str(ens))
-    print("\tOptimizer      : "+ opt[0])
+    print("\t%" +testname +  " : "+ str(testvalues[i]))
     
     ytrainpred   = []
     ytrainlabels = []
     yvalpred     = []
     yvallabels   = []
     for l,lead in enumerate(leads):
-        if checkgpu:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        if lead == lead[-1]:
+            outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
         else:
-            device = torch.device('cpu')
+            outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+        
         # ----------------------
         # Apply lead/lag to data
         # ----------------------
         y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
         X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
-    
+        
         # ---------------------------------
         # Split into training and test sets
         # ---------------------------------
@@ -390,17 +396,18 @@ for i in range(len(bss)):
         train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
         val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
     
-    
         # ---------------
         # Train the model
         # ---------------
-        pmodel = transfer_model(netname)
-        model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
+        pmodel = transfer_model(netname,cnndropout=cnndropout)
+        model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
+                                                early_stop=early_stop,verbose=verbose,
+                                                reduceLR=reduceLR,LRpatience=LRpatience)
         
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
-    
+        
         #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
         # -----------------------------------------------
         # Pass to GPU or CPU for evaluation of best model
@@ -507,20 +514,21 @@ for i in range(len(bss)):
         del y_train
         torch.cuda.empty_cache()  # Save some memory
     
-    # -----------------
-    # Save Eval Metrics
-    # -----------------
-    np.savez("../../CESM_data/Metrics"+outname,**{
-             'train_loss': train_loss_grid,
-             'test_loss': test_loss_grid,
-             'test_corr': corr_grid_test,
-             #'train_corr': corr_grid_train,
-             #'ytrainpred': ytrainpred,
-             #'ytrainlabels': ytrainlabels,
-             'yvalpred': yvalpred,
-             'yvallabels' : yvallabels
-             }
-            )
+        # -----------------
+        # Save Eval Metrics
+        # -----------------
+
+        np.savez("../../CESM_data/Metrics"+outname,**{
+                 'train_loss': train_loss_grid,
+                 'test_loss': test_loss_grid,
+                 'test_corr': corr_grid_test,
+                 #'train_corr': corr_grid_train,
+                 #'ytrainpred': ytrainpred,
+                 #'ytrainlabels': ytrainlabels,
+                 'yvalpred': yvalpred,
+                 'yvallabels' : yvallabels
+                 }
+                )
     print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
     
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
