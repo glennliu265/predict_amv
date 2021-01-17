@@ -34,8 +34,8 @@ leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = True                 # Set to true to use detrended data
-usenoise       = False                # Set to true to train the model with pure noise
+detrend        = False                 # Set to true to use detrended data
+usenoise       = True                # Set to true to train the model with pure noise
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -324,13 +324,17 @@ if usenoise:
     # Make white noise time series
     data   = np.random.normal(0,1,(3,40,tstep,224,224))
     
-    # Load latitude
-    lat = np.linspace(0.4712,64.55497382,224)
+    ## Load latitude
+    #lat = np.linspace(0.4712,64.55497382,224)
     
     # Apply land mask
     dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
-    data[dataori==0] = np.nan # change all ocean points to zero
-    target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
+    data[dataori==0] = 0 # change all ocean points to zero
+    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+    
+    #data[dataori==0] = np.nan
+    #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
+    #data[np.isnan(data)] = 0
 else:
     data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
@@ -358,7 +362,9 @@ for i in range(len(testvalues)):
     subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
     
     # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-    expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_%s%s" % (netname,max_epochs,ens,len(leads)-1,testname,testvalues[i])
+    expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_detrend%i_noise%i_%s%s" % (netname,max_epochs,ens,
+                                                                              len(leads)-1,detrend,usenoise,
+                                                                              testname,testvalues[i])
     
     
     
@@ -383,6 +389,8 @@ for i in range(len(testvalues)):
     print("\tEarly Stop     : " + str(early_stop))
     print("\t# Ens. Members : "+ str(ens))
     print("\t%" +testname +  " : "+ str(testvalues[i]))
+    print("\tDetrend        : "+ str(detrend))
+    print("\tUse Noise      :" + str(usenoise))
     
     yvalpred     = []
     yvallabels   = []
