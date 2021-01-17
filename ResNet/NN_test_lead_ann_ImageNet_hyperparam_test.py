@@ -328,7 +328,7 @@ if usenoise:
     #lat = np.linspace(0.4712,64.55497382,224)
     
     # Apply land mask
-    dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
+    dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
     data[dataori==0] = 0 # change all ocean points to zero
     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
     
