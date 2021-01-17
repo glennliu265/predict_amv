@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -327,7 +327,7 @@ for i in range(len(testvalues)):
     # ********************************************************************
     # NOTE: Manually assign value here (will implement automatic fix later)
     cnndropout = testvalues[i]
-    print("Testing %s=%.2e"% (testname,testvalues[i]))
+    print("Testing %s=%s"% (testname,str(testvalues[i])))
     # ********************************************************************
     
     # Set experiment names ----
