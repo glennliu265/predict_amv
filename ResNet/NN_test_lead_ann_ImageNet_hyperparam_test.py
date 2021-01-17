@@ -38,7 +38,7 @@ detrend        = False                 # Set to true to use detrended data
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 10    # Ensemble members to use
+ens           = 40    # Ensemble members to use
 
 # Model training settings
 early_stop    = 10                    # Number of epochs where validation loss increases before stopping
