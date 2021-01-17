@@ -35,6 +35,7 @@ season         = 'Ann'                # Season to take mean over ['Ann','DJF','M
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
 detrend        = False                 # Set to true to use detrended data
+usenoise       = False
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -42,7 +43,7 @@ ens           = 40    # Ensemble members to use
 
 # Model training settings
 early_stop    = 10                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 40                    # Maximum number of epochs
+max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.1,0]     # Name optimizer
