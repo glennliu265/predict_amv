@@ -30,19 +30,19 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = True                 # Set to true to use detrended data
+detrend        = False                 # Set to true to use detrended data
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
+ens           = 10    # Ensemble members to use
 
 # Model training settings
 early_stop    = 10                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 100                   # Maximum number of epochs
+max_epochs    = 40                    # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.1,0]     # Name optimizer
@@ -55,7 +55,7 @@ cnndropout    = True                  # Set to 1 to test simple CN with dropout 
 
 # Options
 debug     = True # Visualize training and testing loss
-verbose   = True # Print loss for each epoch
+verbose   = False # Print loss for each epoch
 checkgpu  = True # Set to true to check for GPU otherwise run on CPU
 savemodel = False # Set to true to save model dict.
 # -----------
@@ -335,14 +335,14 @@ for i in range(len(testvalues)):
     channels = 3
     start    = time.time()
     varname  = 'ALL'
-    subtitle = "\n %s = %i"% (testname,testvalues[i])
+    subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
     
     # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
     expname = "HPT_%s_nepoch%02i_nens%02i_lead%02i_%s%s" % (netname,max_epochs,ens,len(leads)-1,testname,testvalues[i])
     
     # Load the data for whole North Atlantic
-    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
-    target = np.load('../../CESM_data/CESM_label_amv_index.npy')
+    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
+    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
     data   = data[:,0:ens,:,:,:]
     target = target[0:ens,:]
     
@@ -371,7 +371,7 @@ for i in range(len(testvalues)):
     yvalpred     = []
     yvallabels   = []
     for l,lead in enumerate(leads):
-        if lead == lead[-1]:
+        if (lead == leads[-1]) and (len(leads)>1):
             outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
         else:
             outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
