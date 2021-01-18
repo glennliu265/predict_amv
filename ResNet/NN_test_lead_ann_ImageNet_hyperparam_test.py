@@ -34,7 +34,7 @@ leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = False                 # Set to true to use detrended data
+detrend        = True                 # Set to true to use detrended data
 usenoise       = True                # Set to true to train the model with pure noise
 
 # Training/Testing Subsets
