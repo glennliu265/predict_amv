@@ -47,7 +47,7 @@ max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.1,0]     # Name optimizer
-reduceLR      = True                  # Set to true to use LR scheduler
+reduceLR      = False                  # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
@@ -343,7 +343,7 @@ target = target[0:ens,:]
     
 #testvalues = [1e-3,1e-2,1e-1,1,2]
 #testname = "LR"
-testvalues = [True,False]
+testvalues = [False]
 testname   = "cnndropout" # Note need to manually locate variable and edit
 
 for i in range(len(testvalues)):
