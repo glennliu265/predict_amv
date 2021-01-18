@@ -34,7 +34,7 @@ leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = True                 # Set to true to use detrended data
+detrend        = False                 # Set to true to use detrended data
 usenoise       = True                # Set to true to train the model with pure noise
 
 # Training/Testing Subsets
@@ -366,8 +366,6 @@ for i in range(len(testvalues)):
                                                                               len(leads)-1,detrend,usenoise,
                                                                               testname,testvalues[i])
     
-    
-    
     # Preallocate Evaluation Metrics...
     corr_grid_train = np.zeros((nlead))
     corr_grid_test  = np.zeros((nlead))
@@ -426,6 +424,7 @@ for i in range(len(testvalues)):
                                                 early_stop=early_stop,verbose=verbose,
                                                 reduceLR=reduceLR,LRpatience=LRpatience)
         
+        
         # Save train/test loss
         train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
         test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
@@ -444,6 +443,7 @@ for i in range(len(testvalues)):
             y_pred_val = np.asarray([])
             y_valdt    = np.asarray([])
             for i,vdata in enumerate(val_loader):
+                #print(i)
                 # Get mini batch
                 batch_x, batch_y = vdata
                 batch_x = batch_x.to(device)
@@ -451,6 +451,8 @@ for i in range(len(testvalues)):
     
                 # Make prediction and concatenate
                 batch_pred = model(batch_x).squeeze()
+                #print(batch_pred.detach().shape)
+                #print(y_pred_val.shape)
                 y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
                 y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
     
@@ -471,6 +473,9 @@ for i in range(len(testvalues)):
         # Stop if model is just predicting the same value (usually need to examine optimizer settings)
         if np.isnan(testcorr):
             print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
+            for param in model.parameters():
+                if np.any(np.isnan(param.data.numpy())):
+                    print(param.data)
             if debug:
                 fig,ax=plt.subplots(1,1)
                 #plt.style.use('seaborn')
@@ -479,7 +484,7 @@ for i in range(len(testvalues)):
                 ax.legend()
                 ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
                 plt.show()
-    
+
                 fig,ax=plt.subplots(1,1)
                 plt.style.use('seaborn')
                 #ax.plot(y_pred_train,label='train corr')
@@ -535,7 +540,7 @@ for i in range(len(testvalues)):
         del X_train
         del y_train
         torch.cuda.empty_cache()  # Save some memory
-    
+        
         # -----------------
         # Save Eval Metrics
         # -----------------
