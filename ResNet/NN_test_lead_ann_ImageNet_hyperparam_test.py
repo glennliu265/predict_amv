@@ -46,7 +46,7 @@ early_stop    = 10                    # Number of epochs where validation loss i
 max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.1,0]     # Name optimizer
+opt           = ['Adadelta',.01,0]     # Name optimizer
 reduceLR      = True                  # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn')
@@ -56,7 +56,7 @@ cnndropout    = True                  # Set to 1 to test simple CN with dropout 
 
 # Options
 debug     = True # Visualize training and testing loss
-verbose   = False # Print loss for each epoch
+verbose   = True # Print loss for each epoch
 checkgpu  = True # Set to true to check for GPU otherwise run on CPU
 savemodel = False # Set to true to save model dict.
 # -----------
