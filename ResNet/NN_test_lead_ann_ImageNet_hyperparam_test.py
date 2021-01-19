@@ -47,16 +47,16 @@ max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.1,0]     # Name optimizer
-reduceLR      = False                  # Set to true to use LR scheduler
+reduceLR      = True                  # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'resnet50'#'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
-cnndropout    = True                  # Set to 1 to test simple CN with dropout layer
+cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
 
 # Options
 debug     = True # Visualize training and testing loss
-verbose   = True # Print loss for each epoch
+verbose   = False # Print loss for each epoch
 checkgpu  = True # Set to true to check for GPU otherwise run on CPU
 savemodel = False # Set to true to save model dict.
 # -----------
@@ -343,14 +343,18 @@ target = target[0:ens,:]
     
 #testvalues = [1e-3,1e-2,1e-1,1,2]
 #testname = "LR"
-testvalues = [False]
-testname   = "cnndropout" # Note need to manually locate variable and edit
+
+#testvalues = [False]
+#testname   = "cnndropout" # Note need to manually locate variable and edit
+testvalues=[128]
+testname='batchsize'
 
 for i in range(len(testvalues)):
     
     # ********************************************************************
     # NOTE: Manually assign value here (will implement automatic fix later)
-    cnndropout = testvalues[i]
+    #cnndropout = testvalues[i]
+    batch_size=testvalues[i]
     print("Testing %s=%s"% (testname,str(testvalues[i])))
     # ********************************************************************
     
@@ -359,7 +363,8 @@ for i in range(len(testvalues)):
     channels = 3
     start    = time.time()
     varname  = 'ALL'
-    subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
+    #subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
+    subtitle="\n%s=%s" % (testname, str(testvalues[i]))
     
     # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
     expname = "HPT_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s" % (netname,max_epochs,ens,
