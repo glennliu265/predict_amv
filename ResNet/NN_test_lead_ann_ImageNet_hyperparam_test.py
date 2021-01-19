@@ -34,7 +34,7 @@ leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = False                 # Set to true to use detrended data
+detrend        = True                 # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 
 # Training/Testing Subsets
@@ -501,8 +501,8 @@ for i in range(len(testvalues)):
             break
     
         # Calculate Correlation and RMSE
-        if verbose:
-            print("Correlation for lead %i was %f"%(lead,testcorr))
+        #if verbose:
+        print("Correlation for lead %i was %f"%(lead,testcorr))
         corr_grid_test[l]    = testcorr
         
         # Visualize loss vs epoch for training/testing and correlation
