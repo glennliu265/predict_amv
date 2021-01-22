@@ -30,11 +30,11 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = True                 # Set to true to use detrended data
+detrend        = False                 # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 
 # Training/Testing Subsets
@@ -42,12 +42,12 @@ percent_train = 0.8   # Percentage of data to use for training (remaining for te
 ens           = 40    # Ensemble members to use
 
 # Model training settings
-early_stop    = 3                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                    # Maximum number of epochs
+early_stop    = 500                   # Number of epochs where validation loss increases before stopping
+max_epochs    = 500                   # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.1,0]     # Name optimizer
-reduceLR      = False                  # Set to true to use LR scheduler
+reduceLR      = False                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 netname       = 'resnet50'#'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
