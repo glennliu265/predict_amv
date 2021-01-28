@@ -40,6 +40,7 @@ usenoise       = False                # Set to true to train the model with pure
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 40    # Ensemble members to use
+tstep         = 86    # Size of time dimension (in years)
 
 # Model training settings
 early_stop    = 500                   # Number of epochs where validation loss increases before stopping
@@ -230,6 +231,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     else:
         i_thres = early_stop
     i_incr    = 0 # Number of epochs for which the validation loss increases
+    bestloss  = np.infty
 
     # Main Loop
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
