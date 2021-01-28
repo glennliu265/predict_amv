@@ -41,26 +41,26 @@ ens           = 1    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
-netname       = 'resnet50'            # Name of pretrained network (timm module)
+netname       = 'resnet18'            # Name of pretrained network (timm module)
 rnnname       = 'GRU'                 # LSTM or GRU
 hidden_size   = 30                    # The size of the hidden layers in the RNN
 cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
-seq_len       = 5                     # Length of sequence (same units as data [years])
+seq_len       = 10                     # Length of sequence (same units as data [years])
+cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
 max_epochs    = 2                    # Maximum number of epochs
-batch_size    = 128                     # Number of ensemble members to use per step
+batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
 reduceLR      = False                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'resnet50'#'simplecnn'# Name of network ('resnet50','simplecnn')
 outpath       = ''
-cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
+
 
 
 # Misc. saving options
@@ -73,6 +73,35 @@ verbose    = True  # Print loss for each epoch
 checkgpu   = True  # Set to true to check for GPU otherwise run on CPU
 savemodel  = False # Set to true to save model dict.
 freeze_all = False # Freeze all layers
+
+
+#%%
+
+# Set configurable network
+config = {}
+
+# Training Configurations
+config['loss_fn']      = loss_fn
+config['batch_size']   = batch_size
+config['max_epochs']   = max_epochs
+config['optname']      = opt[0]
+config['lr']           = opt[1]
+config['lr_scheduler'] = reduceLR
+config['lr_patience']  = LRpatience
+config['weight_decay'] = opt[2]
+config['early_stop']   = early_stop
+
+
+# Model Architecture
+config['cnn_dropout'] = cnndropout
+config['cnn_out'] = cnn_out
+
+config['rnn_layers'] = rnn_layers
+config['rnn_out']  = outsize
+
+
+
+
 # -----------------------
 #%% Functions and classes
 # -----------------------
@@ -581,20 +610,20 @@ for l,lead in enumerate(leads):
         print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
         if debug:
             fig,ax=plt.subplots(1,1)
-            plt.style.use('seaborn')
             ax.plot(trainloss,label='train loss')
             ax.plot(testloss,label='test loss')
             ax.legend()
             ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
+            ax.grid(True,ls='dotted')
             plt.show()
 
             fig,ax=plt.subplots(1,1)
-            plt.style.use('seaborn')
             #ax.plot(y_pred_train,label='train corr')
             ax.plot(y_pred_val,label='test corr')
             ax.plot(y_valdt,label='truth')
             ax.legend()
             ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
+            ax.grid(True,ls='dotted')
             plt.show()
         break
 
@@ -606,17 +635,15 @@ for l,lead in enumerate(leads):
 
         # Train vs Test Loss Plot
         fig,ax=plt.subplots(1,1)
-        plt.style.use('seaborn')
         ax.plot(trainloss,label='train loss')
         ax.plot(testloss,label='test loss')
         ax.legend()
         ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
-        plt.show()
+        ax.grid(True,ls='dotted')
         plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
 
         # Scatterplot of predictions vs Labels
         fig,ax=plt.subplots(1,1)
-        plt.style.use('seaborn')
         ax.scatter(y_valdt,y_pred_val,label="Test",marker='+',zorder=2)
         ax.legend()
         ax.set_ylim([-1.5,1.5])
@@ -630,7 +657,7 @@ for l,lead in enumerate(leads):
         ax.set_ylabel("Predicted AMV Index")
         ax.set_xlabel("Actual AMV Index")
         ax.set_title("Correlation %.2f for Predictor %s Leadtime %i"%(np.mean(corr_grid_test[l]),varname,lead))
-        plt.show()
+        ax.grid(True,ls='dotted')
         plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
 
     print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
@@ -660,5 +687,11 @@ for l,lead in enumerate(leads):
             )
 print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 
+fig,ax = plt.subplots(1,1)
+ax.plot(leads,corr_grid_test)
+ax.axhline(0,ls='dashed',color='k')
+ax.set_ylim([-1,1])
+ax.grid(True,ls='dotted')
+plt.savefig("../../CESM_data/Figures/%s_%s_Prediction_v_Leadtime.png"%(expname,varname))
 
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
