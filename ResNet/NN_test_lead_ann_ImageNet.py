@@ -495,25 +495,25 @@ for l,lead in enumerate(leads):
         plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
         print("\nCompleted training for %s lead %i of %i in %s" % (varname,lead,len(leads),time.time()-start))
 
-        # Clear some memory
-        del model
-        del X_val
-        del y_val
-        del X_train
-        del y_train
-        torch.cuda.empty_cache()  # Save some memory
-        #print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
-        
-        # -----------------
-        # Save Eval Metrics at each lead (to be safe)
-        # -----------------
-        np.savez("../../CESM_data/Metrics"+outname,**{
-                 'train_loss': train_loss_grid,
-                 'test_loss': test_loss_grid,
-                 'test_corr': corr_grid_test,
-                 'yvalpred': yvalpred,
-                 'yvallabels' : yvallabels
-                 }
-                )
-        print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
+    # Clear some memory
+    del model
+    del X_val
+    del y_val
+    del X_train
+    del y_train
+    torch.cuda.empty_cache()  # Save some memory
+    #print("After lead loop end for %i memory is %i"%(lead,torch.cuda.memory_allocated(device)))
+    
+    # -----------------
+    # Save Eval Metrics at each lead (to be safe)
+    # -----------------
+    np.savez("../../CESM_data/Metrics"+outname,**{
+             'train_loss': train_loss_grid,
+             'test_loss': test_loss_grid,
+             'test_corr': corr_grid_test,
+             'yvalpred': yvalpred,
+             'yvallabels' : yvallabels
+             }
+            )
+    print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
