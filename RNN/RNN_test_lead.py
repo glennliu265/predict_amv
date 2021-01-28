@@ -33,28 +33,35 @@ import timm
 leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
+detrend        = False                # Predict undetrended data
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
+ens           = 1    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
 netname       = 'resnet50'            # Name of pretrained network (timm module)
-rnnname       = 'GRU'                # LSTM or GRU
-hidden_size   = 30                    # The size of the hidden layer in the RNN
-cnn_out       = 1000                      # Number of features to be extracted by CNN and input into RNN
+rnnname       = 'GRU'                 # LSTM or GRU
+hidden_size   = 30                    # The size of the hidden layers in the RNN
+cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
-seq_len       = 5                    # Length of sequence (same units as data [years])
+seq_len       = 5                     # Length of sequence (same units as data [years])
 
 # Model training settings
 early_stop    = 2                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 4                     # Number of ensemble members to use per step
+max_epochs    = 2                    # Maximum number of epochs
+batch_size    = 128                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',.01,0]    # Name optimizer
+reduceLR      = False                 # Set to true to use LR scheduler
+LRpatience    = 3                     # Set patience for LR scheduler
+netname       = 'resnet50'#'simplecnn'# Name of network ('resnet50','simplecnn')
+outpath       = ''
+cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
+
 
 # Misc. saving options
 resolution    = '224pix'
@@ -102,45 +109,107 @@ class Combine(nn.Module):
         else:
             return self.activation(r_out2)
 
-
-
-
-
-def transfer_model(modelname,outsize,freeze_all=False):
+def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
     """
-    Loads in pretrained model [modelname] for feature extraction
-    All weights are frozen except the last layer, which is replaced with
-    a fully-connected layer with output size [outsize].
+    For a series of N convolutional layers, calculate the size of the first fully-connected
+    layer
 
-    Inputs
-    ------
-        1) modelname [STR] - Name of model in timm module
-        2) outsize [INT] - Output size for fine tuning
-        3) freeze_all [BOOL] - Set to True to freeze ALL weights , false to just
-                                freeze the last layer
+    Inputs:
+        nx:           x dimensions of input
+        ny:           y dimensions of input
+        filtersize:   [ARRAY,length N] sizes of the filter in each layer [(x1,y1),[x2,y2]]
+        poolsize:     [ARRAY,length N] sizes of the maxpooling kernel in each layer
+        nchannels:    [ARRAY,] number of out_channels in each layer
+    output:
+        flattensize:  flattened dimensions of layer for input into FC layer
 
     """
-    # Load Model
-    model = timm.create_model(modelname,pretrained=True)
+    N = len(filtersizes)
+    xsizes = [nx]
+    ysizes = [ny]
+    fcsizes  = []
+    for i in range(N):
+        xsizes.append(np.floor((xsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
+        ysizes.append(np.floor((ysizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
 
-    # Freeze all layers except the last
-    for param in model.parameters():
-        param.requires_grad = False
+        xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
+        ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
 
-    if freeze_all: # Freeze all weights
-        return model
+        fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
+    return int(fcsizes[-1])
 
-    if modelname == 'resnet50': # Load from torchvision
-        model.fc = nn.Linear(model.fc.in_features, outsize)
-    else:
-        model.classifier = nn.Linear(model.classifier.in_features,outsize)
+def transfer_model(modelname,cnn_out,cnndropout=False):
+    if 'resnet' in modelname: # Load from torchvision
+        model = timm.create_model(modelname,pretrained=True)
+        
+        # Freeze all layers except the last
+        for param in model.parameters():
+            param.requires_grad = False
+        
+        model.fc = nn.Linear(model.fc.in_features, cnn_out)                    # freeze all layers except the last one
+    
+    elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
+        channels = 3
+        nlat = 224
+        nlon = 224
 
+        # 2 layer CNN settings
+        nchannels     = [32,64]
+        filtersizes   = [[2,3],[3,3]]
+        filterstrides = [[1,1],[1,1]]
+        poolsizes     = [[2,3],[2,3]]
+        poolstrides   = [[2,3],[2,3]]
+
+        firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+        
+        if cnndropout: # Include Dropout
+            layers = [
+                    nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[0]),
+    
+                    nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[1]),
+    
+                    nn.Flatten(),
+                    nn.Linear(in_features=firstlineardim,out_features=64),
+                    nn.ReLU(),
+    
+                    nn.Dropout(p=0.5),
+                    nn.Linear(in_features=64,out_features=cnn_out)
+                    ]
+        else:
+            layers = [
+                    nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[0]),
+    
+                    nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                    nn.ReLU(),
+                    nn.MaxPool2d(kernel_size=poolsizes[1]),
+    
+                    nn.Flatten(),
+                    nn.Linear(in_features=firstlineardim,out_features=64),
+                    nn.ReLU(),
+    
+                    #nn.Dropout(p=0.5),
+                    nn.Linear(in_features=64,out_features=cnn_out)
+                    ]
+        model = nn.Sequential(*layers) # Set up model
+    else: # Load from timm
+        model = timm.create_model(modelname,pretrained=True)
+        # Freeze all layers except the last
+        for param in model.parameters():
+            param.requires_grad = False
+        model.classifier=nn.Linear(model.classifier.in_features,cnn_out)
     return model
 
-def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True):
+def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True,
+                 reduceLR=False,LRpatience=3):
     """
     inputs:
-        model       - model
+        model       - Resnet model
         loss_fn     - (torch.nn) loss function
         opt         - tuple of [optimizer_name, learning_rate, weight_decay] for updating the weights
                       currently supports "Adadelta" and "SGD" optimizers
@@ -150,6 +219,8 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         early_stop  - BOOL or INT, Stop training after N epochs of increasing validation error
                      (set to False to stop at max epoch, or INT for number of epochs)
         verbose     - set to True to display training messages
+        reduceLR    - BOOL, set to true to use LR scheduler
+        LRpatience  - INT, patience for LR scheduler
 
     output:
 
@@ -157,14 +228,26 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         from torch import nn,optim
 
     """
+    # #model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
+    # model = timm.create_model("tf_efficientnet_b7_ns")
+    # for param in model.parameters():
+    #     print(param)
+    #     print(param.requires_grad)
+    #     param.requires_grad = False
 
-
+    # #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
+    # model.classifier=nn.Linear(model.classifier.in_features,1)
+    bestloss = np.infty
+    
     # Check if there is GPU
     if checkgpu:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     else:
         device = torch.device('cpu')
     model = model.to(device)
+    
+    
+    
 
     # Get list of params to update
     params_to_update = []
@@ -175,24 +258,27 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                 print("Params to learn:")
                 print("\t",name)
 
+
     # Set optimizer
     if optimizer[0] == "Adadelta":
-        #opt = optim.Adadelta(params_to_update,lr=optimizer[1],weight_decay=optimizer[2])
         opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == "SGD":
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
 
+    # Add Scheduler
+    if reduceLR:
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=LRpatience)
+    
     # Set early stopping threshold and counter
     if early_stop is False:
         i_thres = max_epochs
     else:
         i_thres = early_stop
     i_incr    = 0 # Number of epochs for which the validation loss increases
-    prev_loss = 0 # Variable to store previous loss
     bestloss  = np.infty
-
+    
     # Main Loop
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
     for epoch in tqdm(range(max_epochs)): # loop by epoch
@@ -218,14 +304,17 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                 # Forward pass
                 pred_y = model(batch_x)
 
-                # Calculate loss
+                # Calculate losslay
                 loss = loss_fn(pred_y,batch_y)
 
                 # Update weights
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
-
+                elif mode == 'eval':  # update scheduler after 1st epoch
+                    if reduceLR:
+                        scheduler.step(loss)
+                    
                 runningloss += float(loss.item())
 
             if verbose: # Print progress message
@@ -236,7 +325,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
                 bestloss = runningloss/len(data_loader)
                 bestmodel = copy.deepcopy(model)
-                #best_model_wts = copy.deepcopy(model.state_dict())
                 if verbose:
                     print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
 
@@ -254,10 +342,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                         i_incr += 1 # Add to counter
                         if verbose:
                             print("Validation loss has increased at epoch %i, count=%i"%(epoch+1,i_incr))
+                        
                     else:
                         i_incr = 0 # Zero out counter
                     lossprev = runningloss/len(data_loader)
-
 
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))
@@ -337,8 +425,8 @@ expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i_%s_sqlen%i" % (season,resolut
 # Load the data for whole North Atlantic
 # Data : [channel, ensemble, time, lat, lon]
 # Label: [ensemble, time]
-data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized.npy')
-target = np.load('../../CESM_data/CESM_label_amv_index.npy')
+data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend0.npy')
+target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
 data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
 
@@ -375,8 +463,8 @@ start = time.time()
 for l,lead in enumerate(leads):
 
     # Set output path
-    outname = "/leadtime_testing_%s_%s_leadnum%02i.npz" % (varname,expname,lead)
-
+    outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+    
     # ----------------------
     # Apply lead/lag to data
     # ----------------------
@@ -409,7 +497,7 @@ for l,lead in enumerate(leads):
     # Set up component models
     # -----------------------
     # Set pretrained CNN as feature extractor
-    pmodel = transfer_model(netname,cnn_out,freeze_all=freeze_all)
+    pmodel = transfer_model(netname,cnn_out,cnndropout=cnndropout)
 
     # Set either a LTSM or GRU unit
     if rnnname == 'LSTM':
@@ -436,8 +524,11 @@ for l,lead in enumerate(leads):
     # ---------------
     # Train the model
     # ---------------
-    model,trainloss,testloss = train_ResNet(seqmodel,loss_fn,opt,train_loader,val_loader,max_epochs,early_stop=early_stop,verbose=verbose)
+    model,trainloss,testloss = train_ResNet(seqmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
+                                            early_stop=early_stop,verbose=verbose,
+                                            reduceLR=reduceLR,LRpatience=LRpatience)
 
+                                                
     # Save train/test loss
     train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
     test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
