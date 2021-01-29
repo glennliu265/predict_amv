@@ -12,19 +12,22 @@ See user edits below for further specifications.
 
 """
 
+from tqdm import tqdm
+from torch.utils.data import DataLoader, TensorDataset,Dataset
+#from ray import tune
+from torch import nn
+
 import numpy as np
 import matplotlib.pyplot as plt
-import time
-from tqdm import tqdm
-import torch
-from torch import nn
 import torch.optim as optim
 import torchvision.models as models
-from torch.utils.data import DataLoader, TensorDataset,Dataset
+
+import time
+import torch
 import os
 import copy
-
 import timm
+
 # -------------------
 #%% User Edits/Inputs
 # -------------------
@@ -37,31 +40,29 @@ detrend        = False                # Predict undetrended data
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 1    # Ensemble members to use
+ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
-netname       = 'resnet18'            # Name of pretrained network (timm module)
+netname       = "resnet50"            # Name of pretrained network (timm module)
 rnnname       = 'GRU'                 # LSTM or GRU
 hidden_size   = 30                    # The size of the hidden layers in the RNN
 cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
-seq_len       = 10                     # Length of sequence (same units as data [years])
+seq_len       = 5                     # Length of sequence (same units as data [years])
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
 
 # Model training settings
-early_stop    = 2                     # Number of epochs where validation loss increases before stopping
-max_epochs    = 2                    # Maximum number of epochs
+early_stop    = 20                     # Number of epochså where validation loss increases before stopping
+max_epochs    = 20                     # Maximum number of epochs
 batch_size    = 4                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.01,0]    # Name optimizer
-reduceLR      = False                 # Set to true to use LR scheduler
+opt           = ['Adam',1e-6,0]         # Name optimizer
+reduceLR      = True                  # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 outpath       = ''
-
-
 
 # Misc. saving options
 resolution    = '224pix'
@@ -72,12 +73,10 @@ debug      = True  # Visualize training and testing loss
 verbose    = True  # Print loss for each epoch
 checkgpu   = True  # Set to true to check for GPU otherwise run on CPU
 savemodel  = False # Set to true to save model dict.
-freeze_all = False # Freeze all layers
-
 
 #%%
 
-# Set configurable network
+# Set configurable network (NOTE WIP)
 config = {}
 
 # Training Configurations
@@ -93,14 +92,13 @@ config['early_stop']   = early_stop
 
 
 # Model Architecture
-config['cnn_dropout'] = cnndropout
-config['cnn_out'] = cnn_out
-
-config['rnn_layers'] = rnn_layers
-config['rnn_out']  = outsize
-
-
-
+config['cnn_dropout']    = cnndropout
+config['cnn_out']        = cnn_out
+config['rnn_layers']     = rnn_layers
+config['rnn_out']        = outsize
+config['rnn_hiddensize'] = hidden_size
+config['rnn_activation'] = outactivation
+config['seq_len']        = seq_len
 
 # -----------------------
 #%% Functions and classes
@@ -278,14 +276,14 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     
     
 
-    # Get list of params to update
-    params_to_update = []
-    for name,param in model.named_parameters():
-        if param.requires_grad == True:
-            params_to_update.append(param)
-            if verbose:
-                print("Params to learn:")
-                print("\t",name)
+    # # Get list of params to update
+    # params_to_update = []
+    # for name,param in model.named_parameters():
+    #     if param.requires_grad == True:
+    #         params_to_update.append(param)
+    #         if verbose:
+    #             print("Params to learn:")
+    #             print("\t",name)
 
 
     # Set optimizer
@@ -436,8 +434,8 @@ def make_sequences(X,y,seq_len):
         yseq = yseq.reshape(nens*nsamples)
 
         return Xseq,yseq
-# ----------------------------------------
 
+# ----------------------------------------
 # %% Set-up
 # ----------------------------------------
 allstart = time.time()
@@ -511,7 +509,6 @@ for l,lead in enumerate(leads):
     # ---------------------------------
     # Split into training and test sets
     # ---------------------------------
-
     X_train = torch.from_numpy( Xseq[0:int(np.floor(percent_train*nsamples)),...].astype(np.float32))
     X_val = torch.from_numpy( Xseq[int(np.floor(percent_train*nsamples)):,...].astype(np.float32))
 
@@ -561,6 +558,7 @@ for l,lead in enumerate(leads):
     # Save train/test loss
     train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
     test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
+    
 
     #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
 
@@ -581,7 +579,7 @@ for l,lead in enumerate(leads):
             batch_y = batch_y.to(device)
 
             # Make prediction and concatenate for each batch
-            batch_pred = model(batch_x)
+            batch_pred = model(batch_x).squeeze()
 
             if i == 0:
                 y_pred_val=batch_pred.detach().cpu().numpy().squeeze()
@@ -592,6 +590,10 @@ for l,lead in enumerate(leads):
 
     # Calculate correlation between prediction+label
     testcorr = np.corrcoef( y_pred_val[:].T, y_valdt[:].T)[0,1]
+    
+    # Save the actual and predicted values
+    yvalpred.append(y_pred_val)
+    yvallabels.append(y_valdt)
 
     if verbose:
         print("Correlation for lead %i was %f"%(lead,testcorr))
@@ -678,11 +680,8 @@ for l,lead in enumerate(leads):
              'train_loss': train_loss_grid,
              'test_loss': test_loss_grid,
              'test_corr': corr_grid_test,
-             #'train_corr': corr_grid_train,
-             #'ytrainpred': ytrainpred,
-             #'ytrainlabels': ytrainlabels,
-             'y_pred_val': y_pred_val,
-             'y_valdt' : y_valdt
+             'yvalpred': yvalpred,
+             'yvallabels' : yvallabels
              }
             )
 print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
@@ -690,7 +689,7 @@ print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname
 fig,ax = plt.subplots(1,1)
 ax.plot(leads,corr_grid_test)
 ax.axhline(0,ls='dashed',color='k')
-ax.set_ylim([-1,1])
+ax.set_ylim([-.5,1])
 ax.grid(True,ls='dotted')
 plt.savefig("../../CESM_data/Figures/%s_%s_Prediction_v_Leadtime.png"%(expname,varname))
 
