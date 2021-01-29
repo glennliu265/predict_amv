@@ -40,7 +40,7 @@ detrend        = False                # Predict undetrended data
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
+ens           = 10    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
@@ -57,7 +57,7 @@ cnndropout    = False                  # Set to 1 to test simple CN with dropout
 # Model training settings
 early_stop    = 20                     # Number of epochså where validation loss increases before stopping
 max_epochs    = 20                     # Maximum number of epochs
-batch_size    = 4                     # Number of ensemble members to use per step
+batch_size    = 128                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',1e-6,0]         # Name optimizer
 reduceLR      = True                  # Set to true to use LR scheduler
