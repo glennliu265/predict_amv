@@ -541,10 +541,10 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     # Set test hyperparameters
     config = {
         #"optimizer" : tune.grid_search([optim.Adam,optim.Adadelta]),
-        "lr" : tune.grid_search([1e-4,1e-3,2e-3,1e-1]),
+        "lr" : tune.grid_search([1e-4,1e-2,1e-1]),
         'batch_size' : tune.grid_search([8,16,32]),
-        "cnn_out": tune.grid_search([1,10,100,1000]),
-        "rnn_hiddensize" : tune.grid_search([10,50,100]),
+        "cnn_out": tune.grid_search([1,100,1000]),
+        "rnn_hiddensize" : tune.grid_search([10,100]),
         "rnn_layers": tune.grid_search([1,2,3])
         }
     print(config)
@@ -569,7 +569,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     
     result = tune.run(
         partial(train_cesm, data_dir=data_dir),
-        resources_per_trial={"cpu": 2, "gpu": gpus_per_trial},
+        resources_per_trial={"cpu": 16, "gpu": gpus_per_trial},
         config=config,
         num_samples=num_samples,
         scheduler=scheduler,
@@ -607,4 +607,4 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
 if __name__ == "__main__":
     # You can change the number of GPUs per trial here:
-    main(num_samples=10, max_num_epochs=10, gpus_per_trial=1)
+    main(num_samples=1, max_num_epochs=10, gpus_per_trial=1)
