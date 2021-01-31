@@ -535,7 +535,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     # Set test hyperparameters
     config = {
         #"optimizer" : tune.grid_search([optim.Adam,optim.Adadelta]),
-        "lr" : tune.grid_search[(1e-4,1e-3,2e-3,1e-1)],
+        "lr" : tune.grid_search([1e-4,1e-3,2e-3,1e-1]),
         'batch_size' : tune.grid_search([8,16,32]),
         "cnn_out": tune.grid_search([1,10,100,1000]),
         "rnn_hiddensize" : tune.grid_search([10,50,100]),
