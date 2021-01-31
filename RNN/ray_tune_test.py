@@ -570,7 +570,8 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     result = tune.run(
         partial(train_cesm, data_dir=data_dir),
         resources_per_trial={"cpu": 16, "gpu": gpus_per_trial},
-        resume=True,
+        local_dir="/home/glennliu/ray_results/DEFAULT_2021-01-31_20-07-40",
+        resume="PROMPT",
         config=config,
         num_samples=num_samples,
         scheduler=scheduler,
