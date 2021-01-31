@@ -33,13 +33,13 @@ import time
 # User Edits
 detrend       = False
 lead          =  0
-ens           =  1
+ens           =  10
 percent_train =  0.8
 test_size     =  2       # Number of ensemble members to use for testing
 seq_len       =  5
 
 # Additional network selections
-netname        = 'simplecnn'
+netname        = 'resnet50'
 rnnname        = "GRU"
 rnn_out        = 1
 rnn_activation = False
@@ -601,4 +601,4 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
 
 if __name__ == "__main__":
     # You can change the number of GPUs per trial here:
-    main(num_samples=10, max_num_epochs=10, gpus_per_trial=0)
+    main(num_samples=10, max_num_epochs=10, gpus_per_trial=1)
