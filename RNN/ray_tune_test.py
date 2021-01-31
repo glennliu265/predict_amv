@@ -25,11 +25,28 @@ from ray.tune import CLIReporter
 from ray.tune.schedulers import ASHAScheduler
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import timm
+from tqdm import tqdm
+import time
 
-#%%
+#%% 
 
+# User Edits
+detrend       = False
+lead          =  0
+ens           =  1
+percent_train =  0.8
+test_size     =  2       # Number of ensemble members to use for testing
+seq_len       =  5
 
+# Additional network selections
+netname        = 'simplecnn'
+rnnname        = "GRU"
+rnn_out        = 1
+rnn_activation = False
+cnn_dropout    = False
 
+# other settings
+num_workers = 2
 
 
 #%% Utilities
@@ -84,10 +101,10 @@ def make_sequences(X,y,seq_len):
             2. yseq [ndarray: ens*sample]
 
         """
-
+        
         nens,ntime,nchan,nlat,nlon = X.shape
 
-        nsamples= ntime-seq_len
+        nsamples= ntime- seq_len
 
         Xseq = np.zeros([nens,nsamples,seq_len,nchan,nlat,nlon],dtype=np.float32)
         yseq = np.zeros([nens,nsamples],dtype=np.float32)
@@ -212,7 +229,7 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
 
 #%% New Functions
 
-def load_data(lead,detrend=False,ens=40,seq_len=5,percent_train=0.8,test_size=2,test_mode=False):
+def load_data(lead,data_dir,detrend=False,ens=1,seq_len=5,percent_train=0.8,test_size=2,test_mode=False):
     """
     Load and prepare data in the following steps:
     
@@ -225,6 +242,8 @@ def load_data(lead,detrend=False,ens=40,seq_len=5,percent_train=0.8,test_size=2,
     ----------
     lead : INT
         Lead time between the predictor/predictand
+    data_dir : STR
+        String of the path to the working directory
     detrend : BOOL, optional
         Use detrended AMV Index as the target. Default = False
     ens : INT, optional
@@ -253,32 +272,41 @@ def load_data(lead,detrend=False,ens=40,seq_len=5,percent_train=0.8,test_size=2,
     # ---------
     # Load data
     # ---------
-    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend0.npy')
-    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy' % detrend)
+    print(ens)
+    #print("CWD is %s"%(os.getcwd()))
+    data   = np.load('%s/../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend0.npy' % (data_dir))
+    target = np.load('%s/../../CESM_data/CESM_label_amv_index_detrend%i.npy' % (data_dir,detrend))
     _,_,tstep,_,_ = data.shape # Get size of time axis
     
+    if test_size > ens:
+        print("Warning, # ens members withheld from test size (%i) is larger than ens (%i)" % (test_size,ens))
+        print(ens-test_size)
+        test_size=0
+    
+    
+    #print("Data found!")
     # ----------------------------------------------------------------------
     # Apply lead/lag, transpose inputs to [ens x time x channel x lat x lon]
     # ----------------------------------------------------------------------
     if test_mode == True: # Just take last n ensemble members, where n = test_size
-        y = target[-test_tsize:,lead:].astype(np.float32)
-        X = (data[:,-test_size:,:tstep-lead,:,:].transpose(1,2,0,3,4)).astype(np.float32)
+        y = target[-1*test_size:,lead:].astype(np.float32)
+        X = (data[:,-1*test_size:,:tstep-lead,:,:].transpose(1,2,0,3,4)).astype(np.float32)
     else:
-        y = target[:ens-test_tsize,lead:].astype(np.float32)
+        y = target[:ens-test_size,lead:].astype(np.float32)
         X = (data[:,:ens-test_size,:tstep-lead,:,:].transpose(1,2,0,3,4)).astype(np.float32)
     
     # -------------------------
     # Preprocess into sequences
     # -------------------------
-    Xseq,yseq = make_sequences(X,y,seq_len)
+    Xseq,yseq = make_sequences(X,y,int(seq_len))
     nsamples = Xseq.shape[0]
     
     # ---------------------------------
     # Split into training and test sets
     # ---------------------------------
     if test_mode == True:
-        X_test   = torch.from_numpy( Xseq[nsamples,...].astype(np.float32))
-        y_test   = torch.from_numpy( yseq[nsamples,None].astype(np.float32))
+        X_test   = torch.from_numpy( Xseq.astype(np.float32))
+        y_test   = torch.from_numpy( yseq[:,None].astype(np.float32))
         return X_test,y_test
     
     X_train = torch.from_numpy( Xseq[0:int(np.floor(percent_train*nsamples)),...].astype(np.float32))
@@ -287,13 +315,12 @@ def load_data(lead,detrend=False,ens=40,seq_len=5,percent_train=0.8,test_size=2,
     y_train = torch.from_numpy(  yseq[0:int(np.floor(percent_train*nsamples)),None].astype(np.float32))
     y_val = torch.from_numpy( yseq[int(np.floor(percent_train*nsamples)):,None].astype(np.float32))
     
+    print("X_train is size %s" % (str(X_train.shape)))
     return X_train,y_train,X_val,y_val
 
-#%% Testing
-
-
-
-def setup_model(config):
+def setup_model(config,netname='resnet50',rnnname="GRU",
+                rnn_out=1,rnn_activation=None,
+                cnn_dropout=False):
     """
     
     Things to consider removing from config
@@ -319,18 +346,19 @@ def setup_model(config):
     seqmodel : NN.module
 
     """
+    
     # Set pretrained CNN as feature extractor
-    pmodel = transfer_model(config['netname'],config['cnn_out'],cnndropout=config["cnndropout"])
+    pmodel = transfer_model(netname,config['cnn_out'],cnndropout=cnn_dropout)
     
     # Set either a LTSM or GRU unit
-    if config["rnnname"] == 'LSTM':
+    if rnnname == 'LSTM':
         rnn = nn.LSTM(
                 input_size =config['cnn_out'],
                 hidden_size=config['rnn_hiddensize'],
                 num_layers =config['rnn_layers'],
                 batch_first=True # Input is [batch,seq,feature]
                 )
-    elif config['rnnname'] == 'GRU':
+    elif rnnname == 'GRU':
         rnn = nn.GRU(
                 input_size =config['cnn_out'],
                 hidden_size=config['rnn_hiddensize'],
@@ -339,10 +367,10 @@ def setup_model(config):
                 )
     
     # Set fully-connected layer for classification
-    classifier = nn.Linear(config['rnn_hiddensize'],config['rnn_out'])
+    classifier = nn.Linear(config['rnn_hiddensize'],rnn_out)
     
     # Combine all into sequence model
-    seqmodel = Combine(pmodel,rnn,classifier,config['rnn_activation'])
+    seqmodel = Combine(pmodel,rnn,classifier,rnn_activation)
     
     return seqmodel
 
@@ -368,7 +396,11 @@ def train_cesm(config, checkpoint_dir=None, data_dir=None):
     """
     
     # Set up the model
-    net = setup_model(config)
+    st = time.time()
+    net = setup_model(config,netname=netname,rnnname=rnnname,
+                rnn_out=rnn_out,rnn_activation=rnn_activation,
+                cnn_dropout=cnn_dropout)
+    print("Model intialized in %s" % (time.time()-st))
     
     # Check for GPU
     device = "cpu"
@@ -380,8 +412,8 @@ def train_cesm(config, checkpoint_dir=None, data_dir=None):
     
     # Set optimizer and criterion
     criterion = nn.MSELoss()
-    opt = config['optimizer']
-    optimizer = opt(net.parameters(), lr=config["lr"])
+    #opt = optim.Adam
+    optimizer = optim.Adam(net.parameters(), lr=config["lr"])
     
     if checkpoint_dir:
         model_state, optimizer_state = torch.load(
@@ -390,17 +422,19 @@ def train_cesm(config, checkpoint_dir=None, data_dir=None):
         optimizer.load_state_dict(optimizer_state)
     
     # Load data and set up loaders
-    X_train,y_train,X_val,y_val = load_data(config['lead'],
-                                        detrend=config['detrend'],
-                                        ens=config['ens'],
-                                        seq_len=config['seq_len'],
-                                        percent_train=0.8,
-                                        test_size=2
+    st = time.time()
+    X_train,y_train,X_val,y_val = load_data(lead,data_dir,
+                                        detrend=detrend,
+                                        ens=ens,
+                                        seq_len=seq_len,
+                                        percent_train=percent_train,
+                                        test_size=test_size
                                         )
-    trainloader = DataLoader(TensorDataset(X_train, y_train), batch_size=config['batch_size'],num_workers=8)
-    valloader   = DataLoader(TensorDataset(X_val, y_val), batch_size=config['batch_size'],num_workers=8)
-
-    for epoch in range(10):  # loop over the dataset multiple times
+    trainloader = DataLoader(TensorDataset(X_train, y_train), batch_size=config['batch_size'],num_workers=num_workers)
+    valloader   = DataLoader(TensorDataset(X_val, y_val), batch_size=config['batch_size'],num_workers=num_workers)
+    print("Loaded data in %s"%(time.time()-st))
+    
+    for epoch in tqdm(range(10)):  # loop over the dataset multiple times
         running_loss = 0.0
         epoch_steps = 0
         for i, data in enumerate(trainloader, 0):
@@ -413,7 +447,9 @@ def train_cesm(config, checkpoint_dir=None, data_dir=None):
 
             # forward + backward + optimize
             outputs = net(inputs)
+            
             loss = criterion(outputs, labels)
+                             
             loss.backward()
             optimizer.step()
 
@@ -459,18 +495,17 @@ def train_cesm(config, checkpoint_dir=None, data_dir=None):
         tune.report(loss=(val_loss / val_steps), correlation=testcorr)
     print("Finished Training")
 
-
-def test_correlation(net, device="cpu"):
-    X_test,y_test= load_data(config['lead'],
-                                detrend=config['detrend'],
-                                ens=config['ens'],
-                                seq_len=config['seq_len'],
-                                percent_train=0.8,
-                                test_size=2,
+def test_correlation(net, config, data_dir,device="cpu"):
+    X_test,y_test= load_data(lead,data_dir,
+                                detrend=detrend,
+                                ens=ens,
+                                seq_len=seq_len,
+                                percent_train=percent_train,
+                                test_size=test_size,
                                 test_mode=True
                                 )
     
-    testloader   = DataLoader(TensorDataset(X_test, y_test), batch_size=config['batch_size'],num_workers=8)
+    testloader   = DataLoader(TensorDataset(X_test, y_test), batch_size=config['batch_size'],num_workers=num_workers)
     
     predicted_value = np.asarray([])
     actual_value    = np.asarray([])
@@ -493,25 +528,27 @@ def test_correlation(net, device="cpu"):
 
     return testcorr
 
-config = {
-    "l1": tune.sample_from(lambda _: 2**np.random.randint(2, 9)),
-    "l2": tune.sample_from(lambda _: 2**np.random.randint(2, 9)),
-    "lr": tune.loguniform(1e-4, 1e-1),
-    "batch_size": tune.choice([2, 4, 8, 16])
-}
-
+#%%
 
 def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     
-    data_dir = os.path.abspath("./data")
-    load_data(data_dir)
-    
+    # Set test hyperparameters
     config = {
-        "l1": tune.sample_from(lambda _: 2 ** np.random.randint(2, 9)),
-        "l2": tune.sample_from(lambda _: 2 ** np.random.randint(2, 9)),
-        "lr": tune.loguniform(1e-4, 1e-1),
-        "batch_size": tune.choice([2, 4, 8, 16])
-    }
+        #"optimizer" : tune.grid_search([optim.Adam,optim.Adadelta]),
+        "lr" : tune.loguniform(1e-4, 1e-1),
+        'batch_size' : tune.grid_search([2,8,16]),
+        "cnn_out": tune.grid_search([1,1000]),
+        "rnn_hiddensize" : tune.grid_search([10,30]),
+        "rnn_layers": tune.grid_search([1,2])
+        }
+    print(config)
+    
+    #data_dir = os.path.abspath("./data")
+    data_dir = os.getcwd()
+    load_data(lead,data_dir,detrend=detrend,ens=ens,
+              seq_len=seq_len,
+              percent_train=percent_train,
+              test_size=test_size,test_mode=False)
     
     scheduler = ASHAScheduler(
         metric="loss",
@@ -538,10 +575,15 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
         best_trial.last_result["loss"]))
     print("Best trial final validation correlation: {}".format(
         best_trial.last_result["correlation"]))
-
-    best_trained_model = Net(best_trial.config["l1"], best_trial.config["l2"])
-    device = "cpu"
     
+    testparams = ["lr","batch_size","cnn_out","rnn_hiddensize","rnn_layers"]
+    bestconfig = {param:best_trial.config[param] for param in testparams}
+    
+    best_trained_model = setup_model(bestconfig,netname=netname,rnnname=rnnname,
+                rnn_out=rnn_out,rnn_activation=rnn_activation,
+                cnn_dropout=cnn_dropout)
+    
+    device = "cpu"
     if torch.cuda.is_available():
         device = "cuda:0"
         if gpus_per_trial > 1:
@@ -553,7 +595,7 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
         best_checkpoint_dir, "checkpoint"))
     best_trained_model.load_state_dict(model_state)
 
-    test_corr = test_correlation(best_trained_model, device)
+    test_corr = test_correlation(best_trained_model, bestconfig, data_dir, device)
     print("Best trial test set correlation: {}".format(test_corr))
 
 
