@@ -20,7 +20,7 @@ from torch import nn
 import numpy as np
 import matplotlib.pyplot as plt
 import torch.optim as optim
-import torchvision.models as models
+#import torchvision.models as models
 
 import time
 import torch
@@ -51,15 +51,15 @@ cnn_out       = 1000                  # Number of features to be extracted by CN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
-seq_len       = 10                     # Length of sequence (same units as data [years])
+seq_len       = 5                     # Length of sequence (same units as data [years])
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
 
 # Model training settings
-early_stop    = 3                     # Number of epochså where validation loss increases before stopping
+early_stop    = 2                     # Number of epochså where validation loss increases before stopping
 max_epochs    = 20                     # Maximum number of epochs
-batch_size    = 128                     # Number of ensemble members to use per step
+batch_size    = 32                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adam',1e-4,0]         # Name optimizer
+opt           = ['Adam',1e-3,0]         # Name optimizer
 reduceLR      = True                  # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 outpath       = ''
