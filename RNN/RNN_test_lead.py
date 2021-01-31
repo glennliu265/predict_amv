@@ -40,26 +40,26 @@ detrend        = False                # Predict undetrended data
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 10    # Ensemble members to use
+ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
 netname       = "resnet50"            # Name of pretrained network (timm module)
 rnnname       = 'GRU'                 # LSTM or GRU
-hidden_size   = 30                    # The size of the hidden layers in the RNN
+hidden_size   = 10                    # The size of the hidden layers in the RNN
 cnn_out       = 1000                  # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
-seq_len       = 5                     # Length of sequence (same units as data [years])
+seq_len       = 10                     # Length of sequence (same units as data [years])
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
 
 # Model training settings
-early_stop    = 20                     # Number of epochså where validation loss increases before stopping
+early_stop    = 3                     # Number of epochså where validation loss increases before stopping
 max_epochs    = 20                     # Maximum number of epochs
 batch_size    = 128                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adam',1e-6,0]         # Name optimizer
+opt           = ['Adam',1e-4,0]         # Name optimizer
 reduceLR      = True                  # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 outpath       = ''
@@ -121,7 +121,8 @@ class Combine(nn.Module):
         self.rnn        = rnn               # RNN unit (LSTM or GRU)
         self.linear     = classifier        # Classifier Layer
         self.activation = activation        # activation funcion
-
+    
+    
     def forward(self, x):
         batch_size, timesteps, C, H, W = x.size()        # Get dimension sizes
         c_in = x.view(batch_size * timesteps, C, H, W)   # Combine batch + time
@@ -483,7 +484,7 @@ if checkgpu:
 else:
     device = torch.device('cpu')
 # ----------------------------------------------
-# %% Train for each lead time
+# % Train for each lead time
 # ----------------------------------------------
 start = time.time()
 
@@ -516,8 +517,10 @@ for l,lead in enumerate(leads):
     y_val = torch.from_numpy( yseq[int(np.floor(percent_train*nsamples)):,None].astype(np.float32))
 
     # Put into pytorch DataLoader
-    train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size,num_workers=4)
-    val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size,num_workers=4)
+    train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
+    val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
+    
+
 
     # -----------------------
     # Set up component models
