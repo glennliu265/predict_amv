@@ -46,7 +46,7 @@ rnn_activation = False
 cnn_dropout    = False
 
 # other settings
-num_workers = 8
+num_workers = 2
 
 
 #%% Utilities
@@ -471,13 +471,19 @@ def train_cesm(config, checkpoint_dir=None, data_dir=None):
                 inputs, labels = data
                 inputs, labels = inputs.to(device), labels.to(device)
                 
+                
+                #print("inputs are of size %s" % str(inputs))
+                #print("labels are of size %s" % str(labels))
+                 # forward + backward + optimize
+                outputs = net(inputs)
+            
                 # Calculate Loss
                 loss = criterion(outputs, labels)
                 val_loss += loss.cpu().numpy()
                 val_steps += 1
 
                 # Make prediction and concatenate for each batch
-                batch_pred = net(inputs).squeeze()
+                batch_pred = outputs.squeeze()
                 if i == 0:
                     predicted_value=batch_pred.detach().cpu().numpy().squeeze()
                     actual_value = labels.detach().cpu().numpy().squeeze()
