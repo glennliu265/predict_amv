@@ -46,7 +46,7 @@ rnn_activation = False
 cnn_dropout    = False
 
 # other settings
-num_workers = 2
+num_workers = 8
 
 
 #%% Utilities
@@ -535,11 +535,11 @@ def main(num_samples=10, max_num_epochs=10, gpus_per_trial=2):
     # Set test hyperparameters
     config = {
         #"optimizer" : tune.grid_search([optim.Adam,optim.Adadelta]),
-        "lr" : tune.loguniform(1e-4, 1e-1),
-        'batch_size' : tune.grid_search([2,8,16]),
-        "cnn_out": tune.grid_search([1,1000]),
-        "rnn_hiddensize" : tune.grid_search([10,30]),
-        "rnn_layers": tune.grid_search([1,2])
+        "lr" : tune.grid_search[(1e-4,1e-3,2e-3,1e-1)],
+        'batch_size' : tune.grid_search([8,16,32]),
+        "cnn_out": tune.grid_search([1,10,100,1000]),
+        "rnn_hiddensize" : tune.grid_search([10,50,100]),
+        "rnn_layers": tune.grid_search([1,2,3])
         }
     print(config)
     
