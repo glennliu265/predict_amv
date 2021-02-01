@@ -44,7 +44,7 @@ ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
-netname       = "resnet50"            # Name of pretrained network (timm module)
+netname       = "simplecnn"            # Name of pretrained network (timm module)
 rnnname       = 'GRU'                 # LSTM or GRU
 hidden_size   = 10                    # The size of the hidden layers in the RNN
 cnn_out       = 100                  # Number of features to be extracted by CNN and input into RNN
