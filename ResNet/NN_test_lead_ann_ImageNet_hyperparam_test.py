@@ -43,14 +43,15 @@ ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model training settings
-early_stop    = 500                   # Number of epochs where validation loss increases before stopping
-max_epochs    = 500                   # Maximum number of epochs
+unfreeze_all  = True # Set to true to unfreeze all layers, false to only unfreeze last layer
+early_stop    = 20                    # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 128                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adadelta',.1,0]     # Name optimizer
+opt           = ['Adam',1e-4,0]     # Name optimizer
 reduceLR      = False                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'resnet50'#'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'resnet50'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
@@ -94,14 +95,16 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
     return int(fcsizes[-1])
 
 
-def transfer_model(modelname,cnndropout=False):
+def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
     if 'resnet' in modelname: # Load from torchvision
         #model = models.resnet50(pretrained=True) # read in resnet model
         model = timm.create_model(modelname,pretrained=True)
-        # Freeze all layers except the last
-        for param in model.parameters():
-
-            param.requires_grad = False
+        if unfreeze_all is False:
+            # Freeze all layers except the last
+            for param in model.parameters():
+                param.requires_grad = False
+        else:
+            print("Warning: All weights are unfrozen!")
         model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
         channels = 3
@@ -155,9 +158,12 @@ def transfer_model(modelname,cnndropout=False):
 
     else: # Load from timm
         model = timm.create_model(modelname,pretrained=True)
-        # Freeze all layers except the last
-        for param in model.parameters():
-            param.requires_grad = False
+        if unfreeze_all is False:
+            # Freeze all layers except the last
+            for param in model.parameters():
+                param.requires_grad = False
+        else:
+            print("Warning: All weights are unfrozen!")
         model.classifier=nn.Linear(model.classifier.in_features,1)
     return model
 
@@ -348,15 +354,15 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=[128]
-testname='batchsize'
+testvalues=[True,False]
+testname='unfreeze_all'
 
 for i in range(len(testvalues)):
     
     # ********************************************************************
     # NOTE: Manually assign value here (will implement automatic fix later)
     #cnndropout = testvalues[i]
-    batch_size=testvalues[i]
+    unfreeze_all=testvalues[i]
     print("Testing %s=%s"% (testname,str(testvalues[i])))
     # ********************************************************************
     
@@ -426,7 +432,7 @@ for i in range(len(testvalues)):
         # ---------------
         # Train the model
         # ---------------
-        pmodel = transfer_model(netname,cnndropout=cnndropout)
+        pmodel = transfer_model(netname,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
         model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
                                                 early_stop=early_stop,verbose=verbose,
                                                 reduceLR=reduceLR,LRpatience=LRpatience)
