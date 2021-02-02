@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -41,12 +41,14 @@ usenoise       = False                # Set to true to train the model with pure
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
+numruns       = 10    # Number of times to train each run
+
 
 # Model training settings
 unfreeze_all  = True # Set to true to unfreeze all layers, false to only unfreeze last layer
 early_stop    = 20                    # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                    # Maximum number of epochs
-batch_size    = 64                   # Pairs of predictions
+batch_size    = 32                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',1e-4,0]     # Name optimizer
 reduceLR      = False                 # Set to true to use LR scheduler
@@ -357,218 +359,221 @@ target = target[0:ens,:]
 testvalues=[True,False]
 testname='unfreeze_all'
 
-for i in range(len(testvalues)):
+for nr in range(numruns):
+    rt = time.time()
     
-    # ********************************************************************
-    # NOTE: Manually assign value here (will implement automatic fix later)
-    #cnndropout = testvalues[i]
-    unfreeze_all=testvalues[i]
-    print("Testing %s=%s"% (testname,str(testvalues[i])))
-    # ********************************************************************
-    
-    # Set experiment names ----
-    nlead    = len(leads)
-    channels = 3
-    start    = time.time()
-    varname  = 'ALL'
-    #subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
-    subtitle="\n%s=%s" % (testname, str(testvalues[i]))
-    
-    # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-    expname = "HPT_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s" % (netname,max_epochs,ens,
-                                                                              leads[-1],detrend,usenoise,
-                                                                              testname,testvalues[i])
-    
-    # Preallocate Evaluation Metrics...
-    corr_grid_train = np.zeros((nlead))
-    corr_grid_test  = np.zeros((nlead))
-    train_loss_grid = np.zeros((max_epochs,nlead))
-    test_loss_grid  = np.zeros((max_epochs,nlead))
-    
-    if checkgpu:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    else:
-        device = torch.device('cpu')
-    
-    # -------------
-    # Print Message
-    # -------------
-    print("Running CNN_test_lead_ann.py with the following settings:")
-    print("\tNetwork Type   : "+netname)
-    print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
-    print("\tMax Epochs     : " + str(max_epochs))
-    print("\tEarly Stop     : " + str(early_stop))
-    print("\t# Ens. Members : "+ str(ens))
-    print("\t%" +testname +  " : "+ str(testvalues[i]))
-    print("\tDetrend        : "+ str(detrend))
-    print("\tUse Noise      :" + str(usenoise))
-    
-    yvalpred     = []
-    yvallabels   = []
-    for l,lead in enumerate(leads):
-        if (lead == leads[-1]) and (len(leads)>1):
-            outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
+    for i in range(len(testvalues)):
+        
+        # ********************************************************************
+        # NOTE: Manually assign value here (will implement automatic fix later)
+        #cnndropout = testvalues[i]
+        unfreeze_all=testvalues[i]
+        print("Testing %s=%s"% (testname,str(testvalues[i])))
+        # ********************************************************************
+        
+        # Set experiment names ----
+        nlead    = len(leads)
+        channels = 3
+        start    = time.time()
+        varname  = 'ALL'
+        #subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
+        subtitle="\n%s=%s" % (testname, str(testvalues[i]))
+        
+        # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+        expname = "HPT_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i" % (netname,max_epochs,ens,
+                                                                                  leads[-1],detrend,usenoise,
+                                                                                  testname,testvalues[i],nr)
+        
+        # Preallocate Evaluation Metrics...
+        corr_grid_train = np.zeros((nlead))
+        corr_grid_test  = np.zeros((nlead))
+        train_loss_grid = np.zeros((max_epochs,nlead))
+        test_loss_grid  = np.zeros((max_epochs,nlead))
+        
+        if checkgpu:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
-            outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+            device = torch.device('cpu')
         
-        # ----------------------
-        # Apply lead/lag to data
-        # ----------------------
-        y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-        X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+        # -------------
+        # Print Message
+        # -------------
+        print("Running CNN_test_lead_ann.py with the following settings:")
+        print("\tNetwork Type   : "+netname)
+        print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
+        print("\tMax Epochs     : " + str(max_epochs))
+        print("\tEarly Stop     : " + str(early_stop))
+        print("\t# Ens. Members : "+ str(ens))
+        print("\t%" +testname +  " : "+ str(testvalues[i]))
+        print("\tDetrend        : "+ str(detrend))
+        print("\tUse Noise      :" + str(usenoise))
         
-        # ---------------------------------
-        # Split into training and test sets
-        # ---------------------------------
-        X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:].astype(np.float32) )
-        X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:,:,:].astype(np.float32) )
-        y_train = torch.from_numpy(  y[0:int(np.floor(percent_train*(tstep-lead)*ens)),:].astype(np.float32)  )
-        y_val = torch.from_numpy( y[int(np.floor(percent_train*(tstep-lead)*ens)):,:].astype(np.float32)  )
-    
-        # Put into pytorch DataLoader
-        train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
-        val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
-    
-        # ---------------
-        # Train the model
-        # ---------------
-        pmodel = transfer_model(netname,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
-        model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
-                                                early_stop=early_stop,verbose=verbose,
-                                                reduceLR=reduceLR,LRpatience=LRpatience)
-        
-        
-        # Save train/test loss
-        train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
-        test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
-        
-        #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
-        # -----------------------------------------------
-        # Pass to GPU or CPU for evaluation of best model
-        # -----------------------------------------------
-        with torch.no_grad():
-            X_val = X_val.to(device)
-            model.eval()
+        yvalpred     = []
+        yvallabels   = []
+        for l,lead in enumerate(leads):
+            if (lead == leads[-1]) and (len(leads)>1):
+                outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
+            else:
+                outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
             
-            # -----------------
-            # Evalute the model
-            # -----------------
-            y_pred_val = np.asarray([])
-            y_valdt    = np.asarray([])
-            for i,vdata in enumerate(val_loader):
-                #print(i)
-                # Get mini batch
-                batch_x, batch_y = vdata
-                batch_x = batch_x.to(device)
-                batch_y = batch_y.to(device)
+            # ----------------------
+            # Apply lead/lag to data
+            # ----------------------
+            y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
+            X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+            
+            # ---------------------------------
+            # Split into training and test sets
+            # ---------------------------------
+            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:].astype(np.float32) )
+            X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:,:,:].astype(np.float32) )
+            y_train = torch.from_numpy(  y[0:int(np.floor(percent_train*(tstep-lead)*ens)),:].astype(np.float32)  )
+            y_val = torch.from_numpy( y[int(np.floor(percent_train*(tstep-lead)*ens)):,:].astype(np.float32)  )
+        
+            # Put into pytorch DataLoader
+            train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
+            val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
+        
+            # ---------------
+            # Train the model
+            # ---------------
+            pmodel = transfer_model(netname,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+            model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
+                                                    early_stop=early_stop,verbose=verbose,
+                                                    reduceLR=reduceLR,LRpatience=LRpatience)
+            
+            
+            # Save train/test loss
+            train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
+            test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
+            
+            #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
+            # -----------------------------------------------
+            # Pass to GPU or CPU for evaluation of best model
+            # -----------------------------------------------
+            with torch.no_grad():
+                X_val = X_val.to(device)
+                model.eval()
+                
+                # -----------------
+                # Evalute the model
+                # -----------------
+                y_pred_val = np.asarray([])
+                y_valdt    = np.asarray([])
+                for i,vdata in enumerate(val_loader):
+                    #print(i)
+                    # Get mini batch
+                    batch_x, batch_y = vdata
+                    batch_x = batch_x.to(device)
+                    batch_y = batch_y.to(device)
+        
+                    # Make prediction and concatenate
+                    batch_pred = model(batch_x).squeeze()
+                    #print(batch_pred.detach().shape)
+                    #print(y_pred_val.shape)
+                    y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
+                    y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
+        
+            # --------------
+            # Save the model
+            # --------------
+            if savemodel:
+                modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
+                torch.save(model.state_dict(),modout)
+        
+            # Save the actual and predicted values
+            yvalpred.append(y_pred_val)
+            yvallabels.append(y_valdt)
+        
+            # Get the correlation (save these)
+            testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
+        
+            # Stop if model is just predicting the same value (usually need to examine optimizer settings)
+            if np.isnan(testcorr):
+                print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
+                for param in model.parameters():
+                    if np.any(np.isnan(param.data.numpy())):
+                        print(param.data)
+                if debug:
+                    fig,ax=plt.subplots(1,1)
+                    #plt.style.use('seaborn')
+                    ax.plot(trainloss,label='train loss')
+                    ax.plot(testloss,label='test loss')
+                    ax.legend()
+                    ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
+                    plt.show()
     
-                # Make prediction and concatenate
-                batch_pred = model(batch_x).squeeze()
-                #print(batch_pred.detach().shape)
-                #print(y_pred_val.shape)
-                y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
-                y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
-    
-        # --------------
-        # Save the model
-        # --------------
-        if savemodel:
-            modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
-            torch.save(model.state_dict(),modout)
-    
-        # Save the actual and predicted values
-        yvalpred.append(y_pred_val)
-        yvallabels.append(y_valdt)
-    
-        # Get the correlation (save these)
-        testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
-    
-        # Stop if model is just predicting the same value (usually need to examine optimizer settings)
-        if np.isnan(testcorr):
-            print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
-            for param in model.parameters():
-                if np.any(np.isnan(param.data.numpy())):
-                    print(param.data)
+                    fig,ax=plt.subplots(1,1)
+                    plt.style.use('seaborn')
+                    #ax.plot(y_pred_train,label='train corr')
+                    ax.plot(y_pred_val,label='test corr')
+                    ax.plot(y_valdt,label='truth')
+                    ax.legend()
+                    ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
+                    plt.show()
+                break
+        
+            # Calculate Correlation and RMSE
+            #if verbose:
+            print("Correlation for lead %i was %f"%(lead,testcorr))
+            corr_grid_test[l]    = testcorr
+            
+            # Visualize loss vs epoch for training/testing and correlation
             if debug:
                 fig,ax=plt.subplots(1,1)
-                #plt.style.use('seaborn')
+                plt.style.use('default')
                 ax.plot(trainloss,label='train loss')
                 ax.plot(testloss,label='test loss')
                 ax.legend()
-                ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
-                plt.show()
-
+                ax.set_title("Losses for Predictor %s Leadtime %i %s"%(varname,lead,subtitle))
+                ax.grid(True,linestyle="dotted")
+                #plt.show()
+                plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
+        
                 fig,ax=plt.subplots(1,1)
-                plt.style.use('seaborn')
-                #ax.plot(y_pred_train,label='train corr')
-                ax.plot(y_pred_val,label='test corr')
-                ax.plot(y_valdt,label='truth')
+                #plt.style.use('seaborn')
+                ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
                 ax.legend()
-                ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
-                plt.show()
-            break
-    
-        # Calculate Correlation and RMSE
-        #if verbose:
-        print("Correlation for lead %i was %f"%(lead,testcorr))
-        corr_grid_test[l]    = testcorr
+                ax.set_ylim([-1.5,1.5])
+                ax.set_xlim([-1.5,1.5])
+                lims = [
+                    np.min([ax.get_xlim(), ax.get_ylim()]),  # min of both axes
+                    np.max([ax.get_xlim(), ax.get_ylim()]),  # max of both axes
+                        ]
+                ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
+                ax.legend()
+                ax.set_ylabel("Actual AMV Index")
+                ax.set_xlabel("Predicted AMV Index")
+                ax.grid(True,linestyle="dotted")
+                ax.set_title("Correlation %.2f for Predictor %s Leadtime %i %s"%(corr_grid_test[l],varname,lead,subtitle))
+                #plt.show()
+                plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
         
-        # Visualize loss vs epoch for training/testing and correlation
-        if debug:
-            fig,ax=plt.subplots(1,1)
-            plt.style.use('default')
-            ax.plot(trainloss,label='train loss')
-            ax.plot(testloss,label='test loss')
-            ax.legend()
-            ax.set_title("Losses for Predictor %s Leadtime %i %s"%(varname,lead,subtitle))
-            ax.grid(True,linestyle="dotted")
-            #plt.show()
-            plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
-    
-            fig,ax=plt.subplots(1,1)
-            #plt.style.use('seaborn')
-            ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
-            ax.legend()
-            ax.set_ylim([-1.5,1.5])
-            ax.set_xlim([-1.5,1.5])
-            lims = [
-                np.min([ax.get_xlim(), ax.get_ylim()]),  # min of both axes
-                np.max([ax.get_xlim(), ax.get_ylim()]),  # max of both axes
-                    ]
-            ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
-            ax.legend()
-            ax.set_ylabel("Actual AMV Index")
-            ax.set_xlabel("Predicted AMV Index")
-            ax.grid(True,linestyle="dotted")
-            ax.set_title("Correlation %.2f for Predictor %s Leadtime %i %s"%(corr_grid_test[l],varname,lead,subtitle))
-            #plt.show()
-            plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
-    
-        print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
-    
-        # Clear some memory
-        del model
-        del X_val
-        del y_val
-        del X_train
-        del y_train
-        torch.cuda.empty_cache()  # Save some memory
+            print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
         
-        # -----------------
-        # Save Eval Metrics
-        # -----------------
-
-        np.savez("../../CESM_data/Metrics"+outname,**{
-                 'train_loss': train_loss_grid,
-                 'test_loss': test_loss_grid,
-                 'test_corr': corr_grid_test,
-                 #'train_corr': corr_grid_train,
-                 #'ytrainpred': ytrainpred,
-                 #'ytrainlabels': ytrainlabels,
-                 'yvalpred': yvalpred,
-                 'yvallabels' : yvallabels
-                 }
-                )
-    print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
+            # Clear some memory
+            del model
+            del X_val
+            del y_val
+            del X_train
+            del y_train
+            torch.cuda.empty_cache()  # Save some memory
+            
+            # -----------------
+            # Save Eval Metrics
+            # -----------------
     
+            np.savez("../../CESM_data/Metrics"+outname,**{
+                     'train_loss': train_loss_grid,
+                     'test_loss': test_loss_grid,
+                     'test_corr': corr_grid_test,
+                     #'train_corr': corr_grid_train,
+                     #'ytrainpred': ytrainpred,
+                     #'ytrainlabels': ytrainlabels,
+                     'yvalpred': yvalpred,
+                     'yvallabels' : yvallabels
+                     }
+                    )
+        print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
+    print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
