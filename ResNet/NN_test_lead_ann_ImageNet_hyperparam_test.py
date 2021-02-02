@@ -46,7 +46,7 @@ numruns       = 10    # Number of times to train each run
 
 # Model training settings
 unfreeze_all  = True # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 20                    # Number of epochs where validation loss increases before stopping
+early_stop    = 2                    # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 32                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
