@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(24,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -45,14 +45,14 @@ numruns       = 1    # Number of times to train each run
 
 # Model training settings
 unfreeze_all  = True # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 1200                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 1200                    # Maximum number of epochs
+early_stop    = 2                    # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                    # Maximum number of epochs
 batch_size    = 32                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',1e-4,0]     # Name optimizer
 reduceLR      = False                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'resnet50'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'simplecnn'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
@@ -355,8 +355,8 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=[True]
-testname='unfreeze_all'
+testvalues=[True,False]
+testname='cnndropout'
 
 for nr in range(numruns):
     rt = time.time()
@@ -365,8 +365,8 @@ for nr in range(numruns):
         
         # ********************************************************************
         # NOTE: Manually assign value here (will implement automatic fix later)
-        #cnndropout = testvalues[i]
-        unfreeze_all=testvalues[i]
+        cnndropout = testvalues[i]
+        #unfreeze_all=testvalues[i]
         print("Testing %s=%s"% (testname,str(testvalues[i])))
         # ********************************************************************
         
