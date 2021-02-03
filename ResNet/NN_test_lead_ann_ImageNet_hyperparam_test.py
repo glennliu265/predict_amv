@@ -41,7 +41,7 @@ usenoise       = False                # Set to true to train the model with pure
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
-numruns       = 1    # Number of times to train each run
+numruns       = 10    # Number of times to train each run
 
 # Model training settings
 unfreeze_all  = True # Set to true to unfreeze all layers, false to only unfreeze last layer
