@@ -491,7 +491,7 @@ for nr in range(numruns):
             if np.isnan(testcorr):
                 print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
                 for param in model.parameters():
-                    if np.any(np.isnan(param.data.numpy())):
+                    if np.any(np.isnan(param.data.cpu().numpy())):
                         print(param.data)
                 if debug:
                     fig,ax=plt.subplots(1,1)
