@@ -510,7 +510,7 @@ for nr in range(numruns):
                     ax.legend()
                     ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
                     plt.show()
-                break
+            
         
             # Calculate Correlation and RMSE
             #if verbose:
@@ -548,7 +548,7 @@ for nr in range(numruns):
                 #plt.show()
                 plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
         
-            print("\nCompleted training for %s lead %i of %i" % (varname,lead,len(leads)))
+            print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
         
             # Clear some memory
             del model
