@@ -480,7 +480,7 @@ print("\tMax Epochs         : " + str(max_epochs))
 print("\tEarly Stop         : " + str(early_stop))
 print("\t# Ens. Members     : "+ str(ens))
 print("\tOptimizer          : "+ opt[0])
-print("\tUnfreeze all       : "+ unfreeze_all)
+print("\tUnfreeze all       : "+ str(unfreeze_all))
 # Check if device has GPU
 if checkgpu:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
