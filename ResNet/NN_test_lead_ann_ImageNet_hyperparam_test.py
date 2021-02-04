@@ -386,8 +386,8 @@ for nr in range(numruns):
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
-        train_loss_grid = np.zeros((max_epochs,nlead))
-        test_loss_grid  = np.zeros((max_epochs,nlead))
+        train_loss_grid = []#np.zeros((max_epochs,nlead))
+        test_loss_grid  = []#np.zeros((max_epochs,nlead))
         
         if checkgpu:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -443,8 +443,10 @@ for nr in range(numruns):
             
             
             # Save train/test loss
-            train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
-            test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
+            #train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of all epoch
+            #test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
+            train_loss_grid.append(trainloss)
+            test_loss_grid.append(testloss)
             
             #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
             # -----------------------------------------------

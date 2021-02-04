@@ -44,7 +44,7 @@ ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 
 # Model architecture settings
-netname       = "simplecnn"            # Name of pretrained network (timm module)
+netname       = "resnet50"            # Name of pretrained network (timm module)
 rnnname       = 'GRU'                 # LSTM or GRU
 hidden_size   = 10                    # The size of the hidden layers in the RNN
 cnn_out       = 100                  # Number of features to be extracted by CNN and input into RNN
@@ -53,11 +53,12 @@ outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
 seq_len       = 5                     # Length of sequence (same units as data [years])
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
+unfreeze_all  = False                  # Option to unfreeze all RNN weights
 
 # Model training settings
-early_stop    = 2                     # Number of epochså where validation loss increases before stopping
+early_stop    = 3                     # Number of epochså where validation loss increases before stopping
 max_epochs    = 20                     # Maximum number of epochs
-batch_size    = 8                     # Number of ensemble members to use per step
+batch_size    = 32                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',1e-4,0]         # Name optimizer
 reduceLR      = True                  # Set to true to use LR scheduler
@@ -166,13 +167,13 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
         fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
     return int(fcsizes[-1])
 
-def transfer_model(modelname,cnn_out,cnndropout=False):
+def transfer_model(modelname,cnn_out,cnndropout=False,unfreeze_all=False):
     if 'resnet' in modelname: # Load from torchvision
         model = timm.create_model(modelname,pretrained=True)
-        
-        # Freeze all layers except the last
-        for param in model.parameters():
-            param.requires_grad = False
+        if unfreeze_all is False:
+            # Freeze all layers except the last
+            for param in model.parameters():
+                param.requires_grad = False
         
         model.fc = nn.Linear(model.fc.in_features, cnn_out)                    # freeze all layers except the last one
     
@@ -228,8 +229,9 @@ def transfer_model(modelname,cnn_out,cnndropout=False):
     else: # Load from timm
         model = timm.create_model(modelname,pretrained=True)
         # Freeze all layers except the last
-        for param in model.parameters():
-            param.requires_grad = False
+        if unfreeze_all is False:
+            for param in model.parameters():
+                param.requires_grad = False
         model.classifier=nn.Linear(model.classifier.in_features,cnn_out)
     return model
 
@@ -424,7 +426,7 @@ def make_sequences(X,y,seq_len):
                 break
 
             # Gather input/output:
-            seqx,seqy = X[:,i:end_ix,...],y[:,end_ix]
+            seqx,seqy = X[:,i:end_ix,...],y[:,end_ix-1] # for y, end_ix-1 is to account for lead 0 as the base condition
 
             # Save in output
             Xseq[:,i,...] = seqx
@@ -450,6 +452,7 @@ varname = 'ALL'
 expname = "%s%s_%s_%s_nepoch%02i_nens%02i_lead%02i_%s_sqlen%i" % (season,resolution,indexregion,
                                                                   netname,max_epochs,ens,len(leads)-1,
                                                                   rnnname,hidden_size)
+
 # Load the data for whole North Atlantic
 # Data : [channel, ensemble, time, lat, lon]
 # Label: [ensemble, time]
@@ -460,8 +463,8 @@ target = target[0:ens,:]
 
 # Preallocate Evaluation Metrics...
 corr_grid_test  = []
-train_loss_grid = np.zeros((max_epochs,nlead))
-test_loss_grid  = np.zeros((max_epochs,nlead))
+train_loss_grid = []#np.zeros((max_epochs,nlead))
+test_loss_grid  = []#np.zeros((max_epochs,nlead))
 yvalpred        = []
 yvallabels      = []
 
@@ -477,7 +480,7 @@ print("\tMax Epochs         : " + str(max_epochs))
 print("\tEarly Stop         : " + str(early_stop))
 print("\t# Ens. Members     : "+ str(ens))
 print("\tOptimizer          : "+ opt[0])
-
+print("\tUnfreeze all       : "+ unfreeze_all)
 # Check if device has GPU
 if checkgpu:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -526,7 +529,7 @@ for l,lead in enumerate(leads):
     # Set up component models
     # -----------------------
     # Set pretrained CNN as feature extractor
-    pmodel = transfer_model(netname,cnn_out,cnndropout=cnndropout)
+    pmodel = transfer_model(netname,cnn_out,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
 
     # Set either a LTSM or GRU unit
     if rnnname == 'LSTM':
@@ -559,8 +562,8 @@ for l,lead in enumerate(leads):
 
                                                 
     # Save train/test loss
-    train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
-    test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
+    train_loss_grid.append(trainloss)#[:,l] = np.array(trainloss).min().squeeze() # Take min of each epoch
+    test_loss_grid.append(testloss)#[:,l]  = np.array(testloss).min().squeeze()
     
 
     #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
@@ -597,11 +600,11 @@ for l,lead in enumerate(leads):
     # Save the actual and predicted values
     yvalpred.append(y_pred_val)
     yvallabels.append(y_valdt)
-
+    
     if verbose:
         print("Correlation for lead %i was %f"%(lead,testcorr))
     corr_grid_test.append(testcorr)
-
+    
     # --------------
     # Save the model
     # --------------
