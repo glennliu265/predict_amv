@@ -33,7 +33,7 @@ import timm
 # -------------------
 
 # Data preparation settings
-leads          = [24,]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 detrend        = False                # Predict undetrended data
@@ -53,11 +53,11 @@ outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
 seq_len       = 5                     # Length of sequence (same units as data [years])
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
-unfreeze_all  = False                  # Option to unfreeze all RNN weights
+unfreeze_all  = True                  # Option to unfreeze all RNN weights
 
 # Model training settings
-early_stop    = 1200                     # Number of epochså where validation loss increases before stopping
-max_epochs    = 1200                     # Maximum number of epochs
+early_stop    = 5                     # Number of epochså where validation loss increases before stopping
+max_epochs    = 20                     # Maximum number of epochs
 batch_size    = 32                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',1e-4,0]         # Name optimizer
