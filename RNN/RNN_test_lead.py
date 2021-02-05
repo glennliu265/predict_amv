@@ -58,7 +58,7 @@ unfreeze_all  = True                  # Option to unfreeze all RNN weights
 # Model training settings
 early_stop    = 5                     # Number of epochså where validation loss increases before stopping
 max_epochs    = 20                     # Maximum number of epochs
-batch_size    = 16                     # Number of ensemble members to use per step
+batch_size    = 8                     # Number of ensemble members to use per step
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',1e-4,0]         # Name optimizer
 reduceLR      = True                  # Set to true to use LR scheduler
