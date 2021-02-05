@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = [24,]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -41,12 +41,12 @@ usenoise       = False                # Set to true to train the model with pure
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
-numruns       = 10    # Number of times to train each run
+numruns       = 1    # Number of times to train each run
 
 # Model training settings
-unfreeze_all  = True # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 2                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                    # Maximum number of epochs
+unfreeze_all  = False # Set to true to unfreeze all layers, false to only unfreeze last layer
+early_stop    = 1200                    # Number of epochs where validation loss increases before stopping
+max_epochs    = 1200                    # Maximum number of epochs
 batch_size    = 32                   # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adam',1e-4,0]     # Name optimizer
@@ -355,7 +355,7 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=[True,False]
+testvalues=[False]
 testname='cnndropout'
 
 for nr in range(numruns):
