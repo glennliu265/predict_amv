@@ -26,8 +26,11 @@ import copy
 import timm
 
 # -------------
-#%% User Edits
+#%% User Edits (Default Settings)
 # -------------
+# NOTE: Edit specific hyperparameters for testing in the section below
+# (look for sections marked IMPORTANT and bounded by ******************)
+# Currently between lines 359-361 AND 372-377
 
 # Data preparation settings
 leads          = [24,]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
@@ -58,10 +61,10 @@ outpath       = ''
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
 
 # Options
-debug     = True # Visualize training and testing loss
+debug     = True  # Visualize training and testing loss
 verbose   = False # Print loss for each epoch
-checkgpu  = True # Set to true to check for GPU otherwise run on CPU
-savemodel = True # Set to true to save model dict.
+checkgpu  = True  # Set to true to check for GPU otherwise run on CPU
+savemodel = True  # Set to true to save model dict.
 # -----------
 #%% Functions
 # -----------
@@ -97,8 +100,25 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
 
 
 def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
+    """
+    Load pretrained weights and architectures based on [modelname]
+
+    Parameters
+    ----------
+    modelname : STR
+        Name of model (current supports 'simplecnn',or any resnet/efficientnet from timms)
+    cnndropout : BOOL, optional
+        Include dropout layer in simplecnn. The default is False.
+    unfreeze_all : BOOL, optional
+        Set to True to unfreeze all weights in the model. Otherwise, just
+        the last layer is unfrozen. The default is False.
+    
+    Returns
+    -------
+    model : PyTorch Model
+        Returns loaded Pytorch model
+    """
     if 'resnet' in modelname: # Load from torchvision
-        #model = models.resnet50(pretrained=True) # read in resnet model
         model = timm.create_model(modelname,pretrained=True)
         if unfreeze_all is False:
             # Freeze all layers except the last
@@ -191,15 +211,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         from torch import nn,optim
 
     """
-    # #model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
-    # model = timm.create_model("tf_efficientnet_b7_ns")
-    # for param in model.parameters():
-    #     print(param)
-    #     print(param.requires_grad)
-    #     param.requires_grad = False
-
-    # #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
-    # model.classifier=nn.Linear(model.classifier.in_features,1)
     bestloss = np.infty
     
     # Check if there is GPU
@@ -318,8 +329,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             del batch_y
             torch.cuda.empty_cache()
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
-
-    #bestmodel.load_state_dict(best_model_wts)
     return bestmodel,train_loss,test_loss
 
 # ----------------------------------------
@@ -327,9 +336,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 # ----------------------------------------
 allstart = time.time()
 
+# -------------
 # Load the data
-# Load the data for whole North Atlantic
-if usenoise:
+# -------------
+if usenoise: # Put in input maps of gaussian noise
     # Make white noise time series
     data   = np.random.normal(0,1,(3,40,tstep,224,224))
     
@@ -340,33 +350,29 @@ if usenoise:
     dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
     data[dataori==0] = 0 # change all ocean points to zero
     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
-    
-    #data[dataori==0] = np.nan
-    #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
-    #data[np.isnan(data)] = 0
-else:
+else: # Load actual data
     data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
 data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
-    
-#testvalues = [1e-3,1e-2,1e-1,1,2]
-#testname = "LR"
 
-#testvalues = [False]
-#testname   = "cnndropout" # Note need to manually locate variable and edit
+# *****************************************
+# IMPORTANT: Set Hyperparameter values here
+# *****************************************
+# ex.
+#     testvalues = [1e-3,1e-2,1e-1,1,2]
+#     testname = "LR"
 testvalues=[False]
 testname='cnndropout'
 
-for nr in range(numruns):
+for nr in range(numruns): # Initialize and train network for [numruns] iterations
     rt = time.time()
-    
-    for i in range(len(testvalues)):
+    for i in range(len(testvalues)): # Loop for each hyperparameter test value
         
         # ********************************************************************
-        # NOTE: Manually assign value here (will implement automatic fix later)
+        # IMPORTANT: Manually assign value here (will implement automatic fix later)
+        # <variable_name> = testvalues[i] (ex. opt[1] = testvalues [i])
         cnndropout = testvalues[i]
-        #unfreeze_all=testvalues[i]
         print("Testing %s=%s"% (testname,str(testvalues[i])))
         # ********************************************************************
         
@@ -382,7 +388,6 @@ for nr in range(numruns):
         expname = "HPT_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i" % (netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
                                                                                   testname,testvalues[i],nr)
-        
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
@@ -440,11 +445,8 @@ for nr in range(numruns):
             model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
                                                     early_stop=early_stop,verbose=verbose,
                                                     reduceLR=reduceLR,LRpatience=LRpatience)
-            
-            
+
             # Save train/test loss
-            #train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of all epoch
-            #test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
             train_loss_grid.append(trainloss)
             test_loss_grid.append(testloss)
             
