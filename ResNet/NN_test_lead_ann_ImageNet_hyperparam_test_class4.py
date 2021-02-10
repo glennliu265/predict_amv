@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = [0,]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -41,7 +41,7 @@ num_classes    = len(thresholds)+1                    # Set up number of classes
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 1    # Ensemble members to use
+ens           = 40    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 numruns       = 1    # Number of times to train each run
 
@@ -126,6 +126,7 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
             for param in model.parameters():
                 param.requires_grad = False
         model.fc = nn.Linear(model.fc.in_features, num_classes) # Set last layer size
+        
     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
         # 2 layer CNN settings
         channels = 3
