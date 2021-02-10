@@ -25,19 +25,19 @@ import os
 import copy
 import timm
 
-
 # -------------
 #%% User Edits
 # -------------
 
 # Data preparation settings
-leads          = [0,] #np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = [0,]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
 detrend        = False                 # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
-num_classes    = 4                    # Set up number of classes for prediction
+thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
+num_classes    = len(thresholds)+1                    # Set up number of classes for prediction (current supports)
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -49,10 +49,10 @@ numruns       = 1    # Number of times to train each run
 unfreeze_all  = False # Set to true to unfreeze all layers, false to only unfreeze last layer
 early_stop    = 5                    # Number of epochs where validation loss increases before stopping
 max_epochs    = 5                    # Maximum number of epochs
-batch_size    = 16                   # Pairs of predictions
+batch_size    = 8                   # Pairs of predictions
 loss_fn       = nn.CrossEntropyLoss()          # Loss Function
 #max_fn        = nn.LogSoftmax(dim=1)
-opt           = ['Adam',1e-7,0]     # Name optimizer
+opt           = ['Adam',1e-4,0]     # Name optimizer
 reduceLR      = True                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 netname       = 'resnet50'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
@@ -65,6 +65,7 @@ debug         = True # Visualize training and testing loss
 verbose       = True # Print loss for each epoch
 checkgpu      = True # Set to true to check for GPU otherwise run on CPU
 savemodel     = False # Set to true to save model dict.
+
 # -----------
 #%% Functions
 # -----------
@@ -328,6 +329,65 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     #bestmodel.load_state_dict(best_model_wts)
     return bestmodel,train_loss,test_loss,train_acc,test_acc
 
+def make_classes(y,thresholds,exact_value=False,reverse=False):
+    """
+    Makes classes based on given thresholds. 
+
+    Parameters
+    ----------
+    y : ARRAY
+        Labels to classify
+    thresholds : ARRAY
+        1D Array of thresholds to partition the data
+    exact_value: BOOL, optional
+        Set to True to use the exact value in thresholds (rather than scaling by
+                                                          standard deviation)
+
+    Returns
+    -------
+    y_class : ARRAY [samples,class]
+        Classified samples, where the second dimension contains an integer
+        representing each threshold
+
+    """
+    nthres = len(thresholds)
+    if ~exact_value: # Scale thresholds by standard deviation
+        y_std = np.std(y) # Get standard deviation
+        thresholds = np.array(thresholds) * y_std
+    y_class = np.zeros((y.shape[0],1))
+    
+    if nthres == 1: # For single threshold cases
+        thres = thresholds[0]
+        y_class[y<=thres] = 0
+        y_class[y>thres] = 1
+        
+        print("Class 0 Threshold is y <= %.2f " % (thres))
+        print("Class 0 Threshold is y > %.2f " % (thres))
+        return y_class
+    
+    for t in range(nthres+1):
+        if t < nthres:
+            thres = thresholds[t]
+        else:
+            thres = thresholds[-1]
+        
+        if reverse: # Assign class 0 to largest values
+            tassign = nthres-t
+        else:
+            tassign = t
+        
+        if t == 0: # First threshold
+            y_class[y<=thres] = tassign
+            print("Class %i Threshold is y <= %.2f " % (tassign,thres))
+        elif t == nthres: # Last threshold
+            y_class[y>thres] = tassign
+            print("Class %i Threshold is y > %.2f " % (tassign,thres))
+        else: # Intermediate values
+            thres0 = thresholds[t-1]
+            y_class[(y>thres0) * (y<=thres)] = tassign
+            print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
+    return y_class
+
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
@@ -361,8 +421,8 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=[False]
-testname='cnndropout'
+testvalues=['simplecnn','resnet50']
+testname='netname'
 
 for nr in range(numruns):
     rt = time.time()
@@ -371,8 +431,10 @@ for nr in range(numruns):
         
         # ********************************************************************
         # NOTE: Manually assign value here (will implement automatic fix later)
-        cnndropout = testvalues[i]
+        netname = testvalues[i]
+        
         #unfreeze_all=testvalues[i]
+        
         print("Testing %s=%s"% (testname,str(testvalues[i])))
         # ********************************************************************
         
@@ -385,7 +447,7 @@ for nr in range(numruns):
         subtitle="\n%s=%s" % (testname, str(testvalues[i]))
         
         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-        expname = "HPT_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i" % (netname,max_epochs,ens,
+        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
                                                                                   testname,testvalues[i],nr)
         
@@ -394,8 +456,8 @@ for nr in range(numruns):
         corr_grid_test  = np.zeros((nlead))
         train_loss_grid = []#np.zeros((max_epochs,nlead))
         test_loss_grid  = []#np.zeros((max_epochs,nlead))
-        train_acc_grid = []
-        test_acc_grid  = []
+        train_acc_grid  = []
+        test_acc_grid   = []
         acc_by_class    = []
         total_acc       = []
         
@@ -430,18 +492,7 @@ for nr in range(numruns):
             # ----------------------
             y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
             X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
-            
-            y_std = np.std(y)
-            y_class = np.zeros((y.shape[0],1))
-            for i in range(y.shape[0]):
-                if y[i]>=y_std:
-                    y_class[i,0] = 0
-                elif y[i]>=0:
-                    y_class[i,0] = 1
-                elif y[i]>=-y_std:
-                    y_class[i,0] = 2
-                else:
-                    y_class[i,0] = 3
+            y_class = make_classes(y,thresholds,reverse=True)
 
             # ---------------------------------
             # Split into training and test sets
