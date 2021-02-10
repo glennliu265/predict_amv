@@ -546,7 +546,7 @@ for nr in range(numruns):
             acc_by_class.append(class_acc)
             print("********Accuracy by Class***************")
             for  i in range(num_classes):
-                print("\tClass %i : %.2f" % (i,class_acc[i]*100) + r"%")
+                print("\tClass %i : %03.3f" % (i,class_acc[i]*100) + "%\t" + "(%i/%i)"%(class_correct[i],class_total[i]))
             print("****************************************")
             
             # Visualize loss vs epoch for training/testing and correlation
