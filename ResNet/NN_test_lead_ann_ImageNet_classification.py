@@ -41,7 +41,7 @@ num_classes    = len(thresholds)+1                    # Set up number of classes
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
+ens           = 2    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 numruns       = 1    # Number of times to train each run
 
