@@ -41,12 +41,12 @@ num_classes    = len(thresholds)+1                    # Set up number of classes
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 2    # Ensemble members to use
+ens           = 40   # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 numruns       = 1    # Number of times to train each run
 
 # Model training settings
-unfreeze_all  = False               # Set to true to unfreeze all layers, false to only unfreeze last layer
+unfreeze_all  = True               # Set to true to unfreeze all layers, false to only unfreeze last layer
 early_stop    = 10                  # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                  # Maximum number of epochs
 batch_size    = 8                   # Pairs of predictions
@@ -422,7 +422,7 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=['simplecnn','resnet50']
+testvalues=['resnet50']
 testname='netname'
 
 for nr in range(numruns):
@@ -448,7 +448,7 @@ for nr in range(numruns):
         subtitle="\n%s=%s" % (testname, str(testvalues[i]))
         
         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i" % (num_classes,netname,max_epochs,ens,
+        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
                                                                                   testname,testvalues[i],nr)
         
