@@ -25,6 +25,7 @@ import os
 import copy
 import timm
 
+
 # -------------
 #%% User Edits
 # -------------
@@ -34,23 +35,24 @@ leads          = [0,] #np.arange(0,25,3)    # Time ahead (in years) to forecast 
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = True                 # Set to true to use detrended data
+detrend        = False                 # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
+num_classes    = 4                    # Set up number of classes for prediction
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
+ens           = 1    # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 numruns       = 1    # Number of times to train each run
 
 # Model training settings
 unfreeze_all  = False # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 15                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 15                    # Maximum number of epochs
-batch_size    = 128                   # Pairs of predictions
-loss_fn       = nn.NLLLoss()          # Loss Function
-max_fn        = nn.LogSoftmax(dim=1)
-opt           = ['Adam',1e-4,0]     # Name optimizer
+early_stop    = 5                    # Number of epochs where validation loss increases before stopping
+max_epochs    = 5                    # Maximum number of epochs
+batch_size    = 16                   # Pairs of predictions
+loss_fn       = nn.CrossEntropyLoss()          # Loss Function
+#max_fn        = nn.LogSoftmax(dim=1)
+opt           = ['Adam',1e-7,0]     # Name optimizer
 reduceLR      = True                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
 netname       = 'resnet50'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
@@ -59,10 +61,10 @@ outpath       = ''
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
 
 # Options
-debug     = True # Visualize training and testing loss
-verbose   = True # Print loss for each epoch
-checkgpu  = True # Set to true to check for GPU otherwise run on CPU
-savemodel = False # Set to true to save model dict.
+debug         = True # Visualize training and testing loss
+verbose       = True # Print loss for each epoch
+checkgpu      = True # Set to true to check for GPU otherwise run on CPU
+savemodel     = False # Set to true to save model dict.
 # -----------
 #%% Functions
 # -----------
@@ -96,78 +98,84 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
         fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
     return int(fcsizes[-1])
 
-
-def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
-    if 'resnet' in modelname: # Load from torchvision
-        #model = models.resnet50(pretrained=True) # read in resnet model
+def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
+    """
+    Load pretrained weights and architectures based on [modelname]
+    
+    Parameters
+    ----------
+    modelname : STR
+        Name of model (currently supports 'simplecnn',or any resnet/efficientnet from timms)
+    num_classes : INT
+        Dimensions of output (ex. number of classes)
+    cnndropout : BOOL, optional
+        Include dropout layer in simplecnn. The default is False.
+    unfreeze_all : BOOL, optional
+        Set to True to unfreeze all weights in the model. Otherwise, just
+        the last layer is unfrozen. The default is False.
+    
+    Returns
+    -------
+    model : PyTorch Model
+        Returns loaded Pytorch model
+    """
+    if 'resnet' in modelname: # Load ResNet
         model = timm.create_model(modelname,pretrained=True)
-        if unfreeze_all is False:
-            # Freeze all layers except the last
+        if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
                 param.requires_grad = False
-        else:
-            print("Warning: All weights are unfrozen!")
-        model.fc = nn.Linear(model.fc.in_features, 4)                    # freeze all layers except the last one
+        model.fc = nn.Linear(model.fc.in_features, num_classes) # Set last layer size
     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
+        # 2 layer CNN settings
         channels = 3
         nlat = 224
         nlon = 224
-
-        # 2 layer CNN settings
         nchannels     = [32,64]
         filtersizes   = [[2,3],[3,3]]
         filterstrides = [[1,1],[1,1]]
         poolsizes     = [[2,3],[2,3]]
         poolstrides   = [[2,3],[2,3]]
-
         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
-        
         if cnndropout: # Include Dropout
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-                    nn.Sigmoid(),
+                    nn.Tanh(),
                     nn.MaxPool2d(kernel_size=poolsizes[0]),
     
                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-                    nn.Sigmoid(),
+                    nn.Tanh(),
                     nn.MaxPool2d(kernel_size=poolsizes[1]),
     
                     nn.Flatten(),
                     nn.Linear(in_features=firstlineardim,out_features=64),
-                    nn.Sigmoid(),
+                    nn.Tanh(),
     
                     nn.Dropout(p=0.5),
-                    nn.Linear(in_features=64,out_features=4)
+                    nn.Linear(in_features=64,out_features=num_classes)
                     ]
-        else:
+        else: # Do not include dropout
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-                    nn.Sigmoid(),
+                    nn.Tanh(),
                     nn.MaxPool2d(kernel_size=poolsizes[0]),
     
                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-                    nn.Sigmoid(),
+                    nn.Tanh(),
                     nn.MaxPool2d(kernel_size=poolsizes[1]),
     
                     nn.Flatten(),
                     nn.Linear(in_features=firstlineardim,out_features=64),
-                    nn.Sigmoid(),
-    
-                    #nn.Dropout(p=0.5),
-                    nn.Linear(in_features=64,out_features=4)
-                    
+                    nn.Tanh(),
+
+                    nn.Linear(in_features=64,out_features=num_classes)
                     ]
         model = nn.Sequential(*layers) # Set up model
-
-    else: # Load from timm
+    else: # Load Efficientnet from Timmm
         model = timm.create_model(modelname,pretrained=True)
-        if unfreeze_all is False:
-            # Freeze all layers except the last
+        if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
                 param.requires_grad = False
-        else:
-            print("Warning: All weights are unfrozen!")
-        model.classifier=nn.Linear(model.classifier.in_features,4)
+        model.classifier=nn.Linear(model.classifier.in_features,num_classes)
     return model
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True,
@@ -193,17 +201,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         from torch import nn,optim
 
     """
-    # #model =   timm.create_model('tf_efficientnet_l2_ns') # read in resnet model
-    # model = timm.create_model("tf_efficientnet_b7_ns")
-    # for param in model.parameters():
-    #     print(param)
-    #     print(param.requires_grad)
-    #     param.requires_grad = False
-
-    # #model.classifier = nn.Linear(5504, 1) # freeze all layers except the last one l2-noisy student
-    # model.classifier=nn.Linear(model.classifier.in_features,1)
-    bestloss = np.infty
-    
     # Check if there is GPU
     if checkgpu:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -216,9 +213,9 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     for name,param in model.named_parameters():
         if param.requires_grad == True:
             params_to_update.append(param)
-            if verbose:
-                print("Params to learn:")
-                print("\t",name)
+            # if verbose:
+            #     print("Params to learn:")
+            #     print("\t",name)
 
     # Set optimizer
     if optimizer[0] == "Adadelta":
@@ -241,31 +238,40 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     bestloss  = np.infty
 
     # Main Loop
+    train_acc,test_acc = [],[] # Preallocate tuples to store accuracy
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
+    bestloss = np.infty
+    
     for epoch in tqdm(range(max_epochs)): # loop by epoch
-    #for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
-
             if mode == 'train':  # Training, update weights
                 model.train()
             elif mode == 'eval': # Testing, freeze weights
                 model.eval()
 
             runningloss = 0
+            correct     = 0
+            total       = 0
             for i,data in enumerate(data_loader):
-
                 # Get mini batch
                 batch_x, batch_y = data
                 batch_x = batch_x.to(device)
                 batch_y = batch_y.to(device)
                 # Set gradients to zero
                 opt.zero_grad()
+                
                 # Forward pass
-                pred_y = max_fn(model(batch_x))
-
-                # Calculate losslay
+                pred_y = model(batch_x)
+                
+                # Calculate loss
                 loss = loss_fn(pred_y,batch_y[:,0])
-
+                
+                # Track accuracy
+                _,predicted = torch.max(pred_y.data,1)
+                total   += batch_y.size(0)
+                correct += (predicted == batch_y[:,0]).sum().item()
+                #print("Total is now %.2f, Correct is now %.2f" % (total,correct))
+                
                 # Update weights
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
@@ -275,10 +281,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                         scheduler.step(loss)
                     
                 runningloss += float(loss.item())
-
+            
             if verbose: # Print progress message
-                print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
-                                                runningloss/len(data_loader)))
+                print('{} Set: Epoch {:02d}. loss: {:3f}. acc: {:.3f}%'.format(mode, epoch+1, \
+                                                runningloss/len(data_loader),correct/total*100))
 
             # Save model if this is the best loss
             if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
@@ -290,8 +296,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
+                train_acc.append(correct/total)
             else:
                 test_loss.append(runningloss/len(data_loader))
+                test_acc.append(correct/total)
 
                 # Evaluate if early stopping is needed
                 if epoch == 0: # Save previous loss
@@ -318,7 +326,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
 
     #bestmodel.load_state_dict(best_model_wts)
-    return bestmodel,train_loss,test_loss
+    return bestmodel,train_loss,test_loss,train_acc,test_acc
 
 # ----------------------------------------
 # %% Set-up
@@ -386,6 +394,10 @@ for nr in range(numruns):
         corr_grid_test  = np.zeros((nlead))
         train_loss_grid = []#np.zeros((max_epochs,nlead))
         test_loss_grid  = []#np.zeros((max_epochs,nlead))
+        train_acc_grid = []
+        test_acc_grid  = []
+        acc_by_class    = []
+        total_acc       = []
         
         if checkgpu:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -446,17 +458,17 @@ for nr in range(numruns):
             # ---------------
             # Train the model
             # ---------------
-            pmodel = transfer_model(netname,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
-            model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
+            pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+            model,trainloss,testloss,trainacc,testacc = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
                                                     early_stop=early_stop,verbose=verbose,
                                                     reduceLR=reduceLR,LRpatience=LRpatience)
             
             
             # Save train/test loss
-            #train_loss_grid[:,l] = np.array(trainloss).min().squeeze() # Take min of all epoch
-            #test_loss_grid[:,l]  = np.array(testloss).min().squeeze()
             train_loss_grid.append(trainloss)
             test_loss_grid.append(testloss)
+            train_acc_grid.append(trainacc)
+            test_acc_grid.append(testacc)
             
             #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
             # -----------------------------------------------
@@ -473,6 +485,7 @@ for nr in range(numruns):
                 y_valdt    = np.asarray([])
 
                 for i,vdata in enumerate(val_loader):
+                
                     #print(i)
                     # Get mini batch
                     batch_x, batch_y = vdata
@@ -480,110 +493,92 @@ for nr in range(numruns):
                     batch_y = batch_y.to(device)
 
                     # Make prediction and concatenate
-                    batch_pred = max_fn(model(batch_x))
+                    batch_pred = model(batch_x)
+                    
+                    # Convert predicted values
+                    y_batch_pred = np.argmax(batch_pred.detach().cpu().numpy(),axis=1)
+                    y_batch_lab  = batch_y.detach().cpu().numpy().squeeze()
+                    batch_acc    = np.sum(y_batch_pred==y_batch_lab)/y_batch_lab.shape[0]
+                    #print("Acc. for batch %i is %.2f" % (i,batch_acc))
+                    #print(y_batch_pred==y_batch_lab)
+                    
+                    
 
-                    #print(batch_pred.detach().shape)
-                    #print(y_pred_val.shape)
-
-                    y_pred_val = np.concatenate([y_pred_val, np.argmax(batch_pred.detach().cpu().numpy(),axis=1)])
-                    y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
-        
+                    
+                    # Store Predictions
+                    y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
+                    y_valdt = np.concatenate([y_valdt,y_batch_lab])
+                    
+                    
             # --------------
             # Save the model
             # --------------
             if savemodel:
                 modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
                 torch.save(model.state_dict(),modout)
-        
+            
+            
             # Save the actual and predicted values
             yvalpred.append(y_pred_val)
             yvallabels.append(y_valdt)
             
-            print("********Success rate*******************")
-            print( (yvalpred[0]==yvallabels[0]).sum()/yvalpred[0].shape[0] )
-
-            count_pos = 0
-            num_pos = 0
-
-            count_neg = 0
-            num_neg = 0
-            for i in range(yvalpred[0].shape[0]):
-                if yvallabels[0][i]==0:
-                    num_pos+=1
-                    if yvalpred[0][i]==0:
-                        count_pos+=1
-                if yvallabels[0][i]==3:
-                    num_neg+=1
-                    if yvalpred[0][i]==3:
-                        count_neg+=1
-            print( count_pos/num_pos  )
-            print( count_neg/num_neg  )
-            print("***************************************")
-            exit()
-            # Get the correlation (save these)
-            testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
-        
-            # Stop if model is just predicting the same value (usually need to examine optimizer settings)
-            if np.isnan(testcorr):
-                print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
-                for param in model.parameters():
-                    if np.any(np.isnan(param.data.cpu().numpy())):
-                        print(param.data)
-                if debug:
-                    fig,ax=plt.subplots(1,1)
-                    #plt.style.use('seaborn')
-                    ax.plot(trainloss,label='train loss')
-                    ax.plot(testloss,label='test loss')
-                    ax.legend()
-                    ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
-                    plt.show()
-    
-                    fig,ax=plt.subplots(1,1)
-                    plt.style.use('seaborn')
-                    #ax.plot(y_pred_train,label='train corr')
-                    ax.plot(y_pred_val,label='test corr')
-                    ax.plot(y_valdt,label='truth')
-                    ax.legend()
-                    ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
-                    plt.show()
             
-        
-            # Calculate Correlation and RMSE
-            #if verbose:
-            print("Correlation for lead %i was %f"%(lead,testcorr))
-            corr_grid_test[l]    = testcorr
+            # -------------------------
+            # Calculate Success Metrics
+            # -------------------------
+            # Calculate the total accuracy
+            lead_acc = (yvalpred[l]==yvallabels[l]).sum()/ yvalpred[l].shape[0]
+            total_acc.append(lead_acc)
+            print("********Success rate********************")
+            print("\t" +str(lead_acc*100) + r"%")
+            
+            # Calculate accuracy for each class
+            class_total   = np.zeros([4])
+            class_correct = np.zeros([4])
+            val_size = yvalpred[l].shape[0]
+            for i in range(val_size):
+                class_idx  = int(yvallabels[l][i])
+                check_pred = yvallabels[l][i] == yvalpred[l][i]
+                class_total[class_idx]   += 1
+                class_correct[class_idx] += check_pred 
+                #print("At element %i, Predicted result for class %i was %s" % (i,class_idx,check_pred))
+            class_acc = class_correct/class_total
+            acc_by_class.append(class_acc)
+            print("********Accuracy by Class***************")
+            for  i in range(num_classes):
+                print("\tClass %i : %.2f" % (i,class_acc[i]*100) + r"%")
+            print("****************************************")
             
             # Visualize loss vs epoch for training/testing and correlation
             if debug:
+                pepochs = np.arange(1,len(testloss)+1,1)
+                
+                # Loss by Epoch Plots
                 fig,ax=plt.subplots(1,1)
                 plt.style.use('default')
-                ax.plot(trainloss,label='train loss')
-                ax.plot(testloss,label='test loss')
+                ax.plot(pepochs,trainloss,label='train loss')
+                ax.plot(pepochs,testloss,label='test loss')
+                ax.set_xticks(np.arange(1,max_epochs+1,1))
                 ax.legend()
-                ax.set_title("Losses for Predictor %s Leadtime %i %s"%(varname,lead,subtitle))
+                ax.set_title("Loss by Epoch for Leadtime %i %s"%(lead,subtitle))
+                ax.set_ylabel("Loss")
+                ax.set_xlabel("Epoch")
                 ax.grid(True,linestyle="dotted")
-                #plt.show()
                 plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
-        
+                
+                # Acc by Epoch Plots
                 fig,ax=plt.subplots(1,1)
-                #plt.style.use('seaborn')
-                ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
+                plt.style.use('default')
+                ax.plot(pepochs,trainacc,label='train accuracy')
+                ax.plot(pepochs,testacc,label='test accuracy')
+                ax.set_xticks(np.arange(1,max_epochs+1,1))
                 ax.legend()
-                ax.set_ylim([-1.5,1.5])
-                ax.set_xlim([-1.5,1.5])
-                lims = [
-                    np.min([ax.get_xlim(), ax.get_ylim()]),  # min of both axes
-                    np.max([ax.get_xlim(), ax.get_ylim()]),  # max of both axes
-                        ]
-                ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
-                ax.legend()
-                ax.set_ylabel("Actual AMV Index")
-                ax.set_xlabel("Predicted AMV Index")
+                ax.set_ylabel("Loss")
+                ax.set_xlabel("Epoch")
+                ax.set_title("Accuracy by Epoch for Leadtime %i %s"%(lead,subtitle))
                 ax.grid(True,linestyle="dotted")
-                ax.set_title("Correlation %.2f for Predictor %s Leadtime %i %s"%(corr_grid_test[l],varname,lead,subtitle))
-                #plt.show()
-                plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
-        
+                plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_AccbyEpoch.png"%(expname,varname,lead))
+                
             print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
         
             # Clear some memory
@@ -597,18 +592,18 @@ for nr in range(numruns):
             # -----------------
             # Save Eval Metrics
             # -----------------
-    
             np.savez("../../CESM_data/Metrics"+outname,**{
                      'train_loss': train_loss_grid,
                      'test_loss': test_loss_grid,
-                     'test_corr': corr_grid_test,
-                     #'train_corr': corr_grid_train,
-                     #'ytrainpred': ytrainpred,
-                     #'ytrainlabels': ytrainlabels,
+                     'train_acc' : train_acc_grid,
+                     'test_acc' : test_acc_grid,
+                     'total_acc': total_acc,
+                     'acc_by_class': acc_by_class,
                      'yvalpred': yvalpred,
                      'yvallabels' : yvallabels
                      }
                     )
+            
         print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
     print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
