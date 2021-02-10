@@ -46,12 +46,12 @@ tstep         = 86    # Size of time dimension (in years)
 numruns       = 1    # Number of times to train each run
 
 # Model training settings
-unfreeze_all  = False # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 5                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 5                    # Maximum number of epochs
+unfreeze_all  = False               # Set to true to unfreeze all layers, false to only unfreeze last layer
+early_stop    = 10                  # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                  # Maximum number of epochs
 batch_size    = 8                   # Pairs of predictions
 loss_fn       = nn.CrossEntropyLoss()          # Loss Function
-#max_fn        = nn.LogSoftmax(dim=1)
+#max_fn       = nn.LogSoftmax(dim=1)
 opt           = ['Adam',1e-4,0]     # Name optimizer
 reduceLR      = True                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
