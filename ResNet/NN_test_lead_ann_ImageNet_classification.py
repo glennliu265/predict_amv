@@ -34,10 +34,11 @@ leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = False                 # Set to true to use detrended data
+detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
-num_classes    = len(thresholds)+1                    # Set up number of classes for prediction (current supports)
+num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
+nsamples       = 400                  # Number of samples for each class
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -389,6 +390,76 @@ def make_classes(y,thresholds,exact_value=False,reverse=False):
             print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
     return y_class
 
+
+def select_samples(nsamples,y_class,X):
+    """
+    Sample even amounts from each class
+
+    Parameters
+    ----------
+    nsample : INT
+        Number of samples to get from each class
+    y_class : ARRAY [samples x 1]
+        Labels for each sample
+    X : ARRAY [samples x channels x height x width]
+        Input data for each sample
+    
+    Returns
+    -------
+    
+    y_class_sel : ARRAY [samples x 1]
+        Subsample of labels with equal amounts for each class
+    X_sel : ARRAY [samples x channels x height x width]
+        Subsample of inputs with equal amounts for each class
+    idx_sel : ARRAY [samples x 1]
+        Indices of selected arrays
+    
+    """
+    
+    allsamples,nchannels,H,W = X.shape
+    classes    = np.unique(y_class)
+    nclasses   = len(classes)
+    
+
+    # Sort input by classes
+    label_by_class  = []
+    input_by_class  = []
+    idx_by_class    = []
+    
+    y_class_sel = np.zeros([nsamples*nclasses,1])#[]
+    X_sel       = np.zeros([nsamples*nclasses,nchannels,H,W])#[]
+    idx_sel     = np.zeros([nsamples*nclasses]) 
+    for i in range(nclasses):
+        
+        # Sort by Class
+        inclass = classes[i]
+        idx = (y_class==inclass).squeeze()
+        sel_label = y_class[idx,:]
+        sel_input = X[idx,:,:,:]
+        sel_idx = np.where(idx)[0]
+        
+        label_by_class.append(sel_label)
+        input_by_class.append(sel_input)
+        idx_by_class.append(sel_idx)
+        classcount = sel_input.shape[0]
+        print("%i samples found for class %i" % (classcount,inclass))
+        
+        # Shuffle and select first nsamples
+        shuffidx = np.arange(0,classcount,1)
+        np.random.shuffle(shuffidx)
+        shuffidx = shuffidx[0:nsamples]
+        
+        # Select Shuffled Indices
+        y_class_sel[i*nsamples:(i+1)*nsamples,:] = sel_label[shuffidx,:]
+        X_sel[i*nsamples:(i+1)*nsamples,...]     = sel_input[shuffidx,...]
+        idx_sel[i*nsamples:(i+1)*nsamples]       = sel_idx[shuffidx]
+    
+    # Shuffle samples again before output (so they arent organized by class)
+    shuffidx = np.arange(0,nsamples*nclasses,1)
+    np.random.shuffle(shuffidx)
+    
+    return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
+
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
@@ -486,22 +557,38 @@ for nr in range(numruns):
             if (lead == leads[-1]) and (len(leads)>1):
                 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
             else:
-                outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+                outname = "/leadtime_testiang_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
             
             # ----------------------
             # Apply lead/lag to data
             # ----------------------
             y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-            X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+            X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
             y_class = make_classes(y,thresholds,reverse=True)
+            
+            y_class,X,shuffidx = select_samples(nsamples,y_class,X)
+            nsamples = y_class.shape[0]
+            
+            ## Save shuffled data
+            # np.save("y_class_lead0_nsample500.npy",y_class)
+            # np.save("X_lead0_nsample500.npy",X)
+            # np.save("shuffidx_lead0_nsample500.npy",shuffidx)
+            
+            # # save 1 sample
+            # xsample = X[[0],:,:,:]
+            # ysample = y_class[[0],:]
+            # np.save("X.npy",xsample)
+            # np.save("y.npy",ysample)
+            
 
+            
             # ---------------------------------
             # Split into training and test sets
             # ---------------------------------
-            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:].astype(np.float32) )
-            X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:,:,:].astype(np.float32) )
-            y_train = torch.from_numpy(  y_class[0:int(np.floor(percent_train*(tstep-lead)*ens)),:].astype(np.long)  )
-            y_val = torch.from_numpy( y_class[int(np.floor(percent_train*(tstep-lead)*ens)):,:].astype(np.long)  )
+            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*nsamples)),:,:,:].astype(np.float32) )
+            X_val   = torch.from_numpy( X[int(np.floor(percent_train*nsamples)):,:,:,:].astype(np.float32) )
+            y_train = torch.from_numpy( y_class[0:int(np.floor(percent_train*nsamples)),:].astype(np.long)  )
+            y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*nsamples)):,:].astype(np.long)  )
         
             # Put into pytorch DataLoader
             train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
@@ -625,7 +712,7 @@ for nr in range(numruns):
                 ax.plot(pepochs,testacc,label='test accuracy')
                 ax.set_xticks(np.arange(1,max_epochs+1,1))
                 ax.legend()
-                ax.set_ylabel("Loss")
+                ax.set_ylabel("Accuracy")
                 ax.set_xlabel("Epoch")
                 ax.set_title("Accuracy by Epoch for Leadtime %i %s"%(lead,subtitle))
                 ax.grid(True,linestyle="dotted")
