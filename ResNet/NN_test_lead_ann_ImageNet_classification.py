@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = [0,24]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -38,28 +38,28 @@ detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
 num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
-nsamples       = 50                  # Number of samples for each class
+nsamples       = 300                  # Number of samples for each class
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 5   # Ensemble members to use
+ens           = 40   # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
-numruns       = 1    # Number of times to train each run
+numruns       = 10    # Number of times to train each run
 
 # Model training settings
 unfreeze_all  = True               # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 10                  # Number of epochs where validation loss increases before stopping
+early_stop    = 3                  # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                  # Maximum number of epochs
-batch_size    = 8                   # Pairs of predictions
-loss_fn       = nn.CrossEntropyLoss()          # Loss Function
+batch_size    = 16                   # Pairs of predictions
+loss_fn       = nn.CrossEntropyLoss() # Loss Function
 #max_fn       = nn.LogSoftmax(dim=1)
-opt           = ['Adam',1e-4,0]     # Name optimizer
-reduceLR      = True                 # Set to true to use LR scheduler
+opt           = ['Adam',1e-3,0]       # Name optimizer
+reduceLR      = False                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'simplecnn'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'simplecnn'           #'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
-cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
+cnndropout    = True                  # Set to 1 to test simple CN with dropout layer
 
 # Options
 debug         = True # Visualize training and testing loss
@@ -143,15 +143,21 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                     nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[0]),
     
                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
                     nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[1]),
     
                     nn.Flatten(),
                     nn.Linear(in_features=firstlineardim,out_features=64),
                     nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
     
                     nn.Dropout(p=0.5),
                     nn.Linear(in_features=64,out_features=num_classes)
@@ -160,15 +166,21 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
                     nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[0]),
     
                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
                     nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[1]),
     
                     nn.Flatten(),
                     nn.Linear(in_features=firstlineardim,out_features=64),
                     nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
 
                     nn.Linear(in_features=64,out_features=num_classes)
                     ]
@@ -493,7 +505,7 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=['resnet50']
+testvalues=['simplecnn']
 testname='netname'
 
 for nr in range(numruns):
@@ -504,8 +516,6 @@ for nr in range(numruns):
         # ********************************************************************
         # NOTE: Manually assign value here (will implement automatic fix later)
         netname = testvalues[i]
-        
-        #unfreeze_all=testvalues[i]
         
         print("Testing %s=%s"% (testname,str(testvalues[i])))
         # ********************************************************************
@@ -532,6 +542,9 @@ for nr in range(numruns):
         test_acc_grid   = []
         acc_by_class    = []
         total_acc       = []
+        yvalpred        = []
+        yvallabels      = []
+        sampled_idx     = []
         
         if checkgpu:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -551,8 +564,6 @@ for nr in range(numruns):
         print("\tDetrend        : "+ str(detrend))
         print("\tUse Noise      :" + str(usenoise))
         
-        yvalpred     = []
-        yvallabels   = []
         for l,lead in enumerate(leads):
             if (lead == leads[-1]) and (len(leads)>1):
                 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
@@ -567,7 +578,10 @@ for nr in range(numruns):
             y_class = make_classes(y,thresholds,reverse=True)
             
             y_class,X,shuffidx = select_samples(nsamples,y_class,X)
-            lead_nsamples           = y_class.shape[0]
+            lead_nsamples      = y_class.shape[0]
+            sampled_idx.append(shuffidx) # Save the sample indices
+            
+            # Visualize plot of variables that were selected
             
             ## Save shuffled data
             # np.save("y_class_lead0_nsample500.npy",y_class)
@@ -579,8 +593,6 @@ for nr in range(numruns):
             # ysample = y_class[[0],:]
             # np.save("X.npy",xsample)
             # np.save("y.npy",ysample)
-            
-
             
             # ---------------------------------
             # Split into training and test sets
@@ -672,8 +684,8 @@ for nr in range(numruns):
             print("\t" +str(lead_acc*100) + r"%")
             
             # Calculate accuracy for each class
-            class_total   = np.zeros([4])
-            class_correct = np.zeros([4])
+            class_total   = np.zeros([num_classes])
+            class_correct = np.zeros([num_classes])
             val_size = yvalpred[l].shape[0]
             for i in range(val_size):
                 class_idx  = int(yvallabels[l][i])
@@ -731,6 +743,7 @@ for nr in range(numruns):
             # -----------------
             # Save Eval Metrics
             # -----------------
+            
             np.savez("../../CESM_data/Metrics"+outname,**{
                      'train_loss': train_loss_grid,
                      'test_loss': test_loss_grid,
@@ -739,7 +752,8 @@ for nr in range(numruns):
                      'total_acc': total_acc,
                      'acc_by_class': acc_by_class,
                      'yvalpred': yvalpred,
-                     'yvallabels' : yvallabels
+                     'yvallabels' : yvallabels,
+                     'sampled_idx': sampled_idx
                      }
                     )
             
