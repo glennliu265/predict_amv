@@ -47,7 +47,7 @@ tstep         = 86    # Size of time dimension (in years)
 numruns       = 10    # Number of times to train each run
 
 # Model training settings
-unfreeze_all  = True               # Set to true to unfreeze all layers, false to only unfreeze last layer
+unfreeze_all  = False               # Set to true to unfreeze all layers, false to only unfreeze last layer
 early_stop    = 3                  # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                  # Maximum number of epochs
 batch_size    = 16                   # Pairs of predictions
@@ -56,7 +56,7 @@ loss_fn       = nn.CrossEntropyLoss() # Loss Function
 opt           = ['Adam',1e-3,0]       # Name optimizer
 reduceLR      = False                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'simplecnn'           #'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'resnet50'           #'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
 cnndropout    = True                  # Set to 1 to test simple CN with dropout layer
@@ -505,8 +505,8 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=['simplecnn']
-testname='netname'
+testvalues=[False,True]
+testname='unfreeze_all'
 
 for nr in range(numruns):
     rt = time.time()
@@ -515,7 +515,7 @@ for nr in range(numruns):
         
         # ********************************************************************
         # NOTE: Manually assign value here (will implement automatic fix later)
-        netname = testvalues[i]
+        unfreeze_all = testvalues[i]
         
         print("Testing %s=%s"% (testname,str(testvalues[i])))
         # ********************************************************************
