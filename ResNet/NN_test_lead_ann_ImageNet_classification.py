@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = [0,24]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -38,11 +38,11 @@ detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
 num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
-nsamples       = 400                  # Number of samples for each class
+nsamples       = 50                  # Number of samples for each class
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40   # Ensemble members to use
+ens           = 5   # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
 numruns       = 1    # Number of times to train each run
 
@@ -56,7 +56,7 @@ loss_fn       = nn.CrossEntropyLoss()          # Loss Function
 opt           = ['Adam',1e-4,0]     # Name optimizer
 reduceLR      = True                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'resnet50'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'simplecnn'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
 cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
@@ -319,7 +319,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))
-                    return bestmodel,train_loss,test_loss
+                    return bestmodel,train_loss,test_loss,train_acc,test_acc
 
             # Clear some memory
             #print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
@@ -567,7 +567,7 @@ for nr in range(numruns):
             y_class = make_classes(y,thresholds,reverse=True)
             
             y_class,X,shuffidx = select_samples(nsamples,y_class,X)
-            nsamples = y_class.shape[0]
+            lead_nsamples           = y_class.shape[0]
             
             ## Save shuffled data
             # np.save("y_class_lead0_nsample500.npy",y_class)
@@ -585,10 +585,10 @@ for nr in range(numruns):
             # ---------------------------------
             # Split into training and test sets
             # ---------------------------------
-            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*nsamples)),:,:,:].astype(np.float32) )
-            X_val   = torch.from_numpy( X[int(np.floor(percent_train*nsamples)):,:,:,:].astype(np.float32) )
-            y_train = torch.from_numpy( y_class[0:int(np.floor(percent_train*nsamples)),:].astype(np.long)  )
-            y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*nsamples)):,:].astype(np.long)  )
+            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*lead_nsamples)),:,:,:].astype(np.float32) )
+            X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,:,:,:].astype(np.float32) )
+            y_train = torch.from_numpy( y_class[0:int(np.floor(percent_train*lead_nsamples)),:].astype(np.long)  )
+            y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.long)  )
         
             # Put into pytorch DataLoader
             train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
