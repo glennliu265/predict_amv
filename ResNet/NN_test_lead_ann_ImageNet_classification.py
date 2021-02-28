@@ -26,45 +26,47 @@ import copy
 import timm
 
 # -------------
-#%% User Edits (Default Settings)
+#%% User Edits
 # -------------
-# NOTE: Edit specific hyperparameters for testing in the section below
-# (look for sections marked IMPORTANT and bounded by ******************)
-# Currently between lines 359-361 AND 372-377
 
 # Data preparation settings
-leads          = [24,]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = False                 # Set to true to use detrended data
+detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
+thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
+num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
+nsamples       = 300                  # Number of samples for each class
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
+ens           = 40   # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
-numruns       = 1    # Number of times to train each run
+numruns       = 10    # Number of times to train each run
 
 # Model training settings
-unfreeze_all  = False # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 1200                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 1200                    # Maximum number of epochs
-batch_size    = 32                   # Pairs of predictions
-loss_fn       = nn.MSELoss()          # Loss Function
-opt           = ['Adam',1e-4,0]     # Name optimizer
+unfreeze_all  = False               # Set to true to unfreeze all layers, false to only unfreeze last layer
+early_stop    = 3                  # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                  # Maximum number of epochs
+batch_size    = 16                   # Pairs of predictions
+loss_fn       = nn.CrossEntropyLoss() # Loss Function
+#max_fn       = nn.LogSoftmax(dim=1)
+opt           = ['Adam',1e-3,0]       # Name optimizer
 reduceLR      = False                 # Set to true to use LR scheduler
 LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'resnet50'            #'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'resnet50'           #'simplecnn'           # Name of network ('resnet50','simplecnn')
 tstep         = 86
 outpath       = ''
-cnndropout    = False                  # Set to 1 to test simple CN with dropout layer
+cnndropout    = True                  # Set to 1 to test simple CN with dropout layer
 
 # Options
-debug     = True  # Visualize training and testing loss
-verbose   = False # Print loss for each epoch
-checkgpu  = True  # Set to true to check for GPU otherwise run on CPU
-savemodel = True  # Set to true to save model dict.
+debug         = True # Visualize training and testing loss
+verbose       = True # Print loss for each epoch
+checkgpu      = True # Set to true to check for GPU otherwise run on CPU
+savemodel     = False # Set to true to save model dict.
+
 # -----------
 #%% Functions
 # -----------
@@ -98,15 +100,16 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
         fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
     return int(fcsizes[-1])
 
-
-def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
+def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
     """
     Load pretrained weights and architectures based on [modelname]
-
+    
     Parameters
     ----------
     modelname : STR
-        Name of model (current supports 'simplecnn',or any resnet/efficientnet from timms)
+        Name of model (currently supports 'simplecnn',or any resnet/efficientnet from timms)
+    num_classes : INT
+        Dimensions of output (ex. number of classes)
     cnndropout : BOOL, optional
         Include dropout layer in simplecnn. The default is False.
     unfreeze_all : BOOL, optional
@@ -118,74 +121,76 @@ def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
     model : PyTorch Model
         Returns loaded Pytorch model
     """
-    if 'resnet' in modelname: # Load from torchvision
+    if 'resnet' in modelname: # Load ResNet
         model = timm.create_model(modelname,pretrained=True)
-        if unfreeze_all is False:
-            # Freeze all layers except the last
+        if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
                 param.requires_grad = False
-        else:
-            print("Warning: All weights are unfrozen!")
-        model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
+        model.fc = nn.Linear(model.fc.in_features, num_classes) # Set last layer size
+        
     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
+        # 2 layer CNN settings
         channels = 3
         nlat = 224
         nlon = 224
-
-        # 2 layer CNN settings
         nchannels     = [32,64]
         filtersizes   = [[2,3],[3,3]]
         filterstrides = [[1,1],[1,1]]
         poolsizes     = [[2,3],[2,3]]
         poolstrides   = [[2,3],[2,3]]
-
         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
-        
         if cnndropout: # Include Dropout
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-                    nn.ReLU(),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[0]),
     
                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-                    nn.ReLU(),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[1]),
     
                     nn.Flatten(),
                     nn.Linear(in_features=firstlineardim,out_features=64),
-                    nn.ReLU(),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
     
                     nn.Dropout(p=0.5),
-                    nn.Linear(in_features=64,out_features=1)
+                    nn.Linear(in_features=64,out_features=num_classes)
                     ]
-        else:
+        else: # Do not include dropout
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-                    nn.ReLU(),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[0]),
     
                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-                    nn.ReLU(),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
                     nn.MaxPool2d(kernel_size=poolsizes[1]),
     
                     nn.Flatten(),
                     nn.Linear(in_features=firstlineardim,out_features=64),
-                    nn.ReLU(),
-    
-                    #nn.Dropout(p=0.5),
-                    nn.Linear(in_features=64,out_features=1)
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
+
+                    nn.Linear(in_features=64,out_features=num_classes)
                     ]
         model = nn.Sequential(*layers) # Set up model
-
-    else: # Load from timm
+    else: # Load Efficientnet from Timmm
         model = timm.create_model(modelname,pretrained=True)
-        if unfreeze_all is False:
-            # Freeze all layers except the last
+        if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
                 param.requires_grad = False
-        else:
-            print("Warning: All weights are unfrozen!")
-        model.classifier=nn.Linear(model.classifier.in_features,1)
+        model.classifier=nn.Linear(model.classifier.in_features,num_classes)
     return model
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True,
@@ -211,8 +216,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         from torch import nn,optim
 
     """
-    bestloss = np.infty
-    
     # Check if there is GPU
     if checkgpu:
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -220,16 +223,14 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         device = torch.device('cpu')
     model = model.to(device)
 
-
     # Get list of params to update
     params_to_update = []
     for name,param in model.named_parameters():
         if param.requires_grad == True:
             params_to_update.append(param)
-            if verbose:
-                print("Params to learn:")
-                print("\t",name)
-
+            # if verbose:
+            #     print("Params to learn:")
+            #     print("\t",name)
 
     # Set optimizer
     if optimizer[0] == "Adadelta":
@@ -252,33 +253,40 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     bestloss  = np.infty
 
     # Main Loop
+    train_acc,test_acc = [],[] # Preallocate tuples to store accuracy
     train_loss,test_loss = [],[]   # Preallocate tuples to store loss
+    bestloss = np.infty
+    
     for epoch in tqdm(range(max_epochs)): # loop by epoch
-    #for epoch in range(max_epochs):
         for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
-
             if mode == 'train':  # Training, update weights
                 model.train()
             elif mode == 'eval': # Testing, freeze weights
                 model.eval()
 
             runningloss = 0
+            correct     = 0
+            total       = 0
             for i,data in enumerate(data_loader):
-
                 # Get mini batch
                 batch_x, batch_y = data
                 batch_x = batch_x.to(device)
                 batch_y = batch_y.to(device)
-
                 # Set gradients to zero
                 opt.zero_grad()
-
+                
                 # Forward pass
                 pred_y = model(batch_x)
-
-                # Calculate losslay
-                loss = loss_fn(pred_y,batch_y)
-
+                
+                # Calculate loss
+                loss = loss_fn(pred_y,batch_y[:,0])
+                
+                # Track accuracy
+                _,predicted = torch.max(pred_y.data,1)
+                total   += batch_y.size(0)
+                correct += (predicted == batch_y[:,0]).sum().item()
+                #print("Total is now %.2f, Correct is now %.2f" % (total,correct))
+                
                 # Update weights
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
@@ -288,10 +296,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                         scheduler.step(loss)
                     
                 runningloss += float(loss.item())
-
+            
             if verbose: # Print progress message
-                print('{} Set: Epoch {:02d}. loss: {:3f}'.format(mode, epoch+1, \
-                                                runningloss/len(data_loader)))
+                print('{} Set: Epoch {:02d}. loss: {:3f}. acc: {:.3f}%'.format(mode, epoch+1, \
+                                                runningloss/len(data_loader),correct/total*100))
 
             # Save model if this is the best loss
             if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
@@ -303,8 +311,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
+                train_acc.append(correct/total)
             else:
                 test_loss.append(runningloss/len(data_loader))
+                test_acc.append(correct/total)
 
                 # Evaluate if early stopping is needed
                 if epoch == 0: # Save previous loss
@@ -321,7 +331,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))
-                    return bestmodel,train_loss,test_loss
+                    return bestmodel,train_loss,test_loss,train_acc,test_acc
 
             # Clear some memory
             #print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
@@ -329,17 +339,147 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             del batch_y
             torch.cuda.empty_cache()
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
-    return bestmodel,train_loss,test_loss
+
+    #bestmodel.load_state_dict(best_model_wts)
+    return bestmodel,train_loss,test_loss,train_acc,test_acc
+
+def make_classes(y,thresholds,exact_value=False,reverse=False):
+    """
+    Makes classes based on given thresholds. 
+
+    Parameters
+    ----------
+    y : ARRAY
+        Labels to classify
+    thresholds : ARRAY
+        1D Array of thresholds to partition the data
+    exact_value: BOOL, optional
+        Set to True to use the exact value in thresholds (rather than scaling by
+                                                          standard deviation)
+
+    Returns
+    -------
+    y_class : ARRAY [samples,class]
+        Classified samples, where the second dimension contains an integer
+        representing each threshold
+
+    """
+    nthres = len(thresholds)
+    if ~exact_value: # Scale thresholds by standard deviation
+        y_std = np.std(y) # Get standard deviation
+        thresholds = np.array(thresholds) * y_std
+    y_class = np.zeros((y.shape[0],1))
+    
+    if nthres == 1: # For single threshold cases
+        thres = thresholds[0]
+        y_class[y<=thres] = 0
+        y_class[y>thres] = 1
+        
+        print("Class 0 Threshold is y <= %.2f " % (thres))
+        print("Class 0 Threshold is y > %.2f " % (thres))
+        return y_class
+    
+    for t in range(nthres+1):
+        if t < nthres:
+            thres = thresholds[t]
+        else:
+            thres = thresholds[-1]
+        
+        if reverse: # Assign class 0 to largest values
+            tassign = nthres-t
+        else:
+            tassign = t
+        
+        if t == 0: # First threshold
+            y_class[y<=thres] = tassign
+            print("Class %i Threshold is y <= %.2f " % (tassign,thres))
+        elif t == nthres: # Last threshold
+            y_class[y>thres] = tassign
+            print("Class %i Threshold is y > %.2f " % (tassign,thres))
+        else: # Intermediate values
+            thres0 = thresholds[t-1]
+            y_class[(y>thres0) * (y<=thres)] = tassign
+            print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
+    return y_class
+
+
+def select_samples(nsamples,y_class,X):
+    """
+    Sample even amounts from each class
+
+    Parameters
+    ----------
+    nsample : INT
+        Number of samples to get from each class
+    y_class : ARRAY [samples x 1]
+        Labels for each sample
+    X : ARRAY [samples x channels x height x width]
+        Input data for each sample
+    
+    Returns
+    -------
+    
+    y_class_sel : ARRAY [samples x 1]
+        Subsample of labels with equal amounts for each class
+    X_sel : ARRAY [samples x channels x height x width]
+        Subsample of inputs with equal amounts for each class
+    idx_sel : ARRAY [samples x 1]
+        Indices of selected arrays
+    
+    """
+    
+    allsamples,nchannels,H,W = X.shape
+    classes    = np.unique(y_class)
+    nclasses   = len(classes)
+    
+
+    # Sort input by classes
+    label_by_class  = []
+    input_by_class  = []
+    idx_by_class    = []
+    
+    y_class_sel = np.zeros([nsamples*nclasses,1])#[]
+    X_sel       = np.zeros([nsamples*nclasses,nchannels,H,W])#[]
+    idx_sel     = np.zeros([nsamples*nclasses]) 
+    for i in range(nclasses):
+        
+        # Sort by Class
+        inclass = classes[i]
+        idx = (y_class==inclass).squeeze()
+        sel_label = y_class[idx,:]
+        sel_input = X[idx,:,:,:]
+        sel_idx = np.where(idx)[0]
+        
+        label_by_class.append(sel_label)
+        input_by_class.append(sel_input)
+        idx_by_class.append(sel_idx)
+        classcount = sel_input.shape[0]
+        print("%i samples found for class %i" % (classcount,inclass))
+        
+        # Shuffle and select first nsamples
+        shuffidx = np.arange(0,classcount,1)
+        np.random.shuffle(shuffidx)
+        shuffidx = shuffidx[0:nsamples]
+        
+        # Select Shuffled Indices
+        y_class_sel[i*nsamples:(i+1)*nsamples,:] = sel_label[shuffidx,:]
+        X_sel[i*nsamples:(i+1)*nsamples,...]     = sel_input[shuffidx,...]
+        idx_sel[i*nsamples:(i+1)*nsamples]       = sel_idx[shuffidx]
+    
+    # Shuffle samples again before output (so they arent organized by class)
+    shuffidx = np.arange(0,nsamples*nclasses,1)
+    np.random.shuffle(shuffidx)
+    
+    return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
 
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
 allstart = time.time()
 
-# -------------
 # Load the data
-# -------------
-if usenoise: # Put in input maps of gaussian noise
+# Load the data for whole North Atlantic
+if usenoise:
     # Make white noise time series
     data   = np.random.normal(0,1,(3,40,tstep,224,224))
     
@@ -350,29 +490,33 @@ if usenoise: # Put in input maps of gaussian noise
     dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
     data[dataori==0] = 0 # change all ocean points to zero
     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
-else: # Load actual data
+    
+    #data[dataori==0] = np.nan
+    #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
+    #data[np.isnan(data)] = 0
+else:
     data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
 data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
+    
+#testvalues = [1e-3,1e-2,1e-1,1,2]
+#testname = "LR"
 
-# *****************************************
-# IMPORTANT: Set Hyperparameter values here
-# *****************************************
-# ex.
-#     testvalues = [1e-3,1e-2,1e-1,1,2]
-#     testname = "LR"
-testvalues=[False]
-testname='cnndropout'
+#testvalues = [False]
+#testname   = "cnndropout" # Note need to manually locate variable and edit
+testvalues=[False,True]
+testname='unfreeze_all'
 
-for nr in range(numruns): # Initialize and train network for [numruns] iterations
+for nr in range(numruns):
     rt = time.time()
-    for i in range(len(testvalues)): # Loop for each hyperparameter test value
+    
+    for i in range(len(testvalues)):
         
         # ********************************************************************
-        # IMPORTANT: Manually assign value here (will implement automatic fix later)
-        # <variable_name> = testvalues[i] (ex. opt[1] = testvalues [i])
-        cnndropout = testvalues[i]
+        # NOTE: Manually assign value here (will implement automatic fix later)
+        unfreeze_all = testvalues[i]
+        
         print("Testing %s=%s"% (testname,str(testvalues[i])))
         # ********************************************************************
         
@@ -385,14 +529,22 @@ for nr in range(numruns): # Initialize and train network for [numruns] iteration
         subtitle="\n%s=%s" % (testname, str(testvalues[i]))
         
         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-        expname = "HPT_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i" % (netname,max_epochs,ens,
+        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
                                                                                   testname,testvalues[i],nr)
+        
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
         train_loss_grid = []#np.zeros((max_epochs,nlead))
         test_loss_grid  = []#np.zeros((max_epochs,nlead))
+        train_acc_grid  = []
+        test_acc_grid   = []
+        acc_by_class    = []
+        total_acc       = []
+        yvalpred        = []
+        yvallabels      = []
+        sampled_idx     = []
         
         if checkgpu:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -412,27 +564,43 @@ for nr in range(numruns): # Initialize and train network for [numruns] iteration
         print("\tDetrend        : "+ str(detrend))
         print("\tUse Noise      :" + str(usenoise))
         
-        yvalpred     = []
-        yvallabels   = []
         for l,lead in enumerate(leads):
             if (lead == leads[-1]) and (len(leads)>1):
                 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
             else:
-                outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+                outname = "/leadtime_testiang_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
             
             # ----------------------
             # Apply lead/lag to data
             # ----------------------
             y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-            X = (data[:,:,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+            X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+            y_class = make_classes(y,thresholds,reverse=True)
+            
+            y_class,X,shuffidx = select_samples(nsamples,y_class,X)
+            lead_nsamples      = y_class.shape[0]
+            sampled_idx.append(shuffidx) # Save the sample indices
+            
+            # Visualize plot of variables that were selected
+            
+            ## Save shuffled data
+            # np.save("y_class_lead0_nsample500.npy",y_class)
+            # np.save("X_lead0_nsample500.npy",X)
+            # np.save("shuffidx_lead0_nsample500.npy",shuffidx)
+            
+            # # save 1 sample
+            # xsample = X[[0],:,:,:]
+            # ysample = y_class[[0],:]
+            # np.save("X.npy",xsample)
+            # np.save("y.npy",ysample)
             
             # ---------------------------------
             # Split into training and test sets
             # ---------------------------------
-            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*(tstep-lead)*ens)),:,:,:].astype(np.float32) )
-            X_val = torch.from_numpy( X[int(np.floor(percent_train*(tstep-lead)*ens)):,:,:,:].astype(np.float32) )
-            y_train = torch.from_numpy(  y[0:int(np.floor(percent_train*(tstep-lead)*ens)),:].astype(np.float32)  )
-            y_val = torch.from_numpy( y[int(np.floor(percent_train*(tstep-lead)*ens)):,:].astype(np.float32)  )
+            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*lead_nsamples)),:,:,:].astype(np.float32) )
+            X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,:,:,:].astype(np.float32) )
+            y_train = torch.from_numpy( y_class[0:int(np.floor(percent_train*lead_nsamples)),:].astype(np.long)  )
+            y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.long)  )
         
             # Put into pytorch DataLoader
             train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
@@ -441,14 +609,17 @@ for nr in range(numruns): # Initialize and train network for [numruns] iteration
             # ---------------
             # Train the model
             # ---------------
-            pmodel = transfer_model(netname,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
-            model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
+            pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+            model,trainloss,testloss,trainacc,testacc = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
                                                     early_stop=early_stop,verbose=verbose,
                                                     reduceLR=reduceLR,LRpatience=LRpatience)
-
+            
+            
             # Save train/test loss
             train_loss_grid.append(trainloss)
             test_loss_grid.append(testloss)
+            train_acc_grid.append(trainacc)
+            test_acc_grid.append(testacc)
             
             #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
             # -----------------------------------------------
@@ -463,95 +634,102 @@ for nr in range(numruns): # Initialize and train network for [numruns] iteration
                 # -----------------
                 y_pred_val = np.asarray([])
                 y_valdt    = np.asarray([])
+
                 for i,vdata in enumerate(val_loader):
+                
                     #print(i)
                     # Get mini batch
                     batch_x, batch_y = vdata
                     batch_x = batch_x.to(device)
                     batch_y = batch_y.to(device)
-        
+
                     # Make prediction and concatenate
-                    batch_pred = model(batch_x).squeeze()
-                    #print(batch_pred.detach().shape)
-                    #print(y_pred_val.shape)
-                    y_pred_val = np.concatenate([y_pred_val,batch_pred.detach().cpu().numpy()])
-                    y_valdt = np.concatenate([y_valdt,batch_y.detach().cpu().numpy().squeeze()])
-        
+                    batch_pred = model(batch_x)
+                    
+                    # Convert predicted values
+                    y_batch_pred = np.argmax(batch_pred.detach().cpu().numpy(),axis=1)
+                    y_batch_lab  = batch_y.detach().cpu().numpy().squeeze()
+                    batch_acc    = np.sum(y_batch_pred==y_batch_lab)/y_batch_lab.shape[0]
+                    #print("Acc. for batch %i is %.2f" % (i,batch_acc))
+                    #print(y_batch_pred==y_batch_lab)
+                    
+                    
+
+                    
+                    # Store Predictions
+                    y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
+                    y_valdt = np.concatenate([y_valdt,y_batch_lab])
+                    
+                    
             # --------------
             # Save the model
             # --------------
             if savemodel:
                 modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
                 torch.save(model.state_dict(),modout)
-        
+            
+            
             # Save the actual and predicted values
             yvalpred.append(y_pred_val)
             yvallabels.append(y_valdt)
-        
-            # Get the correlation (save these)
-            testcorr  = np.corrcoef( y_pred_val.T[:], y_valdt.T[:])[0,1]
-        
-            # Stop if model is just predicting the same value (usually need to examine optimizer settings)
-            if np.isnan(testcorr):
-                print("Warning, NaN Detected for %s lead %i of %i. Stopping!" % (varname,lead,len(leads)))
-                for param in model.parameters():
-                    if np.any(np.isnan(param.data.cpu().numpy())):
-                        print(param.data)
-                if debug:
-                    fig,ax=plt.subplots(1,1)
-                    #plt.style.use('seaborn')
-                    ax.plot(trainloss,label='train loss')
-                    ax.plot(testloss,label='test loss')
-                    ax.legend()
-                    ax.set_title("Losses for Predictor %s Leadtime %i"%(varname,lead))
-                    plt.show()
-    
-                    fig,ax=plt.subplots(1,1)
-                    plt.style.use('seaborn')
-                    #ax.plot(y_pred_train,label='train corr')
-                    ax.plot(y_pred_val,label='test corr')
-                    ax.plot(y_valdt,label='truth')
-                    ax.legend()
-                    ax.set_title("Correlation for Predictor %s Leadtime %i"%(varname,lead))
-                    plt.show()
             
-        
-            # Calculate Correlation and RMSE
-            #if verbose:
-            print("Correlation for lead %i was %f"%(lead,testcorr))
-            corr_grid_test[l]    = testcorr
+            
+            # -------------------------
+            # Calculate Success Metrics
+            # -------------------------
+            # Calculate the total accuracy
+            lead_acc = (yvalpred[l]==yvallabels[l]).sum()/ yvalpred[l].shape[0]
+            total_acc.append(lead_acc)
+            print("********Success rate********************")
+            print("\t" +str(lead_acc*100) + r"%")
+            
+            # Calculate accuracy for each class
+            class_total   = np.zeros([num_classes])
+            class_correct = np.zeros([num_classes])
+            val_size = yvalpred[l].shape[0]
+            for i in range(val_size):
+                class_idx  = int(yvallabels[l][i])
+                check_pred = yvallabels[l][i] == yvalpred[l][i]
+                class_total[class_idx]   += 1
+                class_correct[class_idx] += check_pred 
+                #print("At element %i, Predicted result for class %i was %s" % (i,class_idx,check_pred))
+            class_acc = class_correct/class_total
+            acc_by_class.append(class_acc)
+            print("********Accuracy by Class***************")
+            for  i in range(num_classes):
+                print("\tClass %i : %03.3f" % (i,class_acc[i]*100) + "%\t" + "(%i/%i)"%(class_correct[i],class_total[i]))
+            print("****************************************")
             
             # Visualize loss vs epoch for training/testing and correlation
             if debug:
+                pepochs = np.arange(1,len(testloss)+1,1)
+                
+                # Loss by Epoch Plots
                 fig,ax=plt.subplots(1,1)
                 plt.style.use('default')
-                ax.plot(trainloss,label='train loss')
-                ax.plot(testloss,label='test loss')
+                ax.plot(pepochs,trainloss,label='train loss')
+                ax.plot(pepochs,testloss,label='test loss')
+                ax.set_xticks(np.arange(1,max_epochs+1,1))
                 ax.legend()
-                ax.set_title("Losses for Predictor %s Leadtime %i %s"%(varname,lead,subtitle))
+                ax.set_title("Loss by Epoch for Leadtime %i %s"%(lead,subtitle))
+                ax.set_ylabel("Loss")
+                ax.set_xlabel("Epoch")
                 ax.grid(True,linestyle="dotted")
-                #plt.show()
                 plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_LossbyEpoch.png"%(expname,varname,lead))
-        
+                
+                # Acc by Epoch Plots
                 fig,ax=plt.subplots(1,1)
-                #plt.style.use('seaborn')
-                ax.scatter(y_pred_val,y_valdt,label="Test",marker='+',zorder=2)
+                plt.style.use('default')
+                ax.plot(pepochs,trainacc,label='train accuracy')
+                ax.plot(pepochs,testacc,label='test accuracy')
+                ax.set_xticks(np.arange(1,max_epochs+1,1))
                 ax.legend()
-                ax.set_ylim([-1.5,1.5])
-                ax.set_xlim([-1.5,1.5])
-                lims = [
-                    np.min([ax.get_xlim(), ax.get_ylim()]),  # min of both axes
-                    np.max([ax.get_xlim(), ax.get_ylim()]),  # max of both axes
-                        ]
-                ax.plot(lims, lims, 'k-', alpha=0.75, zorder=0)
-                ax.legend()
-                ax.set_ylabel("Actual AMV Index")
-                ax.set_xlabel("Predicted AMV Index")
+                ax.set_ylabel("Accuracy")
+                ax.set_xlabel("Epoch")
+                ax.set_title("Accuracy by Epoch for Leadtime %i %s"%(lead,subtitle))
                 ax.grid(True,linestyle="dotted")
-                ax.set_title("Correlation %.2f for Predictor %s Leadtime %i %s"%(corr_grid_test[l],varname,lead,subtitle))
-                #plt.show()
-                plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_ValidationScatter.png"%(expname,varname,lead))
-        
+                plt.savefig("../../CESM_data/Figures/%s_%s_leadnum%s_AccbyEpoch.png"%(expname,varname,lead))
+                
             print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
         
             # Clear some memory
@@ -565,18 +743,20 @@ for nr in range(numruns): # Initialize and train network for [numruns] iteration
             # -----------------
             # Save Eval Metrics
             # -----------------
-    
+            
             np.savez("../../CESM_data/Metrics"+outname,**{
                      'train_loss': train_loss_grid,
                      'test_loss': test_loss_grid,
-                     'test_corr': corr_grid_test,
-                     #'train_corr': corr_grid_train,
-                     #'ytrainpred': ytrainpred,
-                     #'ytrainlabels': ytrainlabels,
+                     'train_acc' : train_acc_grid,
+                     'test_acc' : test_acc_grid,
+                     'total_acc': total_acc,
+                     'acc_by_class': acc_by_class,
                      'yvalpred': yvalpred,
-                     'yvallabels' : yvallabels
+                     'yvallabels' : yvallabels,
+                     'sampled_idx': sampled_idx
                      }
                     )
+            
         print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
     print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
