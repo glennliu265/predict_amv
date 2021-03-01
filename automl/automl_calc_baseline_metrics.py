@@ -7,6 +7,7 @@ ml_type        = 'classification'     # 'regression' or 'classification'
 leads          = np.arange(0,25,1)
 time_left_for_this_task              = 3600
 per_run_time_limit = 300
+
 detrend        = False                # Set to true to use detrended data
 varname        = 'ALL'
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes)
@@ -225,8 +226,9 @@ for l,lead in enumerate(leads):
         metrics[l] = metric
     elif ml_type=='classification':
         metrics[l,:] = metric
-    #print("lead:"+str(l)+", metric:"+str(metric))
-    #metrics[l] = metric
+    print("************************************")
+    print("lead:"+str(l)+", metric: "+str(metric))
+    print("************************************")
 
 print("**************************")
 print(metrics)
