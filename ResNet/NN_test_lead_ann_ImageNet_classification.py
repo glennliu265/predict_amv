@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = [0,1,24]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -44,10 +44,10 @@ nsamples       = 300                  # Number of samples for each class
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 40   # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
-numruns       = 10    # Number of times to train each run
+numruns       = 1    # Number of times to train each run
 
 # Model training settings
-unfreeze_all  = False               # Set to true to unfreeze all layers, false to only unfreeze last layer
+unfreeze_all  = True               # Set to true to unfreeze all layers, false to only unfreeze last layer
 early_stop    = 3                  # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                  # Maximum number of epochs
 batch_size    = 16                   # Pairs of predictions
@@ -65,7 +65,7 @@ cnndropout    = True                  # Set to 1 to test simple CN with dropout 
 debug         = True # Visualize training and testing loss
 verbose       = True # Print loss for each epoch
 checkgpu      = True # Set to true to check for GPU otherwise run on CPU
-savemodel     = False # Set to true to save model dict.
+savemodel     = True # Set to true to save model dict.
 
 # -----------
 #%% Functions
@@ -665,7 +665,7 @@ for nr in range(numruns):
             # Save the model
             # --------------
             if savemodel:
-                modout = "../../CESM_data/Models/%s_%s_lead%i.pt" %(expname,varname,lead)
+                modout = "../../CESM_data/Models/%s_%s_lead%i_classify.pt" %(expname,varname,lead)
                 torch.save(model.state_dict(),modout)
             
             
@@ -743,7 +743,6 @@ for nr in range(numruns):
             # -----------------
             # Save Eval Metrics
             # -----------------
-            
             np.savez("../../CESM_data/Metrics"+outname,**{
                      'train_loss': train_loss_grid,
                      'test_loss': test_loss_grid,
@@ -755,7 +754,9 @@ for nr in range(numruns):
                      'yvallabels' : yvallabels,
                      'sampled_idx': sampled_idx
                      }
-                    )
+                     )
+
+            
             
         print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
     print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
