@@ -32,6 +32,7 @@ detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
 num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
+limitsamples   = True                 # Set to true to only evaluate first [nsamples] for each class
 nsamples       = 300                  # Number of samples for each class
 
 # Training/Testing Subsets
@@ -210,7 +211,7 @@ data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
 
 # %% Some more user edits
-nbefore = 'variable'
+nbefore = 1#'variable'
 
 # Preallocate
 nlead    = len(leads)
@@ -221,7 +222,7 @@ varname  = 'ALL'
 subtitle="\nPersistence Baseline, averaging %s years before" % (str(nbefore))
 
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-expname = "AMVClass%i_PersistenceBaseline_%sbefore_nens%02i_maxlead%02i_detrend%i_noise%i" % (num_classes,str(nbefore),ens,leads[-1],detrend,usenoise)
+expname = "AMVClass%i_PersistenceBaseline_%sbefore_nens%02i_maxlead%02i_detrend%i_noise%i_nsample%i_limitsamples%i" % (num_classes,str(nbefore),ens,leads[-1],detrend,usenoise,nsamples,limitsamples)
 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
 
 #%%
@@ -293,6 +294,10 @@ for l,lead in enumerate(leads):
             
             # Add to counter
             actual = int(y_class_label[e,t])
+            if limitsamples:
+                if total[actual] > nsamples: # Stop when the maximum number for a class is reached
+                    #print("Maximum Reached")
+                    continue
             if avgclass == actual:
                 correct[actual] += 1
             total[actual] += 1
@@ -326,6 +331,6 @@ outvars = {
          'acc_by_class': acc_by_class,
          'yvalpred'    : yvalpred,
          'yvallabels'  : yvallabels}
-np.savez("../../CESM_data/Metrics"+outname,outvars)
+np.savez("../../CESM_data/Metrics"+outname,outvars,allow_pickle=True)
 print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
