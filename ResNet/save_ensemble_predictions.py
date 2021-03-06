@@ -471,183 +471,355 @@ def select_samples(nsamples,y_class,X):
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
-allstart = time.time()
+# allstart = time.time()
 
-# Load the data
-# Load the data for whole North Atlantic
-if usenoise:    
-    # Make white noise time series
-    data   = np.random.normal(0,1,(3,40,tstep,224,224))
+# # Load the data
+# # Load the data for whole North Atlantic
+# if usenoise:    
+#     # Make white noise time series
+#     data   = np.random.normal(0,1,(3,40,tstep,224,224))
     
-    ## Load latitude
-    #lat = np.linspace(0.4712,64.55497382,224)
+#     ## Load latitude
+#     #lat = np.linspace(0.4712,64.55497382,224)
     
-    # Apply land mask
-    dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
-    data[dataori==0] = 0 # change all ocean points to zero
-    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+#     # Apply land mask
+#     dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
+#     data[dataori==0] = 0 # change all ocean points to zero
+#     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
     
-    #data[dataori==0] = np.nan
-    #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
-    #data[np.isnan(data)] = 0
-else:
-    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
-    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
-data   = data[:,0:ens,:,:,:]
-target = target[0:ens,:]
-    
-#testvalues = [1e-3,1e-2,1e-1,1,2]
-#testname = "LR"
+#     #data[dataori==0] = np.nan
+#     #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
+#     #data[np.isnan(data)] = 0
+# else:
+#     data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
+#     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+# data   = data[:,0:ens,:,:,:]
+# target = target[0:ens,:]
 
-#testvalues = [False]
-#testname   = "cnndropout" # Note need to manually locate variable and edit
+# #testvalues = [1e-3,1e-2,1e-1,1,2]
+# #testname = "LR"
+# #%% Looping through, using same structure (each model has a different random prediction set)
+# #testvalues = [False]
+# #testname   = "cnndropout" # Note need to manually locate variable and edit
+# testvalues=[True]
+# testname='unfreeze_all'
+
+# for n in range(len(runids)):
+#     rt = time.time()
+    
+#     nr = runids[n]
+    
+#     for i in tqdm(range(len(testvalues))):
+        
+#         # ********************************************************************
+#         # NOTE: Manually assign value here (will implement automatic fix later)
+#         unfreeze_all = testvalues[i]
+        
+#         print("Testing %s=%s"% (testname,str(testvalues[i])))
+#         # ********************************************************************
+        
+#         # Set experiment names ----
+#         nlead    = len(leads)
+#         channels = 3
+#         start    = time.time()
+#         varname  = 'ALL'
+#         #subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
+#         subtitle="\n%s=%s" % (testname, str(testvalues[i]))
+        
+#         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+#         expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
+#                                                                                   leads[-1],detrend,usenoise,
+#                                                                                   testname,testvalues[i],nr)
+#         # Preallocate Evaluation Metrics...
+#         y_pred_prob = []
+#         y_label     = []
+
+#         if checkgpu:
+#             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+#         else:
+#             device = torch.device('cpu')
+        
+#         # -------------
+#         # Print Message
+#         # -------------
+#         print("Running CNN_test_lead_ann.py with the following settings:")
+#         print("\tNetwork Type   : "+netname)
+#         print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
+#         print("\tMax Epochs     : " + str(max_epochs))
+#         print("\tEarly Stop     : " + str(early_stop))
+#         print("\t# Ens. Members : "+ str(ens))
+#         print("\t%" +testname +  " : "+ str(testvalues[i]))
+#         print("\tDetrend        : "+ str(detrend))
+#         print("\tUse Noise      :" + str(usenoise))
+        
+#         for l,lead in enumerate(leads):
+#             if (lead == leads[-1]) and (len(leads)>1):
+#                 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
+#             else:
+#                 outname = "/leadtime_testiang_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+            
+#             # ----------------------
+#             # Apply lead/lag to data
+#             # ----------------------
+#             y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
+#             X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+#             y_class = make_classes(y,thresholds,reverse=True)
+            
+            
+#             # ---------------------
+#             # Load shuffled indices
+#             # ---------------------
+#             ld = np.load("../../CESM_data/Metrics/leadtime_testing_%s_%s_ALL.npz" % (varname,expname))['sampled_idx']
+#             shuffidx = ld[l,:].astype('int')
+#             y_class = y_class[shuffidx,:]
+#             X = X[shuffidx,:]
+#             lead_nsamples      = y_class.shape[0]
+            
+#             # ---------------------------------
+#             # Split into training and test sets
+#             # ---------------------------------
+#             X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,:,:,:].astype(np.float32) )
+#             y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.long)  )
+            
+#             # Put into pytorch DataLoader
+#             val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
+            
+#             # --------------------------
+#             # Load Trained Model Weights
+#             # --------------------------
+#             model = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+#             MPATH  = "../../CESM_data/Models/%s_%s_lead%i_classify.pt" %(expname,varname,lead)
+#             #model.load_state_dict(torch.load(MPATH,map_location=device))
+#             model.load_state_dict(torch.load(MPATH,map_location=device))
+            
+#             # #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
+#             # -----------------------------------------------
+#             # Pass to GPU or CPU for evaluation of best model
+#             # -----------------------------------------------
+#             with torch.no_grad():
+#                 X_val = X_val.to(device)
+#                 model.to(device)
+#                 model.eval()
+                
+#                 # -----------------
+#                 # Evalute the model
+#                 # -----------------
+#                 y_pred_val = np.asarray([])
+#                 y_valdt    = np.asarray([])
+
+#                 for i,vdata in enumerate(val_loader):
+#                     #break
+#                     #print(i)
+#                     # Get mini batch
+#                     batch_x, batch_y = vdata
+#                     batch_x = batch_x.to(device)
+#                     batch_y = batch_y.to(device)
+
+#                     # Make prediction and concatenate
+#                     batch_pred = model(batch_x) # [nsample, class]
+                    
+#                     # Convert predicted values
+#                     y_batch_pred = batch_pred.detach().cpu().numpy()
+#                     y_batch_lab  = batch_y.detach().cpu().numpy().squeeze()
+                    
+#                     # Store Predictions
+#                     if i == 0:
+#                         y_pred_val = y_batch_pred
+#                     else:
+#                         y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
+#                     y_valdt = np.concatenate([y_valdt,y_batch_lab])
+            
+#             # Save the actual and predicted values
+#             y_pred_prob.append(y_pred_val) # [lead][nsample,class]
+#             y_label.append(y_valdt) # [lead][nsample]
+            
+#             # Clear some memory
+#             del model
+#             del X_val
+#             del y_val
+#             torch.cuda.empty_cache()  # Save some memory
+            
+#             # -----------------
+#             # Save Eval Metrics
+#             # -----------------
+#             outname2 = "Validation_Probabilities_" + outname[1:]
+#             np.savez("../../CESM_data/Metrics/"+outname2,**{
+#                      'y_pred_prob': y_pred_prob,
+#                      'y_label': y_label
+#                      }
+#                      )
+#         print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
+#     print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
+# print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
+
+#%%  Modified Method
+
 testvalues=[True]
 testname='unfreeze_all'
 
-for n in range(len(runids)):
-    rt = time.time()
+
     
-    nr = runids[n]
     
-    for i in range(len(testvalues)):
+## -----------
+unfreeze_all = True
+testname = "unfreeze_all"
+
+# Set experiment names ----
+nlead    = len(leads)
+channels = 3
+start    = time.time()
+varname  = 'ALL'
+#subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
+subtitle="\n%s=%s" % (testname, str(testvalues[i]))
+
+# Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
+                                                                          leads[-1],detrend,usenoise,
+                                                                          testname,testvalues[i],nr)
+# Preallocate Evaluation Metrics...
+y_pred_prob = []
+y_label     = []
+sampled_idx   = []
+
+if checkgpu:
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+else:
+    device = torch.device('cpu')
+
+# -------------
+# Print Message
+# -------------
+print("Running CNN_test_lead_ann.py with the following settings:")
+print("\tNetwork Type   : "+netname)
+print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
+print("\tMax Epochs     : " + str(max_epochs))
+print("\tEarly Stop     : " + str(early_stop))
+print("\t# Ens. Members : "+ str(ens))
+print("\t%" +testname +  " : "+ str(testvalues[i]))
+print("\tDetrend        : "+ str(detrend))
+print("\tUse Noise      :" + str(usenoise))
+
+for l,lead in enumerate(leads):
+    
+
+    # ----------------------
+    # Apply lead/lag to data
+    # ----------------------
+    y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
+    X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+    y_class = make_classes(y,thresholds,reverse=True)
+    
+    # ---------------
+    # Reshuffle Data
+    # ---------------
+    y_class,X,shuffidx = select_samples(nsamples,y_class,X)
+    lead_nsamples      = y_class.shape[0]
+    
+    
+    # ---------------------------------
+    # Split into training and test sets
+    # ---------------------------------
+    X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,:,:,:].astype(np.float32) )
+    y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.long)  )
+    
+    # Put into pytorch DataLoader
+    val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
+    
+
+    runpred  = []
+    runlabel = []
+    # -------------------------
+    # # Looping for each run...
+    # -------------------------
+    for n in tqdm(range(len(runids))):
+        rt = time.time()
+        nr = runids[n]
         
-        # ********************************************************************
-        # NOTE: Manually assign value here (will implement automatic fix later)
-        unfreeze_all = testvalues[i]
         
-        print("Testing %s=%s"% (testname,str(testvalues[i])))
-        # ********************************************************************
-        
-        # Set experiment names ----
-        nlead    = len(leads)
-        channels = 3
-        start    = time.time()
-        varname  = 'ALL'
-        #subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
-        subtitle="\n%s=%s" % (testname, str(testvalues[i]))
-        
-        # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+        # Set Experiment Name (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
         expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
                                                                                   testname,testvalues[i],nr)
-        # Preallocate Evaluation Metrics...
-        y_pred_prob = []
-        y_label     = []
-
-        if checkgpu:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Set names...
+        if (lead == leads[-1]) and (len(leads)>1):
+            outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
         else:
-            device = torch.device('cpu')
+            outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
         
-        # -------------
-        # Print Message
-        # -------------
-        print("Running CNN_test_lead_ann.py with the following settings:")
-        print("\tNetwork Type   : "+netname)
-        print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
-        print("\tMax Epochs     : " + str(max_epochs))
-        print("\tEarly Stop     : " + str(early_stop))
-        print("\t# Ens. Members : "+ str(ens))
-        print("\t%" +testname +  " : "+ str(testvalues[i]))
-        print("\tDetrend        : "+ str(detrend))
-        print("\tUse Noise      :" + str(usenoise))
+        # --------------------------
+        # Load Trained Model Weights
+        # --------------------------
+        model = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+        MPATH  = "../../CESM_data/Models/%s_%s_lead%i_classify.pt" %(expname,varname,lead)
+        #model.load_state_dict(torch.load(MPATH,map_location=device))
+        model.load_state_dict(torch.load(MPATH,map_location=device))
         
-        for l,lead in enumerate(leads):
-            if (lead == leads[-1]) and (len(leads)>1):
-                outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
-            else:
-                outname = "/leadtime_testiang_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+        
+    
+        # #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
+        # -----------------------------------------------
+        # Pass to GPU or CPU for evaluation of best model
+        # -----------------------------------------------
+        with torch.no_grad():
+            X_val = X_val.to(device)
+            model.to(device)
+            model.eval()
             
-            # ----------------------
-            # Apply lead/lag to data
-            # ----------------------
-            y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-            X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
-            y_class = make_classes(y,thresholds,reverse=True)
-            
-            
-            # ---------------------
-            # Load shuffled indices
-            # ---------------------
-            ld = np.load("../../CESM_data/Metrics/leadtime_testing_%s_%s_ALL.npz" % (varname,expname))['sampled_idx']
-            shuffidx = ld[l,:].astype('int')
-            y_class = y_class[shuffidx,:]
-            X = X[shuffidx,:]
-            lead_nsamples      = y_class.shape[0]
-            
-            # ---------------------------------
-            # Split into training and test sets
-            # ---------------------------------
-            X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,:,:,:].astype(np.float32) )
-            y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.long)  )
-            
-            # Put into pytorch DataLoader
-            val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
-            
-            # --------------------------
-            # Load Trained Model Weights
-            # --------------------------
-            model = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
-            MPATH  = "../../CESM_data/Models/%s_%s_lead%i_classify.pt" %(expname,varname,lead)
-            #model.load_state_dict(torch.load(MPATH,map_location=device))
-            model.load_state_dict(torch.load(MPATH,map_location=device))
-            
-            # #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
-            # -----------------------------------------------
-            # Pass to GPU or CPU for evaluation of best model
-            # -----------------------------------------------
-            with torch.no_grad():
-                X_val = X_val.to(device)
-                model.to(device)
-                model.eval()
+            # -----------------
+            # Evalute the model
+            # -----------------
+            y_pred_val = np.asarray([])
+            y_valdt    = np.asarray([])
+    
+            for i,vdata in enumerate(val_loader):
+                #break
+                #print(i)
+                # Get mini batch
+                batch_x, batch_y = vdata
+                batch_x = batch_x.to(device)
+                batch_y = batch_y.to(device)
+    
+                # Make prediction and concatenate
+                batch_pred = model(batch_x) # [nsample, class]
                 
-                # -----------------
-                # Evalute the model
-                # -----------------
-                y_pred_val = np.asarray([])
-                y_valdt    = np.asarray([])
-
-                for i,vdata in enumerate(val_loader):
-                    #break
-                    #print(i)
-                    # Get mini batch
-                    batch_x, batch_y = vdata
-                    batch_x = batch_x.to(device)
-                    batch_y = batch_y.to(device)
-
-                    # Make prediction and concatenate
-                    batch_pred = model(batch_x) # [nsample, class]
-                    
-                    # Convert predicted values
-                    y_batch_pred = batch_pred.detach().cpu().numpy()
-                    y_batch_lab  = batch_y.detach().cpu().numpy().squeeze()
-                    
-                    # Store Predictions
-                    if i == 0:
-                        y_pred_val = y_batch_pred
-                    else:
-                        y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
-                    y_valdt = np.concatenate([y_valdt,y_batch_lab])
-            
-            # Save the actual and predicted values
-            y_pred_prob.append(y_pred_val) # [lead][nsample,class]
-            y_label.append(y_valdt) # [lead][nsample]
-            
-            # Clear some memory
-            del model
-            del X_val
-            del y_val
-            torch.cuda.empty_cache()  # Save some memory
-            
-            # -----------------
-            # Save Eval Metrics
-            # -----------------
-            outname2 = "Validation_Probabilities_" + outname[1:]
-            np.savez("../../CESM_data/Metrics/"+outname2,**{
-                     'y_pred_prob': y_pred_prob,
-                     'y_label': y_label
-                     }
-                     )
-        print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
-    print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
+                # Convert predicted values
+                y_batch_pred = batch_pred.detach().cpu().numpy()
+                y_batch_lab  = batch_y.detach().cpu().numpy().squeeze()
+                
+                # Store Predictions
+                if i == 0:
+                    y_pred_val = y_batch_pred
+                else:
+                    y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
+                y_valdt = np.concatenate([y_valdt,y_batch_lab])
+        
+        # Save the actual and predicted values
+        runpred.append(y_pred_val) # [run][nsample,class]
+        runlabel.append(y_valdt) # [run][nsample]
+        
+        # End Run Loop
+    y_pred_prob.append(runpred) # [lead][nsample,class]
+    y_label.append(runlabel) # [lead][nsample]
+    sampled_idx.append(shuffidx) # Save the sample indices [lead][sample indices]
+    
+    # Clear some memory
+    del model
+    del X_val
+    del y_val
+    torch.cuda.empty_cache()  # Save some memory
+    
+    # -----------------
+    # Save Eval Metrics
+    # -----------------
+    outname2 = "Test_Probabilities_ResNet50_Lead%i.npz"%lead
+    #outname2 = "Validation_Probabilities_" + outname[1:]
+    np.savez("../../CESM_data/Metrics/"+outname2,**{
+             'y_pred_prob': y_pred_prob,
+             'y_label': y_label,
+             'sampled_idx' : sampled_idx
+             }
+             )
+    
+    print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
