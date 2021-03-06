@@ -471,7 +471,7 @@ def select_samples(nsamples,y_class,X):
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
-# allstart = time.time()
+allstart = time.time()
 
 # # Load the data
 # # Load the data for whole North Atlantic
@@ -695,7 +695,7 @@ print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
 print("\tMax Epochs     : " + str(max_epochs))
 print("\tEarly Stop     : " + str(early_stop))
 print("\t# Ens. Members : "+ str(ens))
-print("\t%" +testname +  " : "+ str(testvalues[i]))
+#print("\t%" +testname +  " : "+ str(testvalues[i]))
 print("\tDetrend        : "+ str(detrend))
 print("\tUse Noise      :" + str(usenoise))
 
