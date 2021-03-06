@@ -598,6 +598,7 @@ for n in range(len(runids)):
             # -----------------------------------------------
             with torch.no_grad():
                 X_val = X_val.to(device)
+                model.to(device)
                 model.eval()
                 
                 # -----------------
