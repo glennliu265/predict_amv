@@ -642,7 +642,8 @@ for n in range(len(runids)):
             # -----------------
             # Save Eval Metrics
             # -----------------
-            np.savez("../../CESM_data/Metrics/Validation_Probabilities_"+outname,**{
+            outname2 = "Validation_Probabilities_" + outname[1:]
+            np.savez("../../CESM_data/Metrics/"+outname2,**{
                      'y_pred_prob': y_pred_prob,
                      'y_label': y_label
                      }
