@@ -589,8 +589,8 @@ for n in range(len(runids)):
             # --------------------------
             model = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
             MPATH  = "../../CESM_data/Models/%s_%s_lead%i_classify.pt" %(expname,varname,lead)
+            #model.load_state_dict(torch.load(MPATH,map_location=device))
             model.load_state_dict(torch.load(MPATH,map_location=device))
-            
             
             # #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
             # -----------------------------------------------
