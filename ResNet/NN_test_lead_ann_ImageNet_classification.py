@@ -30,7 +30,7 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = [0,1,24]#np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
@@ -44,7 +44,7 @@ nsamples       = 300                  # Number of samples for each class
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
 ens           = 40   # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
-numruns       = 1    # Number of times to train each run
+numruns       = 10    # Number of times to train each run
 
 # Model training settings
 unfreeze_all  = True               # Set to true to unfreeze all layers, false to only unfreeze last layer
@@ -505,7 +505,7 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=[False,True]
+testvalues=[True]
 testname='unfreeze_all'
 
 for nr in range(numruns):
@@ -532,7 +532,6 @@ for nr in range(numruns):
         expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
                                                                                   testname,testvalues[i],nr)
-        
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
