@@ -474,27 +474,27 @@ def select_samples(nsamples,y_class,X):
 allstart = time.time()
 
 # # Load the data
-# # Load the data for whole North Atlantic
-# if usenoise:    
-#     # Make white noise time series
-#     data   = np.random.normal(0,1,(3,40,tstep,224,224))
+# Load the data for whole North Atlantic
+if usenoise:    
+    # Make white noise time series
+    data   = np.random.normal(0,1,(3,40,tstep,224,224))
     
-#     ## Load latitude
-#     #lat = np.linspace(0.4712,64.55497382,224)
+    ## Load latitude
+    #lat = np.linspace(0.4712,64.55497382,224)
     
-#     # Apply land mask
-#     dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
-#     data[dataori==0] = 0 # change all ocean points to zero
-#     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+    # Apply land mask
+    dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
+    data[dataori==0] = 0 # change all ocean points to zero
+    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
     
-#     #data[dataori==0] = np.nan
-#     #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
-#     #data[np.isnan(data)] = 0
-# else:
-#     data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
-#     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
-# data   = data[:,0:ens,:,:,:]
-# target = target[0:ens,:]
+    #data[dataori==0] = np.nan
+    #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
+    #data[np.isnan(data)] = 0
+else:
+    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
+    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+data   = data[:,0:ens,:,:,:]
+target = target[0:ens,:]
 
 # #testvalues = [1e-3,1e-2,1e-1,1,2]
 # #testname = "LR"
