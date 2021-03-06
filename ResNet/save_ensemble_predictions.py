@@ -654,7 +654,7 @@ def select_samples(nsamples,y_class,X):
 
 #%%  Modified Method
 
-testvalues=[True]
+testvalue=True
 testname='unfreeze_all'
 
 
@@ -670,12 +670,12 @@ channels = 3
 start    = time.time()
 varname  = 'ALL'
 #subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
-subtitle="\n%s=%s" % (testname, str(testvalues[i]))
+#subtitle="\n%s=%s" % (testname, str(testvalues[i]))
 
-# Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
-                                                                          leads[-1],detrend,usenoise,
-                                                                          testname,testvalues[i],nr)
+# # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+# expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
+#                                                                           leads[-1],detrend,usenoise,
+#                                                                           testname,testvalue,nr)
 # Preallocate Evaluation Metrics...
 y_pred_prob = []
 y_label     = []
@@ -739,7 +739,7 @@ for l,lead in enumerate(leads):
         # Set Experiment Name (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
         expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
-                                                                                  testname,testvalues[i],nr)
+                                                                                  testname,testvalue,nr)
         
         # Set names...
         if (lead == leads[-1]) and (len(leads)>1):
