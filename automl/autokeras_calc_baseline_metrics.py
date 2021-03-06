@@ -1,21 +1,16 @@
 import numpy as np
-from autosklearn.regression import AutoSklearnRegressor
-from autosklearn.classification import AutoSklearnClassifier
+import autokeras as ak
 
 
 ml_type        = 'classification'     # 'regression' or 'classification'
-leads          = np.arange(0,25,1)
-time_left_for_this_task              = 3600
-per_run_time_limit = 300
+leads          = np.arange(0,2,1)
+max_trials     = 1
 
 detrend        = False                # Set to true to use detrended data
 varname        = 'ALL'
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes)
 num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
-if ml_type=='regression':
-    metrics = np.zeros( (leads.shape[0]) )
-elif ml_type=='classification':
-    metrics = np.zeros( (leads.shape[0],num_classes) )
+metrics = np.zeros( (leads.shape[0],num_classes) )
 nsamples       = 300                  # Number of samples for each class
 
 # Training/Testing Subsets
@@ -177,59 +172,41 @@ def select_samples(nsamples,y_class,X):
 ##############################################################################
 
 for l,lead in enumerate(leads):
-    if ml_type=='regression':
-        y = target[:ens,lead:].reshape(ens*(tstep-lead))
-        X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
-        X = X.reshape(X.shape[0],X.shape[1]*X.shape[2]*X.shape[3])
-        lead_nsamples      = y.shape[0]
-        y_train = y[0:int(np.floor(percent_train*lead_nsamples))]
-        y_val   = y[int(np.floor(percent_train*lead_nsamples)):] 
+    y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
+    X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+    y_class = make_classes(y,thresholds,reverse=True)
+    y_class,X,shuffidx = select_samples(nsamples,y_class,X)
+    X = X.transpose(0,2,3,1)
+    lead_nsamples      = y_class.shape[0]
+    y_train = y_class[0:int(np.floor(percent_train*lead_nsamples)),0]
+    y_val = y_class[int(np.floor(percent_train*lead_nsamples)):,0]
 
-    elif ml_type=='classification':
-        y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-        X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
-        y_class = make_classes(y,thresholds,reverse=True)
-        y_class,X,shuffidx = select_samples(nsamples,y_class,X)
-        X = X.reshape(X.shape[0],X.shape[1]*X.shape[2]*X.shape[3])
-        lead_nsamples      = y_class.shape[0]
-        y_train = y_class[0:int(np.floor(percent_train*lead_nsamples)),0]
-        y_val = y_class[int(np.floor(percent_train*lead_nsamples)):,0]
+    X_train = X[0:int(np.floor(percent_train*lead_nsamples)),:,:,:]
+    X_val = X[int(np.floor(percent_train*lead_nsamples)):,:,:,:]
 
-    X_train = X[0:int(np.floor(percent_train*lead_nsamples)),:]
-    X_val = X[int(np.floor(percent_train*lead_nsamples)):,:]
 
-    # define search
-    if ml_type=='regression':
-        model = AutoSklearnRegressor(time_left_for_this_task=time_left_for_this_task,
-                per_run_time_limit = per_run_time_limit,
-                n_jobs=1,
-                memory_limit=1000000,
-                )
-    elif ml_type=='classification':
-        model = AutoSklearnClassifier(time_left_for_this_task=time_left_for_this_task,
-                per_run_time_limit = per_run_time_limit,
-                n_jobs=1,
-                memory_limit=1000000,
-                )
+    model = ak.ImageClassifier(num_classes=num_classes, max_trials=max_trials)
+
     print("start searching")
     
+    print(X_train.shape)
+    print(y_train.shape)
     # perform the search
     model.fit(X_train, y_train)
     
-    # summarize
-    print(model.sprint_statistics())
-    
+    model_out = model.export_model()
+    model_out.save("autokeras_models/autokeras_lead"+str(l)+".h5")
+
     # evaluate best model
     y_hat = model.predict(X_val)
     metric = calc_metrics(y_val, y_hat, ml_type)
-    if ml_type=='regression':
-        metrics[l] = metric
-    elif ml_type=='classification':
-        metrics[l,:] = metric
+    
+    metrics[l,:] = metric
     print("************************************")
     print("lead:"+str(l)+", metric: "+str(metric))
     print("************************************")
 
 print("**************************")
 print(metrics)
-np.save("automl_accuracy_t"+str(time_left_for_this_task)+"_"+ml_type+".npy",metrics)
+np.save("autokeras_accuracy_detrend_"+ml_type+".npy",metrics)
+
