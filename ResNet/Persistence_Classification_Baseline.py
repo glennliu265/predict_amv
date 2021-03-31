@@ -226,6 +226,7 @@ expname = "AMVClass%i_PersistenceBaseline_%sbefore_nens%02i_maxlead%02i_detrend%
 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
 
 #%%
+
 # Preallocate Evaluation Metrics...
 #train_loss_grid = []#np.zeros((max_epochs,nlead))
 #test_loss_grid  = []#np.zeros((max_epochs,nlead))
@@ -263,8 +264,14 @@ for l,lead in enumerate(leads):
     y_class = make_classes(y,thresholds,reverse=True)
     y_class = y_class.reshape(ens,(tstep)) # Reshape to ens x lead
     
-    y_class_predictor = y_class[:,:(tstep-lead)]
-    y_class_label     = y_class[:,lead:]
+    
+    
+    
+    
+    X = y_class[:,:(tstep-lead)].flatten()[:,None,None,None]
+    y_class_label = y_class[:,lead:].flatten()[:,None]
+    y_class_label,y_class_predictor,shuffidx = select_samples(nsamples,y_class_label,X)
+    
     
     # ----------------------
     # Make predictions
