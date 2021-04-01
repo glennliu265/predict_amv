@@ -1,15 +1,15 @@
 
 """
-NN Test Lead Annual
+NN Test Lead Annual (Classification Version)
 
-Train/test NN prediction skill at various leadtimes.  Currently supports
-FNN, CNN, and ResNet.
+Train/test NN prediction skill at various leadtimes.  Currently supports a
+2-layer CNN, and ResNet (Transfer Learning and Fully-Retrained).
 
 Uses data that has been preprocessed by "output_normalized_data.ipynb"
 in /Preprocessing
+    Assumes data is stored in ../../CESM_data/
 
 See user edits below for further specifications.
-
 """
 
 import numpy as np
@@ -19,7 +19,6 @@ from tqdm import tqdm
 import torch
 from torch import nn
 import torch.optim as optim
-import torchvision.models as models
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
 import copy
@@ -31,42 +30,49 @@ import timm
 
 # Data preparation settings
 leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
-season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
-indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
-resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = False                # Set to true to use detrended data
-usenoise       = False                # Set to true to train the model with pure noise
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
-num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
 nsamples       = 300                  # Number of samples for each class
 
 # Training/Testing Subsets
-percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40   # Ensemble members to use
-tstep         = 86    # Size of time dimension (in years)
-numruns       = 10    # Number of times to train each run
+percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
+numruns        = 10    # Number of times to train for each leadtime
+
 
 # Model training settings
-unfreeze_all  = True               # Set to true to unfreeze all layers, false to only unfreeze last layer
-early_stop    = 3                  # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                  # Maximum number of epochs
-batch_size    = 16                   # Pairs of predictions
-loss_fn       = nn.CrossEntropyLoss() # Loss Function
-#max_fn       = nn.LogSoftmax(dim=1)
-opt           = ['Adam',1e-3,0]       # Name optimizer
-reduceLR      = False                 # Set to true to use LR scheduler
-LRpatience    = 3                     # Set patience for LR scheduler
-netname       = 'resnet50'           #'simplecnn'           # Name of network ('resnet50','simplecnn')
-tstep         = 86
-outpath       = ''
-cnndropout    = True                  # Set to 1 to test simple CN with dropout layer
+netname       = 'resnet50'           # Name of network ('resnet50','simplecnn')
+unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
-# Options
+
+# Additional Hyperparameters
+early_stop    = 3                    # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                   # Maximum number of epochs
+batch_size    = 16                   # Pairs of predictions
+loss_fn       = nn.CrossEntropyLoss()# Loss Function
+opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight Decay]
+reduceLR      = False                # Set to true to use LR scheduler
+LRpatience    = 3                    # Set patience for LR scheduler
+cnndropout    = True                 # Set to 1 to test simple CNN with dropout layer
+
+# Toggle Options
 debug         = True # Visualize training and testing loss
 verbose       = True # Print loss for each epoch
 checkgpu      = True # Set to true to check for GPU otherwise run on CPU
 savemodel     = True # Set to true to save model dict.
 
+# -----------------------------------------------------------------
+#%% Additional (Legacy) Variables (modify for future customization)
+# -----------------------------------------------------------------
+
+# Data Preparation names
+num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
+season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
+indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
+resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
+detrend        = False                # Set to true to use detrended data
+usenoise       = False                # Set to true to train the model with pure noise
+tstep          = 86                   # Size of time dimension (in years)
+ens            = 40                   # Ensemble members (climate model output) to use
+outpath        = ""
 # -----------
 #%% Functions
 # -----------
