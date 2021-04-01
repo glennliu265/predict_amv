@@ -5,7 +5,10 @@ Calculate Persistence Baseline
 
 Script to calculate the persistence baseline.
 
-Place data in "../../CESM_data/"
+Uses data preprocessed by "prepare_training_validation_data.py"
+    Assumes data is placed in "../../CESM_data/"
+
+Output is saved to "../../CESM_data/Metrics/"
 """
 
 import numpy as np
@@ -15,32 +18,24 @@ import time
 #%% User Edits
 # -------------
 
-# Data preparation settings
+# Adjustable settings
 leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
+nsamples       = 300                  # Number of samples for each class
+
+# -----------------------------------------------------------------
+#%% Additional (Legacy) Variables (modify for future customization)
+# -----------------------------------------------------------------
+
+# Data information
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
 detrend        = False                # Set to true to use detrended data
-usenoise       = False                # Set to true to train the model with pure noise
-thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
-num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
 limitsamples   = True                 # Set to true to only evaluate first [nsamples] for each class
-nsamples       = 400                  # Number of samples for each class
-
-# Training/Testing Subsets
-percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40   # Ensemble members to use
+usenoise       = False                # Set to true to train the model with pure noise
+ens           = 40                   # Ensemble members to use
 tstep         = 86    # Size of time dimension (in years)
-numruns       = 1    # Number of times to train each run
-
-# Model training settings
-tstep         = 86
-outpath       = ''
-
-# Options
-debug         = True # Visualize training and testing loss
-verbose       = True # Print loss for each epoch
-savemodel     = True # Set to true to save model dict.
 
 # -----------
 #%% Functions
@@ -104,7 +99,6 @@ def make_classes(y,thresholds,exact_value=False,reverse=False):
             y_class[(y>thres0) * (y<=thres)] = tassign
             print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
     return y_class
-
 
 def select_samples(nsamples,y_class,X):
     """
@@ -180,25 +174,12 @@ def select_samples(nsamples,y_class,X):
 # ----------------------------------------
 allstart = time.time()
 
+# Set number of classes (# thresholds +1)
+num_classes    = len(thresholds)+1    # Set up number of classes for prediction
+
 # Load the data for whole North Atlantic
-if usenoise:
-    # Make white noise time series
-    data   = np.random.normal(0,1,(3,40,tstep,224,224))
-    
-    ## Load latitude
-    #lat = np.linspace(0.4712,64.55497382,224)
-    
-    # Apply land mask
-    dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
-    data[dataori==0] = 0 # change all ocean points to zero
-    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
-    
-    #data[dataori==0] = np.nan
-    #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
-    #data[np.isnan(data)] = 0
-else:
-    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
-    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
+target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
 data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
 
@@ -220,14 +201,11 @@ outname = "/leadtime_testing_%s_%s_ALL_nsamples1.npz" % (varname,expname)
 #%%
 
 # Preallocate Evaluation Metrics...
-#train_loss_grid = []#np.zeros((max_epochs,nlead))
-#test_loss_grid  = []#np.zeros((max_epochs,nlead))
 total_acc       = [] # [lead]
 acc_by_class    = [] # [lead x class]
 yvalpred        = [] # [lead x ensemble x time]
 yvallabels      = [] # [lead x ensemble x time]
-
-nvarflag = False
+nvarflag        = False
 
 # -------------
 # Print Message
@@ -247,17 +225,16 @@ for l,lead in enumerate(leads):
         nvarflag=True
         nbefore =lead 
     
-    # ----------------------
-    # Apply lead/lag to data
-    # ----------------------
+    # -------------
+    # Make classes
+    # -------------
     y = target[:ens,:].reshape(ens*tstep,1)
-    #y_class_pred = target[:ens,:lead].reshape(ens*(tstep-lead),1)
-    #X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens,(tstep-lead),224,224).transpose(1,0,2,3)
     y_class = make_classes(y,thresholds,reverse=True)
     y_class = y_class.reshape(ens,(tstep)) # Reshape to ens x lead
     
-    
-    # Sample same amt for each class
+    # -------------------------------------
+    # Randomly sample same # for each class
+    # -------------------------------------
     X = y_class[:,:(tstep-lead)].flatten()[:,None,None,None] # Expand dimensions to accomodate function
     y_class_label = y_class[:,lead:].flatten()[:,None]
     y_class_label,y_class_predictor,shuffidx = select_samples(nsamples,y_class_label,X)
@@ -279,36 +256,6 @@ for l,lead in enumerate(leads):
         if actual == y_pred:
             correct[actual] += 1
         total[actual] += 1
-        
-    # # ---------------------------------------------
-    # # Predict using given number of values before
-    # # ---------------------------------------------
-    # for e in range(ens):
-    #     for t in range(tstep-lead):
-            
-    #         # Get index before
-    #         idstart = t-nbefore
-    #         if idstart < 0:
-    #             idstart = 0
-            
-    #         valbefore = y_class_predictor[e,idstart:t]
-    #         #print(t)
-    #         if len(valbefore)==0: # Don't make prediction if there is no data before
-    #             y_pred[e,t] = np.nan
-    #             continue
-            
-    #         # Average values and select nearest class
-    #         avgclass    = int(np.round(valbefore.mean()))
-    #         y_pred[e,t] = avgclass
-            
-    #         # Add to counter
-    #         actual = int(y_class_label[e,t])
-    #         if limitsamples:
-    #             if total[actual] > nsamples: # Stop when the maximum number for a class is reached
-    #                 #print("Maximum Reached")
-    #                 continue
-    #         if avgclass == actual    #             correct[actual] += 1
-    #         total[actual] += 1
     
     # ----------------------------------
     # Calculate and save overall results
@@ -341,5 +288,5 @@ outvars = {
          'yvalpred'    : yvalpred,
          'yvallabels'  : yvallabels}
 np.savez("../../CESM_data/Metrics"+outname,outvars,allow_pickle=True)
-print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
+print("Saved data to %s. Finished variable %s in %ss"%(outname,varname,time.time()-start))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
