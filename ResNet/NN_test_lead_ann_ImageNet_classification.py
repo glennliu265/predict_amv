@@ -9,6 +9,11 @@ Uses data that has been preprocessed by "output_normalized_data.ipynb"
 in /Preprocessing
     Assumes data is stored in ../../CESM_data/
 
+Outputs are stored in 
+    - ../../CESM_data/Metrics (Experimental Metrics (ex. Acc))
+    - ../../CESM_data/Models (Model Dict/Weights)
+    - ../../CESM_data/Figures (Loss Visualizations)
+
 See user edits below for further specifications.
 """
 
@@ -761,8 +766,6 @@ for nr in range(numruns):
                      }
                      )
 
-            
-            
         print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
     print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
