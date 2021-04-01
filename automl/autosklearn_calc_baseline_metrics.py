@@ -1,34 +1,50 @@
+"""
+autosklearn calc baseline metrics
+
+Apply autosklearn to the AMV prediction problem
+
+Uses data that has been preprocessed by "output_normalized_data.ipynb"
+in /Preprocessing
+    Assumes data is stored in ../../CESM_data/
+
+Outputs are stored in 
+    - ../../CESM_data/Metrics (Experimental Metrics (ex. Acc))
+"""
+
 import numpy as np
 from autosklearn.regression import AutoSklearnRegressor
 from autosklearn.classification import AutoSklearnClassifier
 
+# ----------------
+#%% User Settings
+# ----------------
 
+# Setup
 ml_type        = 'classification'     # 'regression' or 'classification'
-leads          = np.arange(0,25,1)
-time_left_for_this_task              = 3600
-per_run_time_limit = 300
-
-
-detrend        = False                # Set to true to use detrended data
-varname        = 'ALL'
-thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes)
-num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
-if ml_type=='regression':
-    metrics = np.zeros( (leads.shape[0]) )
-elif ml_type=='classification':
-    metrics = np.zeros( (leads.shape[0],num_classes) )
+leads          = np.arange(0,25,1)    # Prediction lead times (in years)
 nsamples       = 300                  # Number of samples for each class
+thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes)
 
-# Training/Testing Subsets
-percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
-tstep         = 86    # Size of time dimension (in years)
+# Autosklearn Settings
+time_left_for_this_task = 3600 # Number of seconds for autosklearn
+per_run_time_limit      = 300  # autosklearn per run time limit
 
-data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
-target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
-data   = data[:,0:ens,:,:,:]
-target = target[0:ens,:]
+outpath = "../../CESM_data/Metrics/"
+# -----------------------------------------
+# %% Legacy Variables (Don't edit for now)
+# -----------------------------------------
 
+detrend            = False                # Set to true to use detrended data
+varname            = 'ALL'                # Use all variables (SST, SSS, PSL)
+num_classes        = len(thresholds)+1    # Set up number of classes for prediction (current supports)
+percent_train      = 0.8   # Percentage of data to use for training (remaining for testing)
+ens                = 40    # Ensemble members to use
+tstep              = 86    # Size of time dimension (in years)
+
+
+# ----------------
+# %% Functions
+# ----------------
 
 def calc_metrics(y_val, y_hat, ml_type):
     if ml_type=='regression':
@@ -65,7 +81,7 @@ def make_classes(y,thresholds,exact_value=False,reverse=False):
         representing each threshold
     """
     nthres = len(thresholds)
-    if ~exact_value: # Scale thresholds by standard deviation
+    if exact_value is False: # Scale thresholds by standard deviation
         y_std = np.std(y) # Get standard deviation
         thresholds = np.array(thresholds) * y_std
     y_class = np.zeros((y.shape[0],1))
@@ -101,7 +117,6 @@ def make_classes(y,thresholds,exact_value=False,reverse=False):
             y_class[(y>thres0) * (y<=thres)] = tassign
             print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
     return y_class
-
 
 def select_samples(nsamples,y_class,X):
     """
@@ -171,12 +186,30 @@ def select_samples(nsamples,y_class,X):
     
     return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
 
+# ----------------
+#%% Script Start
+# ----------------
+
+# Preallocate based on problem type
+if ml_type=='regression':
+    metrics = np.zeros( (leads.shape[0]) )
+elif ml_type=='classification':
+    metrics = np.zeros( (leads.shape[0],num_classes) )
+
+# Load Data
+data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
+target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+data   = data[:,0:ens,:,:,:]
+target = target[0:ens,:]
 
 
 ##############################################################################
 ##############################################################################
 ##############################################################################
 
+# ----------------
+#%% Run AutoML
+# ----------------
 for l,lead in enumerate(leads):
     if ml_type=='regression':
         y = target[:ens,lead:].reshape(ens*(tstep-lead))
@@ -205,8 +238,8 @@ for l,lead in enumerate(leads):
                 per_run_time_limit = per_run_time_limit,
                 n_jobs=1,
                 memory_limit=1000000,
-                tmp_folder='/home/pdwang/predict_amv/automl/log_folder',
-                output_folder='/home/pdwang/predict_amv/automl/output_folder',
+                tmp_folder=outpath+'log_folder',
+                output_folder=outpath+'output_folder',
 
                 )
     elif ml_type=='classification':
@@ -214,9 +247,8 @@ for l,lead in enumerate(leads):
                 per_run_time_limit = per_run_time_limit,
                 n_jobs=1,
                 memory_limit=1000000,
-                tmp_folder='/home/pdwang/predict_amv/automl/log_folder',
-                output_folder='/home/pdwang/predict_amv/automl/output_folder',
-
+                tmp_folder=outpath+'log_folder',
+                output_folder=outpath+'output_folder',
                 )
     print("start searching")
     
@@ -246,5 +278,4 @@ for l,lead in enumerate(leads):
 
 print("**************************")
 print(metrics)
-np.save("automl_accuracy_detrend_t"+str(time_left_for_this_task)+"_"+ml_type+".npy",metrics)
-
+np.save(outpath+"automl_accuracy_detrend_t"+str(time_left_for_this_task)+"_"+ml_type+".npy",metrics)
