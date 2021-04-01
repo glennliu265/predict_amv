@@ -9,14 +9,15 @@ objective
 Assumes data is located in ../../CESM_data/
 
 Outputs data to the same directory.
-    - Predictors: CESM_data_sst_sss_psl_deseason_normalized_resized.npy
-    - Labels: CESM_label_amv_index.npy
+    - Predictors: CESM_data_sst_sss_psl_deseason_normalized_resized_detrend0.npy
+    - Labels: CESM_label_amv_index_detrend0.npy
 """
 
 import numpy as np
 import xarray as xr
 import xesmf as xe
 
+detrend=False # Detrending is currently not applied
 
 # --------------------------------
 # Select Box in the North Atlantic
@@ -40,11 +41,16 @@ print('finished PSL deseason')
 # --------------------------------
 # Apply Land/Ice Mask to PSL
 # --------------------------------
-landmask = np.isnan( sst_ds[:,:,0,0].values )
-for ilat in range(len(psl_ds.lat)):
-    for ilon in range(len(psl_ds.lon)):
-        if landmask[ilat,ilon] == True:
-            psl_deseason[ilat,ilon,:,:] = np.nan
+landmask = ~np.isnan( sst_ds[:,:,0,0].values )
+psl_deseason *= landmask[:,:,None,None]
+
+# --------------------------------
+# Detrend the data if option is set
+# --------------------------------
+if detrend:
+    sst_deseason = sst_deseason - sst_deseason.mean('ensemble')
+    sss_deseason = sss_deseason - sss_deseason.mean('ensemble')
+    psl_deseason = psl_deseason - psl_deseason.mean('ensemble')
 
 # -------------------------
 # Normalize and standardize
@@ -61,8 +67,8 @@ psl_normalized = (psl_deseason - psl_deseason.mean())/psl_deseason.std()
 # Prepare Latitude/Longitude
 lat = sst_ds.lat
 lon = sst_ds.lon
-lat_out = np.linspace(lat[0],lat[-1],244)
-lon_out = np.linspace(lon[0],lon[-1],244)
+lat_out = np.linspace(lat[0],lat[-1],224)
+lon_out = np.linspace(lon[0],lon[-1],224)
 
 # Make Regridder
 ds_out = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
@@ -79,7 +85,6 @@ psl_out = regridder( psl_normalized.transpose('ensemble','year','lat','lon') )
 # -----------------------------------------------
 amv_index = (np.cos(np.pi*sst_out.lat/180) * sst_out).mean(dim=('lat','lon'))
 
-
 # ----------------------------------
 # Load data to numpy arrays and save
 # ----------------------------------
@@ -92,5 +97,5 @@ sss_out_values[np.isnan(sss_out_values)] = 0
 psl_out_values[np.isnan(psl_out_values)] = 0
 
 data_out = np.array([sst_out_values,sss_out_values,psl_out_values])
-np.save('CESM_data_sst_sss_psl_deseason_normalized_resized.npy',data_out)
-np.save('CESM_label_amv_index.npy',amv_index)
+np.save('CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy' % detrend,data_out)
+np.save('CESM_label_amv_index_detrend%i.npy' % detrend,amv_index[:,:])
