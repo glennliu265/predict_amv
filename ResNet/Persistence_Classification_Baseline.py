@@ -3,21 +3,13 @@
 """
 Calculate Persistence Baseline
 
-@author: gliu
+Script to calculate the persistence baseline.
+
+Place data in "../../CESM_data/"
 """
 
 import numpy as np
-import matplotlib.pyplot as plt
 import time
-from tqdm import tqdm
-import torch
-from torch import nn
-import torch.optim as optim
-import torchvision.models as models
-from torch.utils.data import DataLoader, TensorDataset,Dataset
-import os
-import copy
-import timm
 
 # -------------
 #%% User Edits
@@ -33,7 +25,7 @@ usenoise       = False                # Set to true to train the model with pure
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
 num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
 limitsamples   = True                 # Set to true to only evaluate first [nsamples] for each class
-nsamples       = 300                  # Number of samples for each class
+nsamples       = 400                  # Number of samples for each class
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -76,7 +68,7 @@ def make_classes(y,thresholds,exact_value=False,reverse=False):
 
     """
     nthres = len(thresholds)
-    if ~exact_value: # Scale thresholds by standard deviation
+    if exact_value is False: # Scale thresholds by standard deviation
         y_std = np.std(y) # Get standard deviation
         thresholds = np.array(thresholds) * y_std
     y_class = np.zeros((y.shape[0],1))
@@ -223,7 +215,7 @@ subtitle="\nPersistence Baseline, averaging %s years before" % (str(nbefore))
 
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
 expname = "AMVClass%i_PersistenceBaseline_%sbefore_nens%02i_maxlead%02i_detrend%i_noise%i_nsample%i_limitsamples%i" % (num_classes,str(nbefore),ens,leads[-1],detrend,usenoise,nsamples,limitsamples)
-outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
+outname = "/leadtime_testing_%s_%s_ALL_nsamples1.npz" % (varname,expname)
 
 #%%
 
@@ -265,49 +257,58 @@ for l,lead in enumerate(leads):
     y_class = y_class.reshape(ens,(tstep)) # Reshape to ens x lead
     
     
-    
-    
-    
-    X = y_class[:,:(tstep-lead)].flatten()[:,None,None,None]
+    # Sample same amt for each class
+    X = y_class[:,:(tstep-lead)].flatten()[:,None,None,None] # Expand dimensions to accomodate function
     y_class_label = y_class[:,lead:].flatten()[:,None]
     y_class_label,y_class_predictor,shuffidx = select_samples(nsamples,y_class_label,X)
-    
+    y_class_predictor = y_class_predictor.squeeze()
     
     # ----------------------
     # Make predictions
     # ----------------------
-    y_pred = np.zeros((ens,tstep-lead))
+    allsamples = y_class_predictor.shape[0]
     classval = [0,1,2]
     classname = ['AMV+','NEUTRAL','AMV-']
     correct  = np.array([0,0,0])
     total    = np.array([0,0,0])
-    for e in range(ens):
-        for t in range(tstep-lead):
+    for n in range(allsamples):
+        actual = int(y_class_label[n,0])
+        y_pred = int(y_class_predictor[n])
+        
+        # Add to Counter
+        if actual == y_pred:
+            correct[actual] += 1
+        total[actual] += 1
+        
+    # # ---------------------------------------------
+    # # Predict using given number of values before
+    # # ---------------------------------------------
+    # for e in range(ens):
+    #     for t in range(tstep-lead):
             
-            # Get index before
-            idstart = t-nbefore
-            if idstart < 0:
-                idstart = 0
+    #         # Get index before
+    #         idstart = t-nbefore
+    #         if idstart < 0:
+    #             idstart = 0
             
-            valbefore = y_class_predictor[e,idstart:t]
-            #print(t)
-            if len(valbefore)==0: # Don't make prediction if there is no data before
-                y_pred[e,t] = np.nan
-                continue
+    #         valbefore = y_class_predictor[e,idstart:t]
+    #         #print(t)
+    #         if len(valbefore)==0: # Don't make prediction if there is no data before
+    #             y_pred[e,t] = np.nan
+    #             continue
             
-            # Average values and select nearest class
-            avgclass    = int(np.round(valbefore.mean()))
-            y_pred[e,t] = avgclass
+    #         # Average values and select nearest class
+    #         avgclass    = int(np.round(valbefore.mean()))
+    #         y_pred[e,t] = avgclass
             
-            # Add to counter
-            actual = int(y_class_label[e,t])
-            if limitsamples:
-                if total[actual] > nsamples: # Stop when the maximum number for a class is reached
-                    #print("Maximum Reached")
-                    continue
-            if avgclass == actual:
-                correct[actual] += 1
-            total[actual] += 1
+    #         # Add to counter
+    #         actual = int(y_class_label[e,t])
+    #         if limitsamples:
+    #             if total[actual] > nsamples: # Stop when the maximum number for a class is reached
+    #                 #print("Maximum Reached")
+    #                 continue
+    #         if avgclass == actual    #             correct[actual] += 1
+    #         total[actual] += 1
     
     # ----------------------------------
     # Calculate and save overall results
@@ -318,7 +319,8 @@ for l,lead in enumerate(leads):
     # Append Results
     acc_by_class.append(accbyclass)
     total_acc.append(totalacc)
-    yvalpred.append(y_pred)
+    #yvalpred.append(y_pred)
+    yvalpred.append(y_class_predictor)
     yvallabels.append(y_class_label)
     
     # Report Results
