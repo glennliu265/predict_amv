@@ -16,6 +16,8 @@ import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cmocean
 
+from scipy.signal import butter,filtfilt,detrend
+
 from tqdm import tqdm
 
 
@@ -68,7 +70,7 @@ def add_coast_grid(ax,bbox=[-180,180,-90,90],proj=None):
     return ax#%%
 
 
-def calc_AMV_index(region,invar,lat,lon):
+def calc_AMV_index(region,invar,lat,lon,lp=False,order=5,cutofftime=120,dtr=False):
     """
     Select bounding box for a given AMV region for an input variable
         "SPG" - Subpolar Gyre
@@ -115,6 +117,17 @@ def calc_AMV_index(region,invar,lat,lon):
     
     # Take mean ove region
     amv_index = np.nanmean(selvar,(2,3))
+    
+    # If detrend
+    if dtr:
+        for i in range(amv_index.shape[0]):
+            amv_index[i,:] = detrend(amv_index[i,:])
+    
+    if lp:
+        
+        for i in range(amv_index.shape[0]):
+            amv_index[i,:]=lp_butter(amv_index[i,:],cutofftime,order)
+        
     
     return amv_index
 
@@ -255,6 +268,36 @@ def plot_box(bbox,ax=None,return_line=False,leglab="Bounding Box",color='k',line
         linesample =  ax.plot([bbox[0],bbox[0]],[bbox[2],bbox[3]],color=color,ls=linestyle,lw=linewidth,label=leglab)
         return ax,linesample
     return ax
+
+
+def lp_butter(varmon,cutofftime,order):
+    # Input variable is assumed to be monthy with the following dimensions:
+    flag1d=False
+    if len(varmon.shape) > 2:
+        nmon,nlat,nlon = varmon.shape
+    else:
+        
+        flag1d = True
+        nmon = varmon.shape[0]
+    
+    # Design Butterworth Lowpass Filter
+    filtfreq = nmon/cutofftime
+    nyquist  = nmon/2
+    cutoff = filtfreq/nyquist
+    b,a    = butter(order,cutoff,btype="lowpass")
+    
+    # Reshape input
+    if flag1d is False: # For 3d inputs, loop thru each point
+        varmon = varmon.reshape(nmon,nlat*nlon)
+        # Loop
+        varfilt = np.zeros((nmon,nlat*nlon)) * np.nan
+        for i in tqdm(range(nlon*nlat)):
+            varfilt[:,i] = filtfilt(b,a,varmon[:,i])
+        
+        varfilt=varfilt.reshape(nmon,nlat,nlon)
+    else: # 1d input
+        varfilt = filtfilt(b,a,varmon)
+    return varfilt
 # %%Read in the variables
 dsopen = []
 values = [] # [lon x lat x time x ensemble]
@@ -433,10 +476,89 @@ ax.set_xlim([1920,2005])
 ax.set_xlabel("Years")
 ax.set_xticks(np.arange(1920,2005,10))
 ax.set_title("AMV Index, Distribution by Year, \n $\sigma=%.4f^{\circ}C$"% (y_std))
-ax.legend(fontsize=10,ncol=2)
+ax.legend(fontsize=10,ncol=3)
 plt.tight_layout()
 plt.savefig("%sAMV_Index_intime_ECML.png"%outpath,dpi=200)
 
 
-#%%%
+#%%% Do the same but for HadISST
+
+dtr = True
+
+# 
+fn  = "hadisst.1870-01-01_2018-12-01.nc"
+dsh = xr.open_dataset(datpath+fn)
+ssth = dsh.sst.values # [time x lat x lon]
+lath = dsh.lat.values
+lonh = dsh.lon.values
+times = dsh.time.values
+timesmon = np.datetime_as_string(times,unit="M")
+#timesmon = timesmon.astype('str')
+timesyr  = np.datetime_as_string(times,unit="Y")[:]
+
+# Calculate Monthly Anomalies
+ssts = ssth.transpose(2,1,0)
+nlon,nlat,nmon = ssts.shape
+ssts = ssts.reshape(nlon,nlat,int(nmon/12),12)
+ssta = ssts - ssts.mean(2)[:,:,None,:]
+ssta = ssta.reshape(nlon,nlat,nmon)
+
+
+# Transpose to [time lat lon]
+ssta   = ssta.transpose(2,1,0)
+amvid = calc_AMV_index('NAT',ssta[None,:,:,:],lath,lonh,lp=True,dtr=dtr)
+amvidstd = amvid/amvid.std(1)[:,None] # Standardize
+amvid = amvid.squeeze()
+amvidraw= calc_AMV_index('NAT',ssta[None,:,:,:],lath,lonh,lp=False,dtr=dtr)
+amvidraw = amvidraw.squeeze()
+
+# Regress back to sstanomalies to obtain AMV pattern
+#ssta   = ssta.transpose(1,0,2,3) # [time x ens x lon x lat]
+sstar  = ssta.reshape(nmon,nlat*nlon) 
+beta,_=regress_2d(amvidstd.squeeze(),sstar)
+amvpath = beta
+amvpath = amvpath.reshape(nlat,nlon)
+
+
+# Plot the AMV Index
+maskneg = amvidraw<0
+maskpos = amvidraw>=0
+timeplot = np.arange(0,len(amvid),1)
+fig,ax = plt.subplots(1,1,figsize=(8,3))
+ax.grid(True,ls='dotted')
+ax.set_xticks(timeplot[::120])
+ax.set_xticklabels(timesyr[::120])
+#ax.plot(timeplot,amvid,label="AMV Index",color='gray',lw=.75,ls='dashdot')
+ax.bar(timeplot[maskneg],amvidraw[maskneg],label="AMV-",color='b',width=1,alpha=0.5)
+ax.bar(timeplot[maskpos],amvidraw[maskpos],label="AMV+",color='r',width=1,alpha=0.5)
+ax.plot(timeplot,np.convolve(amvid,np.ones(20)/20,mode='same'),label="10-yr Low-Pass Filter",color='k',lw=1.2)
+ax.axhline([0],color='k',ls='dashed',lw=0.9)
+ax.set_ylabel("AMV Index ($^{\circ}C$)")
+ax.set_ylim([-1,1])
+ax.set_xlim([0,len(amvid)])
+ax.set_xlabel("Years")
+ax.set_title("AMV Index, Distribution by Year (HadISST)")
+ax.legend(fontsize=10,ncol=3)
+plt.tight_layout()
+plt.savefig("%sHadISST_AMV_Index_intime_ECML_detrend%i.png"% (outpath,dtr),dpi=200)
+
+
+# Plot Spatial Pattern
+bbox2 = [lon[0],5,-5,65]
+# Plot Ense
+cints=np.arange(-0.60,0.65,0.05)
+cintsl = np.arange(-0.6,0.7,0.1)
+fig,ax = plt.subplots(1,1,figsize=(5,5),subplot_kw={'projection':ccrs.PlateCarree()})
+ax = add_coast_grid(ax,bbox=bbox2)
+ax = plot_box(bbox,ax=ax,linestyle='dashed',linewidth=2)
+pcm = ax.contourf(lonh,lath,amvpath,levels=cints,cmap=cmocean.cm.balance)
+cl = ax.contour(lonh,lath,amvpath,levels=cintsl,colors='k',linewidths=0.75)
+ax.clabel(cl,fontsize=8,fmt="%.2f")
+ax.set_title("HadISST AMV Spatial Pattern ($^{\circ}C / 1\sigma_{AMV}$) \n1870-2018")
+fig.colorbar(pcm,ax=ax,fraction=0.05,orientation='horizontal',pad=0.07)
+ax.add_feature(cfeature.LAND,facecolor='gray')
+#plt.tight_layout()
+plt.savefig("%sHadISST_AMVPAttern_EnsaVg_detrend%i.png"% (outpath,dtr),dpi=200)
+
+
 
