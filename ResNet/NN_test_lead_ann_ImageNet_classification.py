@@ -44,8 +44,8 @@ numruns        = 10    # Number of times to train for each leadtime
 
 
 # Model training settings
-netname       = 'resnet50'           # Name of network ('resnet50','simplecnn')
-unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
+netname       = 'fractaldb'           # Name of network ('resnet50','simplecnn')
+unfreeze_all  = False                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
 # Additional Hyperparameters
@@ -78,6 +78,11 @@ usenoise       = False                # Set to true to train the model with pure
 tstep          = 86                   # Size of time dimension (in years)
 ens            = 40                   # Ensemble members (climate model output) to use
 outpath        = ""
+
+# modelpth = "../../CESM_data/Models/FractalDB-10000_resnet50_epoch90.pth"
+# modelwgt = torch.load(modelpth)
+# model.load_state_dict(torch.load(modelpth))
+
 # -----------
 #%% Functions
 # -----------
@@ -132,9 +137,18 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
     model : PyTorch Model
         Returns loaded Pytorch model
     """
-    if 'resnet' in modelname: # Load ResNet
+    if 'resnet' in modelname or modelname == "fractaldb": # Load ResNet
 
-        model = timm.create_model(modelname,pretrained=True)
+        
+        
+        if modelname == 'fractaldb':
+            model    = timm.create_model('resnet50',pretrained=True)
+            modelpth = "../../CESM_data/Models/FractalDB-1000_resnet50_epoch90.pth"
+            modelwgt = torch.load(modelpth)
+            model.load_state_dict(torch.load(modelpth))
+        else:
+            model = timm.create_model(modelname,pretrained=True)
+            
         if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
                 param.requires_grad = False
