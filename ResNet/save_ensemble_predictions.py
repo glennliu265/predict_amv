@@ -33,7 +33,7 @@ usenoise       = False                # Set to true to train the model with pure
 thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
 num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
 nsamples       = 300                  # Number of samples for each class
-runids         = [0,2,3,4,5,6,7,8,9] # Runids to process
+runids         = [1] # Runids to process
 
 
 # Training/Testing Subsets
@@ -752,8 +752,8 @@ for l,lead in enumerate(leads):
         # --------------------------
         model = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
         MPATH  = "../../CESM_data/Models/%s_%s_lead%i_classify.pt" %(expname,varname,lead)
-        #model.load_state_dict(torch.load(MPATH,map_location=device))
         model.load_state_dict(torch.load(MPATH,map_location=device))
+        #model.load_state_dict(torch.load(MPATH,map_location=device))
         
         
     

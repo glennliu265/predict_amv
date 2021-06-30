@@ -47,7 +47,7 @@ tstep         = 86    # Size of time dimension (in years)
 netname       = "resnet50"            # Name of pretrained network (timm module)
 rnnname       = 'GRU'                 # LSTM or GRU
 hidden_size   = 10                    # The size of the hidden layers in the RNN
-cnn_out       = 100                  # Number of features to be extracted by CNN and input into RNN
+cnn_out       = 1                  # Number of features to be extracted by CNN and input into RNN
 rnn_layers    = 1                     # Number of rnn layers
 outsize       = 1                     # Final output size
 outactivation = False                 # Activation for final output
@@ -168,6 +168,7 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
     return int(fcsizes[-1])
 
 def transfer_model(modelname,cnn_out,cnndropout=False,unfreeze_all=False):
+    
     if 'resnet' in modelname: # Load from torchvision
         model = timm.create_model(modelname,pretrained=True)
         if unfreeze_all is False:
@@ -278,7 +279,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     
     
     
-
     # # Get list of params to update
     # params_to_update = []
     # for name,param in model.named_parameters():
@@ -287,7 +287,6 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     #         if verbose:
     #             print("Params to learn:")
     #             print("\t",name)
-
 
     # Set optimizer
     if optimizer[0] == "Adadelta":

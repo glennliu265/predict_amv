@@ -133,6 +133,7 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
         Returns loaded Pytorch model
     """
     if 'resnet' in modelname: # Load ResNet
+
         model = timm.create_model(modelname,pretrained=True)
         if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
