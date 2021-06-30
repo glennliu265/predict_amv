@@ -37,8 +37,9 @@ leads          = [24,]#np.arange(0,25,3)    # Time ahead (in years) to forecast 
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
-detrend        = False                 # Set to true to use detrended data
+detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
+num_classes    = 1                    # Set up number of classes for prediction
 
 # Training/Testing Subsets
 percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -98,15 +99,16 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
         fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
     return int(fcsizes[-1])
 
-
-def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
+def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
     """
     Load pretrained weights and architectures based on [modelname]
-
+    
     Parameters
     ----------
     modelname : STR
-        Name of model (current supports 'simplecnn',or any resnet/efficientnet from timms)
+        Name of model (currently supports 'simplecnn',or any resnet/efficientnet from timms)
+    num_classes : INT
+        Dimensions of output (ex. number of classes)
     cnndropout : BOOL, optional
         Include dropout layer in simplecnn. The default is False.
     unfreeze_all : BOOL, optional
@@ -118,29 +120,23 @@ def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
     model : PyTorch Model
         Returns loaded Pytorch model
     """
-    if 'resnet' in modelname: # Load from torchvision
+    if 'resnet' in modelname: # Load ResNet
         model = timm.create_model(modelname,pretrained=True)
-        if unfreeze_all is False:
-            # Freeze all layers except the last
+        if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
                 param.requires_grad = False
-        else:
-            print("Warning: All weights are unfrozen!")
-        model.fc = nn.Linear(model.fc.in_features, 1)                    # freeze all layers except the last one
+        model.fc = nn.Linear(model.fc.in_features, num_classes) # Set last layer size
     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
+        # 2 layer CNN settings
         channels = 3
         nlat = 224
         nlon = 224
-
-        # 2 layer CNN settings
         nchannels     = [32,64]
         filtersizes   = [[2,3],[3,3]]
         filterstrides = [[1,1],[1,1]]
         poolsizes     = [[2,3],[2,3]]
         poolstrides   = [[2,3],[2,3]]
-
         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
-        
         if cnndropout: # Include Dropout
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
@@ -156,36 +152,31 @@ def transfer_model(modelname,cnndropout=False,unfreeze_all=False):
                     nn.ReLU(),
     
                     nn.Dropout(p=0.5),
-                    nn.Linear(in_features=64,out_features=1)
+                    nn.Linear(in_features=64,out_features=num_classes)
                     ]
-        else:
+        else: # Do not include dropout
             layers = [
                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-                    nn.ReLU(),
+                    nn.ReLU(),,
                     nn.MaxPool2d(kernel_size=poolsizes[0]),
     
                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-                    nn.ReLU(),
+                    nn.ReLU(),,
                     nn.MaxPool2d(kernel_size=poolsizes[1]),
     
                     nn.Flatten(),
                     nn.Linear(in_features=firstlineardim,out_features=64),
-                    nn.ReLU(),
-    
-                    #nn.Dropout(p=0.5),
-                    nn.Linear(in_features=64,out_features=1)
+                    nn.ReLU(),,
+
+                    nn.Linear(in_features=64,out_features=num_classes)
                     ]
         model = nn.Sequential(*layers) # Set up model
-
-    else: # Load from timm
+    else: # Load Efficientnet from Timmm
         model = timm.create_model(modelname,pretrained=True)
-        if unfreeze_all is False:
-            # Freeze all layers except the last
+        if unfreeze_all is False: # Freeze all layers except the last
             for param in model.parameters():
                 param.requires_grad = False
-        else:
-            print("Warning: All weights are unfrozen!")
-        model.classifier=nn.Linear(model.classifier.in_features,1)
+        model.classifier=nn.Linear(model.classifier.in_features,num_classes)
     return model
 
 def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True,
@@ -219,8 +210,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     else:
         device = torch.device('cpu')
     model = model.to(device)
-
-
+    
     # Get list of params to update
     params_to_update = []
     for name,param in model.named_parameters():
@@ -229,8 +219,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             if verbose:
                 print("Params to learn:")
                 print("\t",name)
-
-
+    
     # Set optimizer
     if optimizer[0] == "Adadelta":
         opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
@@ -238,7 +227,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
-
+    
     # Add Scheduler
     if reduceLR:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=LRpatience)
@@ -331,6 +320,12 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
     return bestmodel,train_loss,test_loss
 
+
+
+def set_classes(labels,thresholds):
+    
+    return classified_labels
+    
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
@@ -441,11 +436,11 @@ for nr in range(numruns): # Initialize and train network for [numruns] iteration
             # ---------------
             # Train the model
             # ---------------
-            pmodel = transfer_model(netname,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+            pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
             model,trainloss,testloss = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
                                                     early_stop=early_stop,verbose=verbose,
                                                     reduceLR=reduceLR,LRpatience=LRpatience)
-
+            
             # Save train/test loss
             train_loss_grid.append(trainloss)
             test_loss_grid.append(testloss)
