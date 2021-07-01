@@ -40,7 +40,7 @@ nsamples       = 300                  # Number of samples for each class
 
 # Training/Testing Subsets
 percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
-numruns        = 10    # Number of times to train for each leadtime
+numruns        = 7    # Number of times to train for each leadtime
 
 
 # Model training settings
@@ -62,7 +62,7 @@ cnndropout    = True                 # Set to 1 to test simple CNN with dropout 
 debug         = True # Visualize training and testing loss
 verbose       = True # Print loss for each epoch
 checkgpu      = True # Set to true to check for GPU otherwise run on CPU
-savemodel     = True # Set to true to save model dict.
+savemodel     = False # Set to true to save model dict.
 
 # -----------------------------------------------------------------
 #%% Additional (Legacy) Variables (modify for future customization)
