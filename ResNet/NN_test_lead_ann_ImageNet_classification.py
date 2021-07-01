@@ -531,7 +531,7 @@ target = target[0:ens,:]
 
 #testvalues = [False]
 #testname   = "cnndropout" # Note need to manually locate variable and edit
-testvalues=[True]
+testvalues=[False]
 testname='unfreeze_all'
 
 for nr in range(numruns):
