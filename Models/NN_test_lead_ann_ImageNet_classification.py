@@ -45,7 +45,7 @@ numruns        = 10    # Number of times to train for each leadtime
 
 
 # Model training settings
-netname       = 'resnet50'           # Name of network ('resnet50','simplecnn')
+netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
@@ -563,6 +563,7 @@ for nr in range(numruns):
         yvalpred        = []
         yvallabels      = []
         sampled_idx     = []
+        thresholds_all  = []
         
         if checkgpu:
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -591,9 +592,25 @@ for nr in range(numruns):
             # ----------------------
             # Apply lead/lag to data
             # ----------------------
+            if i == 0:
+                thresholds_old = thresholds.copy() # Copy Original Thresholds (Hack Fix)
+            thresholds = thresholds_old.copy()
             y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
             X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
-            y_class = make_classes(y,thresholds,reverse=True)
+            y_class = make_classes(y,thresholds,reverse=True,quantiles=quantile)
+            
+            if quantile == True:
+                thresholds = y_class[1].T[0]
+                y_class   = y_class[0]
+            thresholds_all.append(thresholds) # Save Thresholds
+            
+            if (nsamples is None) or (quantile is True):
+                nthres = len(thresholds) + 1
+                threscount = np.zeros(nthres)
+                for t in range(nthres):
+                    threscount[t] = len(np.where(y_class==t)[0])
+                nsamples = int(np.min(threscount))
+            
             
             y_class,X,shuffidx = select_samples(nsamples,y_class,X)
             lead_nsamples      = y_class.shape[0]
@@ -638,6 +655,7 @@ for nr in range(numruns):
             test_loss_grid.append(testloss)
             train_acc_grid.append(trainacc)
             test_acc_grid.append(testacc)
+            
             
             #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
             # -----------------------------------------------
@@ -770,7 +788,8 @@ for nr in range(numruns):
                      'acc_by_class': acc_by_class,
                      'yvalpred': yvalpred,
                      'yvallabels' : yvallabels,
-                     'sampled_idx': sampled_idx
+                     'sampled_idx': sampled_idx,
+                     'thresholds_all' : thresholds_all
                      }
                      )
 
