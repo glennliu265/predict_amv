@@ -35,8 +35,9 @@ import timm
 
 # Data preparation settings
 leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
-thresholds     = [-1,1]               # Thresholds (standard deviations, determines number of classes) 
-nsamples       = 300                  # Number of samples for each class
+thresholds     = [1/3,2/3]            # Thresholds (standard deviations, or quantile values) 
+quantile       = True                 # Set to True to use quantiles
+nsamples       = None                 # Number of samples for each class. Set to None to use all
 
 # Training/Testing Subsets
 percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -354,7 +355,8 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     #bestmodel.load_state_dict(best_model_wts)
     return bestmodel,train_loss,test_loss,train_acc,test_acc
 
-def make_classes(y,thresholds,exact_value=False,reverse=False):
+def make_classes(y,thresholds,exact_value=False,reverse=False,
+                 quantiles=None):
     """
     Makes classes based on given thresholds. 
 
@@ -375,10 +377,15 @@ def make_classes(y,thresholds,exact_value=False,reverse=False):
         representing each threshold
 
     """
-    nthres = len(thresholds)
-    if ~exact_value: # Scale thresholds by standard deviation
-        y_std = np.std(y) # Get standard deviation
-        thresholds = np.array(thresholds) * y_std
+    
+    if quantiles is None:
+        if ~exact_value: # Scale thresholds by standard deviation
+            y_std = np.std(y) # Get standard deviation
+            thresholds = np.array(thresholds) * y_std
+    else: # Determine Thresholds from quantiles
+        thresholds = np.quantile(y,thresholds,axis=0) # Replace Thresholds with quantiles
+    
+    nthres  = len(thresholds)
     y_class = np.zeros((y.shape[0],1))
     
     if nthres == 1: # For single threshold cases
@@ -411,8 +418,9 @@ def make_classes(y,thresholds,exact_value=False,reverse=False):
             thres0 = thresholds[t-1]
             y_class[(y>thres0) * (y<=thres)] = tassign
             print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
+    if quantiles is not None:
+        return y_class,thresholds
     return y_class
-
 
 def select_samples(nsamples,y_class,X):
     """
@@ -578,7 +586,7 @@ for nr in range(numruns):
             if (lead == leads[-1]) and (len(leads)>1):
                 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
             else:
-                outname = "/leadtime_testiang_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+                outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
             
             # ----------------------
             # Apply lead/lag to data
