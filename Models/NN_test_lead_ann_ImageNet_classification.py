@@ -27,7 +27,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
 import copy
-import timm
+#import timm
 
 # -------------
 #%% User Edits
@@ -45,7 +45,7 @@ numruns        = 10    # Number of times to train for each leadtime
 
 
 # Model training settings
-netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn')
+netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','fnn')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
@@ -548,9 +548,9 @@ for nr in range(numruns):
         subtitle="\n%s=%s" % (testname, str(testvalues[i]))
         
         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall" % (num_classes,netname,max_epochs,ens,
+        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall_quant%i" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
-                                                                                  testname,testvalues[i],nr)
+                                                                                  testname,testvalues[i],nr,quantile)
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
