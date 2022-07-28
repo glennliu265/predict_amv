@@ -41,11 +41,13 @@ nsamples       = None                 # Number of samples for each class. Set to
 
 # Training/Testing Subsets
 percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
-numruns        = 10    # Number of times to train for each leadtime
+runids         = np.arange(1,10,1) # Which runs to do
+
+#numruns        = 10    # Number of times to train for each leadtime
 
 
 # Model training settings
-netname       = 'FNN2'           # Name of network ('resnet50','simplecnn','FNN2')
+netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
@@ -86,6 +88,7 @@ usenoise       = False                # Set to true to train the model with pure
 tstep          = 86                   # Size of time dimension (in years)
 ens            = 40                   # Ensemble members (climate model output) to use
 outpath        = ""
+numruns        = len(runids)
 # -----------
 #%% Functions
 # -----------
@@ -576,7 +579,7 @@ target = target[0:ens,:]
 testvalues=[True]
 testname='unfreeze_all'
 
-for nr in range(numruns):
+for nr,runid in enumerate(runids):
     rt = time.time()
     
     for i in range(len(testvalues)):
@@ -599,7 +602,7 @@ for nr in range(numruns):
         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
         expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall_quant%i" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
-                                                                                  testname,testvalues[i],nr,quantile)
+                                                                                  testname,testvalues[i],runid,quantile)
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
@@ -868,5 +871,5 @@ for nr in range(numruns):
                      )
 
         print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
-    print("\nRun %i finished in %.2fs" % (nr,time.time()-rt))
+    print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
