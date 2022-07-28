@@ -27,7 +27,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
 import copy
-#import timm
+import timm
 
 # -------------
 #%% User Edits
@@ -49,7 +49,7 @@ netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn',
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
-# Additional Hyperparameters
+# Additional Hyperparameters (CNN)
 early_stop    = 3                    # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                   # Maximum number of epochs
 batch_size    = 16                   # Pairs of predictions
@@ -58,6 +58,13 @@ opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight De
 reduceLR      = False                # Set to true to use LR scheduler
 LRpatience    = 3                    # Set patience for LR scheduler
 cnndropout    = True                 # Set to 1 to test simple CNN with dropout layer
+
+# Hyperparameters (FNN)
+# ----------------
+nlayers     = 2
+nunits      = [20,20]
+activations = [nn.ReLU(),nn.ReLU()]
+netname     = "FNN2"
 
 # Toggle Options
 debug         = True # Visualize training and testing loss
@@ -251,7 +258,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
-
+    
     # Add Scheduler
     if reduceLR:
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(opt, patience=LRpatience)
@@ -275,7 +282,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                 model.train()
             elif mode == 'eval': # Testing, freeze weights
                 model.eval()
-
+            
             runningloss = 0
             correct     = 0
             total       = 0
@@ -491,6 +498,48 @@ def select_samples(nsamples,y_class,X):
     
     return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
 
+def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
+    """
+    Build a Feed-foward neural network with N layers, each with corresponding
+    number of units indicated in nunits and activations. 
+    
+    A dropbout layer is included at the end
+    
+    inputs:
+        inputsize:  INT - size of the input layer
+        outputsize: INT  - size of output layer
+        nlayers:    INT - number of hidden layers to include 
+        nunits:     Tuple of units in each layer
+        activations: Tuple of pytorch.nn activations
+        --optional--
+        dropout: percentage of units to dropout before last layer
+        
+    outputs:
+        Tuple containing FNN layers
+        
+    dependencies:
+        from pytorch import nn
+        
+    """
+    layers = []
+    for n in range(nlayers+1):
+        #print(n)
+        if n == 0:
+            #print("First Layer")
+            layers.append(nn.Linear(inputsize,nunits[n]))
+            layers.append(activations[n])
+            
+        elif n == (nlayers):
+            #print("Last Layer")
+            layers.append(nn.Dropout(p=dropout))
+            layers.append(nn.Linear(nunits[n-1],outsize))
+            
+        else:
+            #print("Intermediate")
+            layers.append(nn.Linear(nunits[n-1],nunits[n]))
+            layers.append(activations[n])
+    return layers
+
 # ----------------------------------------
 # %% Set-up
 # ----------------------------------------
@@ -584,9 +633,9 @@ for nr in range(numruns):
         print("\tUse Noise      :" + str(usenoise))
         
         for l,lead in enumerate(leads):
-            if (lead == leads[-1]) and (len(leads)>1):
+            if (lead == leads[-1]) and (len(leads)>1): # Output all files together
                 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
-            else:
+            else: # Output individual lead times while training
                 outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
             
             # ----------------------
@@ -611,10 +660,11 @@ for nr in range(numruns):
                     threscount[t] = len(np.where(y_class==t)[0])
                 nsamples = int(np.min(threscount))
             
-            
             y_class,X,shuffidx = select_samples(nsamples,y_class,X)
             lead_nsamples      = y_class.shape[0]
             sampled_idx.append(shuffidx) # Save the sample indices
+            
+
             
             # Visualize plot of variables that were selected
             
@@ -629,14 +679,33 @@ for nr in range(numruns):
             # np.save("X.npy",xsample)
             # np.save("y.npy",ysample)
             
+            # --------------------------
+            # Flatten input data for FNN
+            # --------------------------
+            if "FNN" in netname:
+                ndat,nchan,nlat,nlon = X.shape
+                inputsize            = nchan*nlat*nlon
+                outsize              = num_classes
+                X = X.reshape(ndat,inputsize)
+                
+            """
+            CNN
+            X: time x channel x lat x lon    ex: [3438 x 3 x 224 x 224]
+            y: time x 1                      ex: [3438 x 1]
+            
+            FNN
+            X: time x inputsize     ex: [3438 x 15028]
+            y: time x 1             ex: [3438 x 15028]
+            """
             # ---------------------------------
             # Split into training and test sets
             # ---------------------------------
-            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*lead_nsamples)),:,:,:].astype(np.float32) )
-            X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,:,:,:].astype(np.float32) )
-            y_train = torch.from_numpy( y_class[0:int(np.floor(percent_train*lead_nsamples)),:].astype(np.long)  )
-            y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.long)  )
-        
+            X_train = torch.from_numpy( X[0:int(np.floor(percent_train*lead_nsamples)),...].astype(np.float32) )
+            X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,...].astype(np.float32) )
+            y_train = torch.from_numpy( y_class[0:int(np.floor(percent_train*lead_nsamples)),:].astype(np.compat.long)  )
+            y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.compat.long)  )
+            
+            
             # Put into pytorch DataLoader
             train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
             val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
@@ -644,10 +713,15 @@ for nr in range(numruns):
             # ---------------
             # Train the model
             # ---------------
-            pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+            if "FNN" in netname:
+                layers = build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5)
+                pmodel = nn.Sequential(*layers)
+
+            else:
+                pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
             model,trainloss,testloss,trainacc,testacc = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
-                                                    early_stop=early_stop,verbose=verbose,
-                                                    reduceLR=reduceLR,LRpatience=LRpatience)
+                                                                     early_stop=early_stop,verbose=verbose,
+                                                                     reduceLR=reduceLR,LRpatience=LRpatience)
             
             
             # Save train/test loss
