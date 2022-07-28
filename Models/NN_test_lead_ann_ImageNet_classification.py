@@ -45,7 +45,7 @@ numruns        = 10    # Number of times to train for each leadtime
 
 
 # Model training settings
-netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','fnn')
+netname       = 'FNN2'           # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
@@ -64,7 +64,7 @@ cnndropout    = True                 # Set to 1 to test simple CNN with dropout 
 nlayers     = 2
 nunits      = [20,20]
 activations = [nn.ReLU(),nn.ReLU()]
-netname     = "FNN2"
+#netname     = "FNN2"
 
 # Toggle Options
 debug         = True # Visualize training and testing loss
@@ -641,7 +641,7 @@ for nr in range(numruns):
             # ----------------------
             # Apply lead/lag to data
             # ----------------------
-            if i == 0:
+            if (i == 0) and (nr ==0):
                 thresholds_old = thresholds.copy() # Copy Original Thresholds (Hack Fix)
             thresholds = thresholds_old.copy()
             y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
