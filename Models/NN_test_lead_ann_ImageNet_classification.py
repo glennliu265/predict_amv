@@ -366,7 +366,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     return bestmodel,train_loss,test_loss,train_acc,test_acc
 
 def make_classes(y,thresholds,exact_value=False,reverse=False,
-                 quantiles=None):
+                 quantiles=False):
     """
     Makes classes based on given thresholds. 
 
@@ -388,7 +388,7 @@ def make_classes(y,thresholds,exact_value=False,reverse=False,
 
     """
     
-    if quantiles is None:
+    if quantiles is False:
         if ~exact_value: # Scale thresholds by standard deviation
             y_std = np.std(y) # Get standard deviation
             thresholds = np.array(thresholds) * y_std
