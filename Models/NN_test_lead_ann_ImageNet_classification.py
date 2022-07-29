@@ -69,7 +69,7 @@ activations = [nn.ReLU(),nn.ReLU()]
 #netname     = "FNN2"
 
 # Toggle Options
-debug         = True # Visualize training and testing loss
+debug         = False # Visualize training and testing loss
 verbose       = True # Print loss for each epoch
 checkgpu      = True # Set to true to check for GPU otherwise run on CPU
 savemodel     = True # Set to true to save model dict.
