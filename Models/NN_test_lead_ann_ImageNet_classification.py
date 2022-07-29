@@ -34,10 +34,10 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,1)    # Time ahead (in years) to forecast AMV
-thresholds     = [1/3,2/3]            # Thresholds (standard deviations, or quantile values) 
-quantile       = True                 # Set to True to use quantiles
-nsamples       = None                 # Number of samples for each class. Set to None to use all
+leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+thresholds     = [-1,1]#[1/3,2/3]   # Thresholds (standard deviations, or quantile values) 
+quantile       = False                # Set to True to use quantiles
+nsamples       = 300                 # Number of samples for each class. Set to None to use all
 
 # Training/Testing Subsets
 percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
@@ -47,7 +47,7 @@ runids         = np.arange(1,10,1) # Which runs to do
 
 
 # Model training settings
-netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','FNN2')
+netname       = 'FNN2'           # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
