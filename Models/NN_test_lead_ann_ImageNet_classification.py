@@ -428,7 +428,7 @@ def make_classes(y,thresholds,exact_value=False,reverse=False,
             thres0 = thresholds[t-1]
             y_class[(y>thres0) * (y<=thres)] = tassign
             print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
-    if quantiles is not None:
+    if quantiles is True:
         return y_class,thresholds
     return y_class
 
