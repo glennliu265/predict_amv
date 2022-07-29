@@ -41,7 +41,7 @@ nsamples       = 300                 # Number of samples for each class. Set to 
 
 # Training/Testing Subsets
 percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
-runids         = np.arange(1,10,1) # Which runs to do
+runids         = np.arange(0,1,1) # Which runs to do
 
 #numruns        = 10    # Number of times to train for each leadtime
 
