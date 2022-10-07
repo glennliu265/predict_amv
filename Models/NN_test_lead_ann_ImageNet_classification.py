@@ -82,6 +82,7 @@ num_classes    = len(thresholds)+1    # Set up number of classes for prediction 
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
 resolution     = '1deg'             # Resolution of dataset ('2deg','224pix')
+regrid         = None
 detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 tstep          = 86                   # Size of time dimension (in years)
@@ -563,8 +564,8 @@ if usenoise:
     #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
     #data[np.isnan(data)] = 0
 else:
-    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
-    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i_regrid%s.npy'% (detrend,regrid))
+    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
 data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
     
@@ -597,9 +598,9 @@ for nr,runid in enumerate(runids):
         subtitle="\n%s=%s" % (testname, str(testvalues[i]))
         
         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall_quant%i_%s" % (num_classes,netname,max_epochs,ens,
+        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall_quant%i_res%s" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
-                                                                                  testname,testvalues[i],runid,quantile,resolution)
+                                                                                  testname,testvalues[i],runid,quantile,regrid)
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
