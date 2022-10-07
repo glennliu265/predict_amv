@@ -719,11 +719,11 @@ for nr,runid in enumerate(runids):
                 pmodel = nn.Sequential(*layers)
 
             else:
-                pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
+                pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all,
+                                        nlat=nlat,nlon=nlon,nchannels=nchannels)
             model,trainloss,testloss,trainacc,testacc = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
                                                                      early_stop=early_stop,verbose=verbose,
-                                                                     reduceLR=reduceLR,LRpatience=LRpatience,
-                                                                     nlat=nlat,nlon=nlon,nchannels=nchannels)
+                                                                     reduceLR=reduceLR,LRpatience=LRpatience,)
             
             # Save train/test loss
             train_loss_grid.append(trainloss)
