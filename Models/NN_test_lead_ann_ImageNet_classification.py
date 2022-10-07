@@ -40,14 +40,13 @@ quantile       = False                # Set to True to use quantiles
 nsamples       = 300                 # Number of samples for each class. Set to None to use all
 
 # Training/Testing Subsets
-percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
-runids         = np.arange(0,1,1) # Which runs to do
+percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
+runids         = np.arange(0,10,1) # Which runs to do
 
 #numruns        = 10    # Number of times to train for each leadtime
 
-
 # Model training settings
-netname       = 'FNN2'           # Name of network ('resnet50','simplecnn','FNN2')
+netname       = 'FNN2'               # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
@@ -82,7 +81,7 @@ savemodel     = True # Set to true to save model dict.
 num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
 season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
 indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
-resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
+resolution     = '1deg'             # Resolution of dataset ('2deg','224pix')
 detrend        = False                # Set to true to use detrended data
 usenoise       = False                # Set to true to train the model with pure noise
 tstep          = 86                   # Size of time dimension (in years)
@@ -122,7 +121,8 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
         fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
     return int(fcsizes[-1])
 
-def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
+def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False
+                   ,nlat=224,nlon=224,nchannels=3):
     """
     Load pretrained weights and architectures based on [modelname]
     
@@ -152,9 +152,6 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False):
         
     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
         # 2 layer CNN settings
-        channels = 3
-        nlat = 224
-        nlon = 224
         nchannels     = [32,64]
         filtersizes   = [[2,3],[3,3]]
         filterstrides = [[1,1],[1,1]]
@@ -600,9 +597,9 @@ for nr,runid in enumerate(runids):
         subtitle="\n%s=%s" % (testname, str(testvalues[i]))
         
         # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall_quant%i" % (num_classes,netname,max_epochs,ens,
+        expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall_quant%i_%s" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
-                                                                                  testname,testvalues[i],runid,quantile)
+                                                                                  testname,testvalues[i],runid,quantile,resolution)
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
@@ -647,8 +644,9 @@ for nr,runid in enumerate(runids):
             if (i == 0) and (nr ==0):
                 thresholds_old = thresholds.copy() # Copy Original Thresholds (Hack Fix)
             thresholds = thresholds_old.copy()
+            nchannels,nens,ntime,nlat,nlon=data.shape
             y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-            X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),224,224).transpose(1,0,2,3)
+            X = (data[:,:ens,:tstep-lead,:,:]).reshape(3,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
             y_class = make_classes(y,thresholds,reverse=True,quantiles=quantile)
             
             if quantile == True:
@@ -724,15 +722,14 @@ for nr,runid in enumerate(runids):
                 pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all)
             model,trainloss,testloss,trainacc,testacc = train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
                                                                      early_stop=early_stop,verbose=verbose,
-                                                                     reduceLR=reduceLR,LRpatience=LRpatience)
-            
+                                                                     reduceLR=reduceLR,LRpatience=LRpatience,
+                                                                     nlat=nlat,nlon=nlon,nchannels=nchannels)
             
             # Save train/test loss
             train_loss_grid.append(trainloss)
             test_loss_grid.append(testloss)
             train_acc_grid.append(trainacc)
             test_acc_grid.append(testacc)
-            
             
             #print("After train function memory is %i"%(torch.cuda.memory_allocated(device)))
             # -----------------------------------------------

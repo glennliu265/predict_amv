@@ -17,7 +17,8 @@ import numpy as np
 import xarray as xr
 import xesmf as xe
 
-detrend=False # Detrending is currently not applied
+detrend = False # Detrending is currently not applied
+regrid  = None # Set to desired resolution. Set None for no regridding.
 
 # --------------------------------
 # Select Box in the North Atlantic
@@ -64,21 +65,27 @@ psl_normalized = (psl_deseason - psl_deseason.mean())/psl_deseason.std()
 # Regrid Variables
 # -------------------------
 
-# Prepare Latitude/Longitude
-lat = sst_ds.lat
-lon = sst_ds.lon
-lat_out = np.linspace(lat[0],lat[-1],224)
-lon_out = np.linspace(lon[0],lon[-1],224)
+if regrid is not None:
+    print("Data will be regridded to %i degree resolution"%regrid)
+    # Prepare Latitude/Longitude
+    lat = sst_ds.lat
+    lon = sst_ds.lon
+    lat_out = np.linspace(lat[0],lat[-1],regrid)
+    lon_out = np.linspace(lon[0],lon[-1],regrid)
+    
+    # Make Regridder
+    ds_out    = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
+    regridder = xe.Regridder(sst_ds, ds_out, 'nearest_s2d')
 
-# Make Regridder
-ds_out = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
-regridder = xe.Regridder(sst_ds, ds_out, 'nearest_s2d')
-
-# Regrid
-sst_out = regridder( sst_normalized.transpose('ensemble','year','lat','lon') )
-sss_out = regridder( sss_normalized.transpose('ensemble','year','lat','lon') )
-psl_out = regridder( psl_normalized.transpose('ensemble','year','lat','lon') )
-
+    # Regrid
+    sst_out = regridder( sst_normalized.transpose('ensemble','year','lat','lon') )
+    sss_out = regridder( sss_normalized.transpose('ensemble','year','lat','lon') )
+    psl_out = regridder( psl_normalized.transpose('ensemble','year','lat','lon') )
+else:
+    print("Data will not be regridded")
+    sst_out = sst_normalized.transpose('ensemble','year','lat','lon') 
+    sss_out = sss_normalized.transpose('ensemble','year','lat','lon')
+    psl_out = psl_normalized.transpose('ensemble','year','lat','lon')
 
 # -----------------------------------------------
 # Calculate the AMV Index (Area weighted average)
@@ -97,5 +104,5 @@ sss_out_values[np.isnan(sss_out_values)] = 0
 psl_out_values[np.isnan(psl_out_values)] = 0
 
 data_out = np.array([sst_out_values,sss_out_values,psl_out_values])
-np.save('CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy' % detrend,data_out)
-np.save('CESM_label_amv_index_detrend%i.npy' % detrend,amv_index[:,:])
+np.save('CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i_regrid%s.npy' % (detrend,regrid),data_out)
+np.save('CESM_label_amv_index_detrend%i_regrid%s.npy' % (detrend,regrid),amv_index[:,:])
