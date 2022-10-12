@@ -41,20 +41,20 @@ nsamples       = 300                 # Number of samples for each class. Set to 
 
 # Training/Testing Subsets
 percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-runids         = np.arange(0,10,1) # Which runs to do
+runids         = np.arange(0,11,1) # Which runs to do
 
 #numruns        = 10    # Number of times to train for each leadtime
 
 # Model training settings
 netname       = 'FNN2'               # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
-
+use_softmax   = True                 # Set to true to end on softmax layer
 
 # Additional Hyperparameters (CNN)
 early_stop    = 3                    # Number of epochs where validation loss increases before stopping
 max_epochs    = 20                   # Maximum number of epochs
 batch_size    = 16                   # Pairs of predictions
-loss_fn       = nn.CrossEntropyLoss()# Loss Function
+loss_fn       = nn.CrossEntropyLoss()# Loss Function (nn.CrossEntropyLoss())
 opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight Decay]
 reduceLR      = False                # Set to true to use LR scheduler
 LRpatience    = 3                    # Set patience for LR scheduler
@@ -499,7 +499,8 @@ def select_samples(nsamples,y_class,X):
     
     return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
 
-def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
+def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5,
+                     use_softmax=False):
     """
     Build a Feed-foward neural network with N layers, each with corresponding
     number of units indicated in nunits and activations. 
@@ -514,6 +515,7 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
         activations: Tuple of pytorch.nn activations
         --optional--
         dropout: percentage of units to dropout before last layer
+        use_softmax : BOOL, True to end with softmax layer
         
     outputs:
         Tuple containing FNN layers
@@ -532,8 +534,13 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
             
         elif n == (nlayers):
             #print("Last Layer")
-            layers.append(nn.Dropout(p=dropout))
-            layers.append(nn.Linear(nunits[n-1],outsize))
+            if use_softmax:
+                layers.append(nn.Dropout(p=dropout))
+                layers.append(nn.Linear(nunits[n-1],outsize))
+                layers.append(nn.Softmax(dim=0))
+            else:
+                layers.append(nn.Dropout(p=dropout))
+                layers.append(nn.Linear(nunits[n-1],outsize))
             
         else:
             #print("Intermediate")
@@ -601,6 +608,9 @@ for nr,runid in enumerate(runids):
         expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_%s%s_run%i_unfreezeall_quant%i_res%s" % (num_classes,netname,max_epochs,ens,
                                                                                   leads[-1],detrend,usenoise,
                                                                                   testname,testvalues[i],runid,quantile,regrid)
+        if use_softmax:
+            expname += "_softmax"
+        
         # Preallocate Evaluation Metrics...
         corr_grid_train = np.zeros((nlead))
         corr_grid_test  = np.zeros((nlead))
@@ -716,9 +726,10 @@ for nr,runid in enumerate(runids):
             # Train the model
             # ---------------
             if "FNN" in netname:
-                layers = build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5)
+                layers = build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,
+                                          dropout=0.5,use_softmax=use_softmax)
                 pmodel = nn.Sequential(*layers)
-
+                
             else:
                 pmodel = transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all,
                                         nlat=nlat,nlon=nlon,nchannels=nchannels)
@@ -764,8 +775,6 @@ for nr,runid in enumerate(runids):
                     #print("Acc. for batch %i is %.2f" % (i,batch_acc))
                     #print(y_batch_pred==y_batch_lab)
                     
-                    
-
                     
                     # Store Predictions
                     y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
