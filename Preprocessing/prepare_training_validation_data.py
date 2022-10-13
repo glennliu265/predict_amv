@@ -11,6 +11,7 @@ Assumes data is located in ../../CESM_data/
 Outputs data to the same directory.
     - Predictors: CESM_data_sst_sss_psl_deseason_normalized_resized_detrend0.npy
     - Labels: CESM_label_amv_index_detrend0.npy
+    - Normalization Factors : CESM_nfactors_detrend0.npy
 """
 
 import numpy as np
@@ -19,6 +20,7 @@ import xesmf as xe
 
 detrend = False # Detrending is currently not applied
 regrid  = None # Set to desired resolution. Set None for no regridding.
+
 
 # --------------------------------
 # Select Box in the North Atlantic
@@ -59,6 +61,10 @@ if detrend:
 sst_normalized = (sst_deseason - sst_deseason.mean())/sst_deseason.std()
 sss_normalized = (sss_deseason - sss_deseason.mean())/sss_deseason.std()
 psl_normalized = (psl_deseason - psl_deseason.mean())/psl_deseason.std()
+
+means  = (sst_deseason.mean(),sss_deseason.mean(),psl_deseason.mean())
+stdevs = (sst_deseason.std(),sss_deseason.std(),psl_deseason.std())
+np.save('CESM_nfactors_detrend%i_regrid%s.npy' % (detrend,regrid),(means,stdevs))
 
 
 # -------------------------
