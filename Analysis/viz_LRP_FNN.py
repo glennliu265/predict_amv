@@ -76,6 +76,8 @@ vnames          = ("SST","SSS","SLP")
 thresnames      = ("AMV+","Neutral","AMV-",)
 cmnames_long    = ("True Positive","False Positive","False Negative","True Positive")
 scale_relevance = True # Set to True to scale relevance values for each sample to be betweeen -1 and 1 after compositing
+plot_composites = False
+
 
 # -------------------
 # Load Lat/Lon
@@ -104,7 +106,7 @@ Remaining entries are just single values indicating the values
 
 #lead     = 24
 
-for lead in np.arange(3,24,3):
+for lead in np.arange(3,24,3): # (0,24+3,3)
     # Load the relevance data for a given leadtime...
     st       = time.time()
     savename = "%sLRPout_lead%02i_gamma%.3f_epsilon%.3f.npz" % (outpath,lead,gamma,epsilon)
@@ -114,14 +116,11 @@ for lead in np.arange(3,24,3):
     print("Loaded data in %.2fs"% (time.time()-st))
     
     
-    
     # Prepare Lat/Lon
     _,nvar,nlat,nlon = relevances[0,0].shape # Get dimensions
     lat  =  np.linspace(lat2[0],lat2[-1],nlat)
     lon  = np.linspace(lon2[0],lon2[-1],nlon)
     
-    
-            
     
     # Load y predictions back into an array of the same size
     """
@@ -173,8 +172,8 @@ for lead in np.arange(3,24,3):
     # cm_names   = ["TP","FP","FN","TN"] # Names of each
     
     # Compute the accuracy of each prediction
-    cmids_all    = [] # [run][Class,Actual_class,Pred_class,Indices]
-    cmcounts_all = [] # [run][Class,Actual_class,Pred_class]
+    cmids_all    = [] # [run][Class,Confmat_quadrant,Indices]
+    cmcounts_all = [] # [run][Class,Confmat_quadrant,Pred_class]
     cmtotals_all = [] #
     for r in range(nruns):
         cm_ids,cm_counts,cm_totals,cm_acc,cm_names = am.calc_confmat_loop(y_pred_new[r,...],y_targ)
@@ -223,69 +222,78 @@ for lead in np.arange(3,24,3):
     List the accuracy of each model run...
     """
     
-    # Chose which to plot
-    v       = 0 # variable
-    th      = 0 # class
-    c       = 0 # confmat id
-    vmax    = 0.001
-    
-    clvls   = np.arange(-0.5,.505,0.05)
-    
-    var_clvls = (np.arange(-0.5,.505,0.05), # SST
-                 np.arange(-0.5,.505,0.05),
-                 np.arange(-0.5,.505,0.05)
-                 )
-    
-    for th in range(3):
-    
-        for v in tqdm(range(nvar)):
-            
-            clvls = var_clvls[v]
-            title   = "Normalized %s LRP Composites for %s (%s), %i-yr Lead" % (vnames[v],thresnames[th],cmnames_long[c],lead)
-            fig,axs = plt.subplots(2,5,figsize=(16,6),
-                                   subplot_kw={'projection':proj},constrained_layout=True)
-            
-            for r in range(nruns):
-                ax      = axs.flatten()[r]
+    if plot_composites:
+        # Chose which to plot
+        #v       = 0 # variable
+        #th      = 0 # class
+        c       = 2 # confmat id
+        vmax    = 0.001
+        
+        clvls   = np.arange(-0.5,.505,0.05)
+        
+        var_clvls = (np.arange(-0.5,.505,0.05), # SST
+                     np.arange(-0.5,.505,0.05),
+                     np.arange(-0.5,.505,0.05)
+                     )
+        
+        for th in range(3):
+        
+            for v in tqdm(range(nvar)):
                 
-                # Index the variable, make the composites
-                id_sel      = cmids_all[r][th,c,:].astype(bool) # [nsamples]
-                plotvar     = X[id_sel,v,:,:].mean(0) * mask
-                plotrel     = relevances[r,th][id_sel[ids[r,th]],v,:,:].mean(0)
+                clvls = var_clvls[v]
+                title   = "Normalized %s LRP Composites for %s (%s), %i-yr Lead" % (vnames[v],thresnames[th],cmnames_long[c],lead)
+                fig,axs = plt.subplots(2,5,figsize=(16,6),
+                                       subplot_kw={'projection':proj},constrained_layout=True)
                 
-                # Scale relevance
-                if scale_relevance:
-                    plotrel = plotrel / np.max(np.abs(plotrel))
-                    vmax = 1
+                for r in range(nruns):
+                    ax      = axs.flatten()[r]
+                    
+                    # Index the variable, make the composites
+                    id_sel      = cmids_all[r][th,c,:].astype(bool) # [nsamples]
+                    plotvar     = X[id_sel,v,:,:].mean(0) * mask
+                    plotrel     = relevances[r,th][id_sel[ids[r,th]],v,:,:].mean(0)
+                    
+                    # Scale relevance
+                    if scale_relevance:
+                        plotrel = plotrel / np.max(np.abs(plotrel))
+                        vmax = 1
+                    
+                    # Calculate True Positive Rate
+                    TP,FP,FN,TN = cmcounts_all[r][th,:]
+                    plotacc     = TP / (TP+FN)
+                    
+                    # Make label for subplot
+                    axlabel     = "FNN%02i (TPR=%.02f" % (r+1,plotacc*100) + "%)"
+                    
+                    # Actually plot the thing
+                    if clvls is None:
+                        cl      = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75)
+                        ax.clabel(cl,fontsize=10)
+                    else:
+                        cl      = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75,levels=clvls)
+                        ax.clabel(cl,levels=clvls[::2],fontsize=10,)
+                    pcm     = ax.pcolormesh(lon,lat,plotrel,vmin=-vmax,vmax=vmax,cmap='RdBu_r',alpha=0.8)
+                    
+                    ax.coastlines()
+                    viz.label_sp(axlabel,ax=ax,usenumber=True,labelstyle="%s",fontsize=10,alpha=0.7)
+                    
+                cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.065,orientation='horizontal')
+                cb.set_label("Relevance")
+                cb.ax.xaxis.set_major_formatter(tick.FormatStrFormatter('%.2e'))
                 
-                # Calculate True Positive Rate
-                TP,FP,FN,TN = cmcounts_all[r][th,:]
-                plotacc     = TP / (TP+FN)
+                plt.suptitle(title)
+                #plt.show()
                 
-                # Make label for subplot
-                axlabel     = "FNN%02i (TPR=%.02f" % (r+1,plotacc*100) + "%)"
-                
-                # Actually plot the thing
-                if clvls is None:
-                    cl      = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75)
-                    ax.clabel(cl,fontsize=10)
-                else:
-                    cl      = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75,levels=clvls)
-                    ax.clabel(cl,levels=clvls[::2],fontsize=10,)
-                pcm     = ax.pcolormesh(lon,lat,plotrel,vmin=-vmax,vmax=vmax,cmap='RdBu_r',alpha=0.8)
-                
-                ax.coastlines()
-                viz.label_sp(axlabel,ax=ax,usenumber=True,labelstyle="%s",fontsize=10,alpha=0.7)
-                
-            cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.065,orientation='horizontal')
-            cb.set_label("Relevance")
-            cb.ax.xaxis.set_major_formatter(tick.FormatStrFormatter('%.2e'))
-            
-            plt.suptitle(title)
-            #plt.show()
-            
-            figname = "%sFNN2_LRP_%scomposite_allruns_%s_%s_lead%02i.png" % (figpath,cm_names[c],thresnames[th],vnames[v],lead)
-            plt.savefig(figname,dpi=150,bbox_inches='tight')
+                figname = "%sFNN2_LRP_%scomposite_allruns_%s_%s_lead%02i.png" % (figpath,cm_names[c],thresnames[th],vnames[v],lead)
+                plt.savefig(figname,dpi=150,bbox_inches='tight')
+
+#%% Make simple composites N leads away from an AMV event
+
+
+
+#%%
+
+
 
 # #%% Plot 10 random samples for the above
 
