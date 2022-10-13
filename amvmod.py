@@ -19,6 +19,8 @@ import cartopy.feature as cfeature
 from cartopy.util import add_cyclic_point
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 
+from torch import nn
+
 ## Processing/Analysis ----
 def find_nan(data,dim):
     """
@@ -762,3 +764,209 @@ def init_map(bbox,crs=ccrs.PlateCarree(),ax=None):
     gl.yformatter = LatitudeFormatter(degree_symbol='')
     
     return ax
+
+
+def make_classes(y,thresholds,exact_value=False,reverse=False,
+                 quantiles=False):
+    """
+    Makes classes based on given thresholds. 
+
+    Parameters
+    ----------
+    y : ARRAY
+        Labels to classify
+    thresholds : ARRAY
+        1D Array of thresholds to partition the data
+    exact_value: BOOL, optional
+        Set to True to use the exact value in thresholds (rather than scaling by
+                                                          standard deviation)
+
+    Returns
+    -------
+    y_class : ARRAY [samples,class]
+        Classified samples, where the second dimension contains an integer
+        representing each threshold
+
+    """
+    
+    if quantiles is False:
+        if ~exact_value: # Scale thresholds by standard deviation
+            y_std = np.std(y) # Get standard deviation
+            thresholds = np.array(thresholds) * y_std
+    else: # Determine Thresholds from quantiles
+        thresholds = np.quantile(y,thresholds,axis=0) # Replace Thresholds with quantiles
+    
+    nthres  = len(thresholds)
+    y_class = np.zeros((y.shape[0],1))
+    
+    if nthres == 1: # For single threshold cases
+        thres = thresholds[0]
+        y_class[y<=thres] = 0
+        y_class[y>thres] = 1
+        
+        print("Class 0 Threshold is y <= %.2f " % (thres))
+        print("Class 0 Threshold is y > %.2f " % (thres))
+        return y_class
+    
+    for t in range(nthres+1):
+        if t < nthres:
+            thres = thresholds[t]
+        else:
+            thres = thresholds[-1]
+        
+        if reverse: # Assign class 0 to largest values
+            tassign = nthres-t
+        else:
+            tassign = t
+        
+        if t == 0: # First threshold
+            y_class[y<=thres] = tassign
+            print("Class %i Threshold is y <= %.2f " % (tassign,thres))
+        elif t == nthres: # Last threshold
+            y_class[y>thres] = tassign
+            print("Class %i Threshold is y > %.2f " % (tassign,thres))
+        else: # Intermediate values
+            thres0 = thresholds[t-1]
+            y_class[(y>thres0) * (y<=thres)] = tassign
+            print("Class %i Threshold is %.2f < y <= %.2f " % (tassign,thres0,thres))
+    if quantiles is True:
+        return y_class,thresholds
+    return y_class
+
+def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
+    """
+    Build a Feed-foward neural network with N layers, each with corresponding
+    number of units indicated in nunits and activations. 
+    
+    A dropbout layer is included at the end
+    
+    inputs:
+        inputsize:  INT - size of the input layer
+        outputsize: INT  - size of output layer
+        nlayers:    INT - number of hidden layers to include 
+        nunits:     Tuple of units in each layer
+        activations: Tuple of pytorch.nn activations
+        --optional--
+        dropout: percentage of units to dropout before last layer
+        
+    outputs:
+        Tuple containing FNN layers
+        
+    dependencies:
+        from pytorch import nn
+        
+    """
+    layers = []
+    for n in range(nlayers+1):
+        #print(n)
+        if n == 0:
+            #print("First Layer")
+            layers.append(nn.Linear(inputsize,nunits[n]))
+            layers.append(activations[n])
+            
+        elif n == (nlayers):
+            #print("Last Layer")
+            layers.append(nn.Dropout(p=dropout))
+            layers.append(nn.Linear(nunits[n-1],outsize))
+            
+        else:
+            #print("Intermediate")
+            layers.append(nn.Linear(nunits[n-1],nunits[n]))
+            layers.append(activations[n])
+    return layers
+
+
+def get_barcount(y_in,axis=0):
+
+    # Get Existing Classes
+    classes  = np.unique(y_in.flatten())
+    nclasses = len(classes)
+
+    # Get count of each class along an axis
+    counts = []
+    for c in range(nclasses):
+        count_tot = (y_in==c).sum(axis) # [time,]
+        counts.append(count_tot)
+    return counts
+
+
+def calc_confmat(ypred,ylabel,c,getcounts=True,debug=True):
+    """
+    Calculate Confusion Matrices
+      TP  FP
+            
+      FN  TN
+    
+    ypred     : [N x 1]
+    ylabel    : [N x 1]
+    c         : the class number or label, as found in ypred/ylabel
+    getcounts : Set True to return indices,counts,total_counts,accuracy
+    debug     : Set True to print debugging messages
+    """
+    
+    nsamples = ypred.shape[0]
+    TP       = ((ypred==c) * (ylabel==c))
+    FP       = ((ypred==c) * (ylabel!=c))
+    TN       = ((ypred!=c) * (ylabel!=c))
+    FN       = ((ypred!=c) * (ylabel==c))
+    cm       = np.array([TP,FP,FN,TN],dtype='object') # [4,#samples]
+    
+    if debug:
+        TP,FP,FN,TN = cm
+        print("Predict 0: %i, Actual 0: %i, TN Count: %i " % ((ypred!=c).sum(),(ylabel!=c).sum(),TN.sum())) # Check True Negative 
+        print("Predict 1: %i, Actual 1: %i, TP Count: %i " % ((ypred==c).sum(),(ylabel==c).sum(),TP.sum())) # Check True Positive
+        print("Predict 1: %i, Actual 0: %i, FP Count: %i (+ %i = %i total)" % ((ypred==c).sum(),(ylabel!=c).sum(),FP.sum(),TP.sum(),FP.sum()+TP.sum())) # Check False Positive
+        print("Predict 0: %i, Actual 1: %i, FN Count: %i (+ %i = %i total)" % ((ypred!=c).sum(),(ylabel==c).sum(),FN.sum(),TN.sum(),FN.sum()+TN.sum())) # Check False Negative
+    if getcounts: # Get counts and accuracy
+        cm_counts               = np.array([c.sum() for c in cm])#.reshape(2,2)
+        #cm                      = cm.reshape(2,2,nsamples) #
+        count_pred_total        = np.ones(4) * nsamples #np.ones((2,2)) * nsamples  #np.vstack([np.ones(2)*(ypred==c).sum(),np.ones(2)*(ypred!=c).sum()]) # [totalpos,totalpos,totalneg,totalneg]
+        cm_acc                  = cm_counts / nsamples     #count_pred_total
+        return cm,cm_counts,count_pred_total,cm_acc
+    else:
+        return cm.reshape(4,nsamples)#.reshape(2,2,nsamples)
+    
+def calc_confmat_loop(y_pred,y_class):
+    """
+    Given predictions and labels, retrieves confusion matrix indices in the
+    following order for each class: 
+        [True Positive, False Positive, False Negative, True Positive]
+    
+    Parameters
+    ----------
+    y_pred : ARRAY [nsamples x 1]
+        Predicted Class.
+    y_class : ARRAY[nsamples x 1]
+        Actual Class.
+        
+    Returns
+    -------
+    cm_ids :    ARRAY [Class,Confmat_qudrant,Indices]
+        Confusion matrix Boolean indices
+    cm_counts : ARRAY [Class,Confmat_qudrant]
+        Counts of predicted values for each quadrant
+    cm_totals : ARRAY [Class,Confmat_qudrant]
+        Total count (for division)
+    cm_acc :    ARRAY [Class,Confmat_qudrant]
+        Accuracy values
+    cm_names :  ARRAY [Class,Confmat_qudrant]
+        Names of each confmat quadrant
+    """
+    nsamples = y_pred.shape[0]
+    
+    # Preallocate for confusion matrices
+    cm_ids     = np.empty((3,4,nsamples),dtype='object')# Confusion matrix Boolean indices [Class,Confmat_quadrant,Indices]
+    cm_counts  = np.empty((3,4),dtype='object')         # Counts of predicted values for each [Class,Actual_class,Pred_class]
+    cm_totals  = cm_counts.copy() # Total count (for division)
+    cm_acc     = cm_counts.copy() # Accuracy values
+    cm_names   = ["TP","FP","FN","TN"] # Names of each
+    
+    for th in range(3):
+        # New Script
+        confmat,ccounts,tcounts,acc = calc_confmat(y_pred,y_class,th)
+        cm_ids[th,:]    = confmat.copy().squeeze()
+        cm_counts[th,:] = ccounts.copy()
+        cm_totals[th,:] = tcounts.copy()
+        cm_acc[th,:]    = acc.copy()
+    return cm_ids,cm_counts,cm_totals,cm_acc,cm_names
+        
