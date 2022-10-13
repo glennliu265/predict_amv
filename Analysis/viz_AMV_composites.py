@@ -212,8 +212,29 @@ cmids_lead  = np.load(cm_savename,allow_pickle=True) # [lead][run x class x conf
 
 #%% For each model, recreate the above figure
 
-c = 0
+c               = 0
+plot_relevances = True # Set to true to load in relevances and plot it.
+normalize_rel   = True
+vmax_rel        = 0.001
 
+#%% Load the relevance data for a given leadtime...
+if plot_relevances:
+    st       = time.time()
+    ids_class = []
+    rels = []
+    for l in tqdm(range(nleads)):
+        lead = leads[l]
+        savename = "%sLRPout_lead%02i_gamma%.3f_epsilon%.3f.npz" % (outpath,lead,gamma,epsilon)
+        npz      = np.load(savename,allow_pickle=True)
+        ndict    = [npz[z] for z in npz.files]
+        relevances,ids,y_pred,y_targ,y_val,lead,gamma,epsilon,allow_pickle=ndict
+        rels.append(relevances)
+        ids_class.append(ids)
+    print("Loaded data in %.2fs"% (time.time()-st))
+
+# rels : [lead][run,class][sample x variable x lat x lon]
+
+#%%
 for r in range(nruns):
     for th in range(3):
         fig,axs=plt.subplots(3,nleads,figsize=(18,6),
@@ -231,7 +252,15 @@ for r in range(nruns):
             cmcounts = cmids_lead[l][r,th,:,:].sum(1)
             TP,FP,FN,TN = cmcounts
             plotacc     = TP / (TP+FN)
-                
+            
+            # Composite the relevances
+            
+            #relevances[r,th][id_sel[ids[r,th]],v,:,:].mean(0)
+            
+            id_confm       = cmids_lead[l][r,th,c,:].astype(bool) # Indices from full variable corresponding to quadrant
+            id_class_confm = id_confm[ids_class[l][r,th]] # Select the class indices from those
+            rel_lead        = rels[l][r,th][:,:,:,:][id_class_confm,:,:,:].mean(0) # Make composite
+            
             for v in range(nvar): # Reverse the order compared to above
                 
                 ax = axs[v,l]
@@ -245,20 +274,45 @@ for r in range(nruns):
                                      rotation_mode='anchor',transform=ax.transAxes)
                 
                 plotvar = x_in[v,:,:]
-                if normalized is False:
-                    plotvar = plotvar * sigma[v] + mu[v]
-                if set_clvls:
-                    cf = ax.contourf(lon,lat,plotvar,cmap='RdBu_r',levels=var_clvls[v],extend='both')
-                    cl = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75,levels=var_clvls[v])
-                    ax.clabel(cl,levels=var_clvls[v][::2])
+                
+                if plot_relevances:
+                    
+                    plotrel = rel_lead[v,:,:]
+                    if normalize_rel:
+                        plotrel = plotrel/np.max(np.abs(plotrel.flatten()))
+                        vmax_rel = 1
+                    
+                    if normalized is False:
+                        plotvar = plotvar * sigma[v] + mu[v]
+                    
+                    if set_clvls:
+                        cl = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75,levels=var_clvls[v])
+                        ax.clabel(cl,levels=var_clvls[v][::2])
+                        cf = ax.pcolormesh(lon,lat,plotrel,cmap='RdBu_r',vmin=-vmax_rel,vmax=vmax_rel,alpha=0.75)
+                        
+                    else:
+                        cl = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75)
+                        ax.clabel(cl)
+                        cf = ax.pcolormesh(lon,lat,plotrel,cmap='RdBu_r',vmin=-vmax_rel,vmax=vmax_rel,alpha=0.75)
+                        
                 else:
-                    cf = ax.contourf(lon,lat,plotvar,cmap='RdBu_r',extend='both')
-                    cl = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75)
-                    ax.clabel(cl)
+                    if normalized is False:
+                        plotvar = plotvar * sigma[v] + mu[v]
+                    if set_clvls:
+                        cf = ax.contourf(lon,lat,plotvar,cmap='RdBu_r',levels=var_clvls[v],extend='both')
+                        cl = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75,levels=var_clvls[v])
+                        ax.clabel(cl,levels=var_clvls[v][::2])
+                    else:
+                        cf = ax.contourf(lon,lat,plotvar,cmap='RdBu_r',extend='both')
+                        cl = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75)
+                        ax.clabel(cl)
                 
                 if lead == 24:
                     fig.colorbar(cf,ax=axs[v,:].flatten(),fraction=0.025,pad=0.01)
         plt.suptitle("%s %s Lead Patterns (run %02i, TPR=%.02f" % (cmnames_long[c],thresnames[th],r,plotacc*100)+"%)")
-        plt.savefig("%sLeadtime_Composites_%s_clvls%i_normalize%i_%s_run%02i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r),dpi=150,bbox_inches='tight')
+        savename = "%sLeadtime_Composites_%s_clvls%i_normalize%i_%s_run%02i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r)
+        if plot_relevances:
+            savename = "%sLeadtime_Composites_Relevances_%s_clvls%i_normalize%i_%s_run%02i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r)
+        plt.savefig(savename,dpi=150,bbox_inches='tight')
             
 
