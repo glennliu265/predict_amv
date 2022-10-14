@@ -209,11 +209,11 @@ for th in range(3):
 cm_savename = outpath+"../FNN2_confmatids_detrend%i_regrid%s.npy" % (detrend,regrid)
 cmids_lead  = np.load(cm_savename,allow_pickle=True) # [lead][run x class x confmat quadrant x ids (ens*{tstep-lead})]
 
-
+# -------------------------------------------
 #%% For each model, recreate the above figure
-
-c               = 0
-plot_relevances = True # Set to true to load in relevances and plot it.
+# -------------------------------------------
+c               = 2
+plot_relevances = False # Set to true to load in relevances and plot it.
 normalize_rel   = True
 vmax_rel        = 0.001
 
@@ -235,6 +235,7 @@ if plot_relevances:
 # rels : [lead][run,class][sample x variable x lat x lon]
 
 #%%
+
 for r in range(nruns):
     for th in range(3):
         fig,axs=plt.subplots(3,nleads,figsize=(18,6),
@@ -315,4 +316,44 @@ for r in range(nruns):
             savename = "%sLeadtime_Composites_Relevances_%s_clvls%i_normalize%i_%s_run%02i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r)
         plt.savefig(savename,dpi=150,bbox_inches='tight')
             
+# ------------------------------
+#%% Plot the True Positive Rates
+# ------------------------------
+
+# Calculate TPR
+TPR_all = np.zeros((nruns,nleads,nthres))
+for r in tqdm(range(nruns)):
+    for th in range(3):
+        for l in range(nleads):
+            lead = leads[l]
+            
+            # Calculate True Positive Rate
+            cmcounts    = cmids_lead[l][r,th,:,:].sum(1)
+            TP,FP,FN,TN = cmcounts
+            plotacc     = TP / (TP+FN)
+            TPR_all[r,l,th] = plotacc
+            
+#%% Plot TPR
+
+r_select = 0
+
+fig,axs = plt.subplots(3,1,figsize=(12,6),constrained_layout=True)
+
+for th in range(3):
+    ax = axs[th]
+    
+    ax.set_xlim([0,24])
+    ax.set_xticks(leads)
+    ax.set_ylim([0,100])
+    
+    
+    for r in range(10):
+        if r == r_select:
+            alpha = 1
+        else:
+            alpha = 0.5
+        
+        ax.plot(leads,TPR_all[r,:,th],label="Run %02i" % (r),alpha=alpha)
+    if th == 0:
+        ax.legend(ncol=5)
 
