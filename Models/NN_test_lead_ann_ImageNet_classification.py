@@ -46,9 +46,9 @@ runids         = np.arange(0,11,1) # Which runs to do
 #numruns        = 10    # Number of times to train for each leadtime
 
 # Model training settings
-netname       = 'FNN2'               # Name of network ('resnet50','simplecnn','FNN2')
+netname       = 'FNN4_120'           # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
-use_softmax   = True                 # Set to true to end on softmax layer
+use_softmax   = False                 # Set to true to end on softmax layer
 
 # Additional Hyperparameters (CNN)
 early_stop    = 3                    # Number of epochs where validation loss increases before stopping
@@ -62,9 +62,9 @@ cnndropout    = True                 # Set to 1 to test simple CNN with dropout 
 
 # Hyperparameters (FNN)
 # ----------------
-nlayers     = 2
-nunits      = [20,20]
-activations = [nn.ReLU(),nn.ReLU()]
+nlayers     = 4
+nunits      = [120,120,120,120]
+activations = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
 #netname     = "FNN2"
 
 # Toggle Options
@@ -785,7 +785,7 @@ for nr,runid in enumerate(runids):
             # Save the model
             # --------------
             if savemodel:
-                modout = "../../CESM_data/Models/%s_%s_lead%i_classify.pt" %(expname,varname,lead)
+                modout = "../../CESM_data/Models/%s_%s_lead%02i_classify.pt" %(expname,varname,lead)
                 torch.save(model.state_dict(),modout)
             
             
