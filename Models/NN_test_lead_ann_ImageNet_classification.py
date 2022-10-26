@@ -46,7 +46,7 @@ runids         = np.arange(0,11,1) # Which runs to do
 #numruns        = 10    # Number of times to train for each leadtime
 
 # Model training settings
-netname       = 'FNN4_120_nodrop'           # Name of network ('resnet50','simplecnn','FNN2')
+netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 use_softmax   = False                 # Set to true to end on softmax layer
 
@@ -59,12 +59,12 @@ opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight De
 reduceLR      = False                # Set to true to use LR scheduler
 LRpatience    = 3                    # Set patience for LR scheduler
 cnndropout    = True                 # Set to 1 to test simple CNN with dropout layer
-fnndropout    = 0 #0.5
+fnndropout    = 0.5                  # 0.5
 
 # Hyperparameters (FNN)
 # ----------------
 nlayers     = 4
-nunits      = [120,120,120,120]
+nunits      = [128,128,128,128]
 activations = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
 #netname     = "FNN2"
 
