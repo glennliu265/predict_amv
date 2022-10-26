@@ -46,7 +46,7 @@ runids         = np.arange(0,11,1) # Which runs to do
 #numruns        = 10    # Number of times to train for each leadtime
 
 # Model training settings
-netname       = 'FNN4_120'           # Name of network ('resnet50','simplecnn','FNN2')
+netname       = 'FNN4_120_nodrop'           # Name of network ('resnet50','simplecnn','FNN2')
 unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 use_softmax   = False                 # Set to true to end on softmax layer
 
@@ -59,6 +59,7 @@ opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight De
 reduceLR      = False                # Set to true to use LR scheduler
 LRpatience    = 3                    # Set patience for LR scheduler
 cnndropout    = True                 # Set to 1 to test simple CNN with dropout layer
+fnndropout    = 0 #0.5
 
 # Hyperparameters (FNN)
 # ----------------
@@ -68,6 +69,7 @@ activations = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
 #netname     = "FNN2"
 
 # Toggle Options
+# --------------
 debug         = False # Visualize training and testing loss
 verbose       = True # Print loss for each epoch
 checkgpu      = True # Set to true to check for GPU otherwise run on CPU
@@ -727,7 +729,7 @@ for nr,runid in enumerate(runids):
             # ---------------
             if "FNN" in netname:
                 layers = build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,
-                                          dropout=0.5,use_softmax=use_softmax)
+                                          dropout=fnn_dropout,use_softmax=use_softmax)
                 pmodel = nn.Sequential(*layers)
                 
             else:
