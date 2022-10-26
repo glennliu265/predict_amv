@@ -729,7 +729,7 @@ for nr,runid in enumerate(runids):
             # ---------------
             if "FNN" in netname:
                 layers = build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,
-                                          dropout=fnn_dropout,use_softmax=use_softmax)
+                                          dropout=fnndropout,use_softmax=use_softmax)
                 pmodel = nn.Sequential(*layers)
                 
             else:
