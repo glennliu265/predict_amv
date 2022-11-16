@@ -38,7 +38,7 @@ import xarray as xr
 expdir         = "FNN4_128_SingleVar"
 
 # Data preparation settings
-for varname in ("HMXL",):
+for varname in ("SST","SSS","PSL","BSF","SSH","HMXL",):
     #varname        = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -48,7 +48,7 @@ for varname in ("HMXL",):
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-    runids         = np.arange(0,11,1) # Which runs to do
+    runids         = np.arange(11,50,1) # Which runs to do
     
     #numruns        = 10    # Number of times to train for each leadtime
     
