@@ -970,3 +970,44 @@ def calc_confmat_loop(y_pred,y_class):
         cm_acc[th,:]    = acc.copy()
     return cm_ids,cm_counts,cm_totals,cm_acc,cm_names
         
+
+def get_topN(arr,N,bot=False,sort=False,absval=False):
+    """
+    Copied from proc on 2022.11.01
+    Get the indices for the top N values of an array.
+    Searches along the last dimension. Option to sort output.
+    Set [bot]=True for the bottom 5 values
+    
+    Parameters
+    ----------
+    arr : TYPE
+        Input array with partition/search dimension as the last axis
+    N : INT
+        Top or bottom N values to find
+    bot : BOOL, optional
+        Set to True to find bottom N values. The default is False.
+    sort : BOOL, optional
+        Set to True to sort output. The default is False.
+    absval : BOOL, optional
+        Set to True to apply abs. value before sorting. The default is False.
+        
+    Returns
+    -------
+    ids : ARRAY
+        Indices of found values
+    """
+    
+    if absval:
+        arr = np.abs(arr)
+    if bot is True:
+        ids = np.argpartition(arr,N,axis=-1)[...,:N]
+    else:
+        ids = np.argpartition(arr,-N,axis=-1)[...,-N:]
+         # Parition up to k, and take first k elements
+    if sort:
+        if bot:
+            return ids[np.argsort(arr[ids])] # Least to greatest
+        else:
+            return ids[np.argsort(-arr[ids])] # Greatest to least
+    return ids
+        
