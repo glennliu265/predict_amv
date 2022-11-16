@@ -20,7 +20,7 @@ import sys
 
 from tqdm import tqdm
 import matplotlib.ticker as tick
-import cmoean as cmo
+import cmocean as cmo
 
 #%% User Edits
 # -------------------
@@ -39,7 +39,7 @@ if regrid is None:
     modpath = datpath + "Models/FNN2_quant0_resNone/"
 else:
     modpath = datpath + "Models/FNN2_quant0_res224/"
-figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221014/"
+figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221028/"
 outpath = datpath + "Metrics/"
 
 # -------------------
@@ -112,10 +112,7 @@ print(target.shape)
 
 mu,sigma = np.load("%sCESM_nfactors_detrend%i_regrid%s.npy" % (datpath,detrend,regrid))
 
-
-
-
-#%% Compute composites
+#%% Compute composites 
 
 vcomposites = np.zeros((nleads,nthres,nvar,nlat,nlon)) * np.nan
 vvariances  = vcomposites.copy()
@@ -213,9 +210,11 @@ cmids_lead  = np.load(cm_savename,allow_pickle=True) # [lead][run x class x conf
 #%% For each model, recreate the above figure
 # -------------------------------------------
 c               = 2
-plot_relevances = False # Set to true to load in relevances and plot it.
+plot_relevances = True # Set to true to load in relevances and plot it.
 normalize_rel   = True
 vmax_rel        = 0.001
+
+normalize_samplewise = True
 
 #%% Load the relevance data for a given leadtime...
 if plot_relevances:
@@ -255,12 +254,16 @@ for r in range(nruns):
             plotacc     = TP / (TP+FN)
             
             # Composite the relevances
-            
             #relevances[r,th][id_sel[ids[r,th]],v,:,:].mean(0)
-            
             id_confm       = cmids_lead[l][r,th,c,:].astype(bool) # Indices from full variable corresponding to quadrant
             id_class_confm = id_confm[ids_class[l][r,th]] # Select the class indices from those
-            rel_lead        = rels[l][r,th][:,:,:,:][id_class_confm,:,:,:].mean(0) # Make composite
+            if normalize_samplewise:
+                rel_lead        = rels[l][r,th][:,:,:,:][id_class_confm,:,:,:]#
+                rel_lead        = (rel_lead / np.nanmax(np.abs(rel_lead),0)).mean(0)
+
+            else:
+                rel_lead        = rels[l][r,th][:,:,:,:][id_class_confm,:,:,:].mean(0)
+            #rel_lead        = rels[l][r,th][:,:,:,:][id_class_confm,:,:,:].mean(0) # Make composite
             
             for v in range(nvar): # Reverse the order compared to above
                 
@@ -311,9 +314,9 @@ for r in range(nruns):
                 if lead == 24:
                     fig.colorbar(cf,ax=axs[v,:].flatten(),fraction=0.025,pad=0.01)
         plt.suptitle("%s %s Lead Patterns (run %02i, TPR=%.02f" % (cmnames_long[c],thresnames[th],r,plotacc*100)+"%)")
-        savename = "%sLeadtime_Composites_%s_clvls%i_normalize%i_%s_run%02i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r)
+        savename = "%sLeadtime_Composites_%s_clvls%i_normalize%i_%s_run%02i_samplewise%i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r,normalize_samplewise)
         if plot_relevances:
-            savename = "%sLeadtime_Composites_Relevances_%s_clvls%i_normalize%i_%s_run%02i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r)
+            savename = "%sLeadtime_Composites_Relevances_%s_clvls%i_normalize%i_%s_run%02i_samplewise%i.png" % (figpath,thresnames[th],set_clvls,normalized,cm_names[c],r,normalize_samplewise)
         plt.savefig(savename,dpi=150,bbox_inches='tight')
             
 # ------------------------------
@@ -335,9 +338,9 @@ for r in tqdm(range(nruns)):
             
 #%% Plot TPR
 
-r_select = 0
+r_select = 5
 
-fig,axs = plt.subplots(3,1,figsize=(12,6),constrained_layout=True)
+fig,axs = plt.subplots(3,1,figsize=(8,8),constrained_layout=True)
 
 for th in range(3):
     ax = axs[th]
@@ -351,9 +354,14 @@ for th in range(3):
         if r == r_select:
             alpha = 1
         else:
-            alpha = 0.5
+            alpha = 0.25
         
-        ax.plot(leads,TPR_all[r,:,th],label="Run %02i" % (r),alpha=alpha)
+        ax.plot(leads,TPR_all[r,:,th]*100,label="Run %02i" % (r),alpha=alpha)
     if th == 0:
         ax.legend(ncol=5)
-
+    if th == 1:
+        ax.set_ylabel("True Positive Rate (%)")
+    if th == 2:
+        ax.set_xlabel("Prediction Lead (Years)")
+    viz.label_sp(thresnames[th],ax=ax,labelstyle="%s",usenumber=True,alpha=0.5)
+plt.savefig("%sFNN2_TPR_byrun_highlightr%02i.png" % (figpath,r_select),dpi=150,bbox_inches='tight')
