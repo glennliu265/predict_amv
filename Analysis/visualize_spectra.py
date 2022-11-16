@@ -78,12 +78,12 @@ vnames          = ("SST","SSS","SLP")
 thresnames      = ("AMV+","Neutral","AMV-",)
 cmnames_long    = ("True Positive","False Positive","False Negative","True Positive")
 scale_relevance = True # Set to True to scale relevance values for each sample to be betweeen -1 and 1 after compositing
-cmbal = cmo.cm.balance.copy()
+cmbal           = cmo.cm.balance.copy()
 cmbal.set_under('b')
 cmbal.set_over('r')
 
 
-cm_names = ['TP', 'FP', 'FN', 'TN']
+cm_names        = ['TP', 'FP', 'FN', 'TN']
 cmnames_long    = ("True Positive","False Positive","False Negative","True Positive")
 
 # -------------------
@@ -224,12 +224,22 @@ ax.set_xlim([.04,0.2])
 
 #%% Quick Barplot of the above
 
+percent_diff = True
+
 # Compute variance and scatter
 fig,ax = plt.subplots(1,1,figsize=(12,4),constrained_layout=True)
-ax.bar(ensnum,amvids_tr.var(1)-amvids_ntr.var(1),color='darkviolet',alpha=0.5,edgecolor="k")
+
 
 amvi_vardiff = amvids_tr.var(1)-amvids_ntr.var(1) # [ens,]
+if percent_diff: # Express as percentage of original variance
+    amvi_vardiff = amvi_vardiff/amvids_tr.var(1)
 meanvar      = (amvi_vardiff).mean()
+
+
+
+
+ax.bar(ensnum,amvi_vardiff,color='darkviolet',alpha=0.5,edgecolor="k")
+
 # Get top and bottom values 5
 topid        = proc.get_topN(amvi_vardiff,5,sort=True)
 botid        = proc.get_topN(amvi_vardiff,5,sort=True,bot=True)
@@ -239,7 +249,17 @@ botid        = proc.get_topN(amvi_vardiff,5,sort=True,bot=True)
 
 ax.axhline(meanvar,ls='dashed',color='k',label="Mean Difference = %.03f $\degree C^2$" % (meanvar))
 
-ax.set_ylabel("Decrease in AMVi Variance after detrending ($\degree C^2$)")
+
+if percent_diff:
+    ax.vlines(np.array(topid)+1,ymin=0,ymax=0.45,color="r")
+    ax.vlines(np.array(botid)+1,ymin=0,ymax=0.45,color="b")
+    ax.set_ylabel("% Decrease in AMVi Variance after detrending")
+    plt.suptitle("AMV Index (AMVi) Variance Difference $\frac{With Trend - Detrended}{With Trend}$")
+else:
+    ax.vlines(np.array(topid)+1,ymin=0,ymax=0.1,color="r")
+    ax.vlines(np.array(botid)+1,ymin=0,ymax=0.1,color="b")
+    ax.set_ylabel("Decrease in AMVi Variance after detrending ($\degree C^2$)")
+    plt.suptitle("AMV Index (AMVi) Variance Difference (With Trend - Detrended)")
 ax.set_xlabel("Ensemble Member")
 
 ax.set_xticks(ensnum)
@@ -247,11 +267,10 @@ ax.set_xlim([0,41])
 ax.legend()
 ax.grid(True,ls='dotted')
 
-ax.vlines(np.array(topid)+1,ymin=0,ymax=0.1,color="r")
-ax.vlines(np.array(botid)+1,ymin=0,ymax=0.1,color="b")
 
-plt.suptitle("AMV Index (AMVi) Variance Difference (With Trend - Detrended)")
-plt.savefig("%sAMV_Index_Variance_Difference_Barplot.png" % (figpath),dpi=200,bbox_inches='tight')
+
+
+plt.savefig("%sAMV_Index_Variance_Difference_Barplot_percdiff%i.png" % (figpath,percent_diff),dpi=200,bbox_inches='tight')
 
 
 #%% Rexamine Spectra, but for top/bottom 5
