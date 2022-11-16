@@ -15,10 +15,8 @@ Created on Fri Oct 21 16:06:27 2022
 
 import numpy as np
 import xarray as xr
-
 import sys
 import glob
-
 from tqdm import tqdm
 
 #%% User Edits

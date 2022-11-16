@@ -758,7 +758,7 @@ for nr,runid in enumerate(runids):
                 # -----------------
                 y_pred_val = np.asarray([])
                 y_valdt    = np.asarray([])
-
+                
                 for i,vdata in enumerate(val_loader):
                 
                     #print(i)
@@ -766,7 +766,7 @@ for nr,runid in enumerate(runids):
                     batch_x, batch_y = vdata
                     batch_x = batch_x.to(device)
                     batch_y = batch_y.to(device)
-
+                    
                     # Make prediction and concatenate
                     batch_pred = model(batch_x)
                     
@@ -777,11 +777,9 @@ for nr,runid in enumerate(runids):
                     #print("Acc. for batch %i is %.2f" % (i,batch_acc))
                     #print(y_batch_pred==y_batch_lab)
                     
-                    
                     # Store Predictions
                     y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
                     y_valdt = np.concatenate([y_valdt,y_batch_lab])
-                    
                     
             # --------------
             # Save the model
@@ -790,11 +788,9 @@ for nr,runid in enumerate(runids):
                 modout = "../../CESM_data/Models/%s_%s_lead%02i_classify.pt" %(expname,varname,lead)
                 torch.save(model.state_dict(),modout)
             
-            
             # Save the actual and predicted values
             yvalpred.append(y_pred_val)
             yvallabels.append(y_valdt)
-            
             
             # -------------------------
             # Calculate Success Metrics

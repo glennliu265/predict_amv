@@ -276,7 +276,7 @@ for lead in np.arange(3,24,3): # (0,24+3,3)
                     
                     ax.coastlines()
                     viz.label_sp(axlabel,ax=ax,usenumber=True,labelstyle="%s",fontsize=10,alpha=0.7)
-                    
+                
                 cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.065,orientation='horizontal')
                 cb.set_label("Relevance")
                 cb.ax.xaxis.set_major_formatter(tick.FormatStrFormatter('%.2e'))
@@ -286,7 +286,7 @@ for lead in np.arange(3,24,3): # (0,24+3,3)
                 
                 figname = "%sFNN2_LRP_%scomposite_allruns_%s_%s_lead%02i.png" % (figpath,cm_names[c],thresnames[th],vnames[v],lead)
                 plt.savefig(figname,dpi=150,bbox_inches='tight')
-
+        
 #%% Make simple composites N leads away from an AMV event
 
 
