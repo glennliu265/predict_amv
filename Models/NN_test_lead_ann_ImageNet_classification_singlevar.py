@@ -38,7 +38,7 @@ import xarray as xr
 expdir         = "FNN4_128_SingleVar"
 
 # Data preparation settings
-for varname in ("SST","SSS","PSL","BSF","SSH","HMXL"):
+for varname in ("HMXL"):
     #varname        = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -618,11 +618,11 @@ for varname in ("SST","SSS","PSL","BSF","SSH","HMXL"):
         msk = msk["SST"].values
         msk[~np.isnan(msk)] = 1
         msk[np.isnan(msk)] = 0
-        data = data * msk[None,...]
+        # Limit to input to ensemble member and apply mask
+        data = data[:,0:ens,...] * msk[None,0:ens,...]
         data[np.isnan(data)] = 0
     
-    # Limit to ensemble member
-    data       = data[:,0:ens,:,:,:]
+    # Limit target to ensemble member
     target     = target[0:ens,:]
     
     #testvalues = [1e-3,1e-2,1e-1,1,2]
