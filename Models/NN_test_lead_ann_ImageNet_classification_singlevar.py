@@ -909,7 +909,7 @@ for varname in ("SST","SSS","PSL","BSF","SSH","HMXL"):
                 # -----------------
                 # Save Eval Metrics
                 # -----------------
-                np.savez("../../CESM_data/"+expdir+"/'Metrics"+outname,**{
+                np.savez("../../CESM_data/"+expdir+"/"+"Metrics"+outname,**{
                          'train_loss': train_loss_grid,
                          'test_loss': test_loss_grid,
                          'train_acc' : train_acc_grid,
