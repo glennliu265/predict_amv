@@ -199,13 +199,15 @@ Based on procedure in prepare_training_validation_data.py
     8. Output in array ['ensemble','year','lat','lon']
 """
 
-for varname in ("SSH","sst","sss","psl"):
+for varname in ("sst","sss","psl"):
     # -------------------
     # Load in the dataset
     # -------------------
     if varname.lower() in ("sst","sss","psl"):
         varname = varname.lower()
-    outname = "%sCESM1LE_%s_NAtl_%s0101_%s0101_%s.nc" % (outpath,varname,ystart,yend,method)
+        outname = "%sCESM1LE_%s_NAtl_%s0101_%s1201.nc" % (outpath,varname,ystart,yend)
+    else: # Add initial regridding method
+        outname = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s.nc" % (outpath,varname,ystart,yend,method)
     ds_all  = xr.open_dataset(outname)
     
     # --------------------------------
@@ -227,7 +229,7 @@ for varname in ("SSH","sst","sss","psl"):
     mu            = ds_all_anom.mean()
     sigma         = ds_all_anom.std()
     ds_normalized = (ds_all_anom - mu)/sigma
-    np.save('%sCESM1LE_nfactors_%s_detrend%i_regrid%s.npy' % (outpath,varname,detrend,regrid),(mu,sigma))
+    np.save('%sCESM1LE_nfactors_%s_detrend%i_regrid%s.npy' % (outpath,varname,detrend,regrid),(mu.to_array().values,sigma.to_array().values))
     
     # ------------------------
     # Regrid, if option is set <Add this section later...>
@@ -260,7 +262,7 @@ for varname in ("SSH","sst","sss","psl"):
         ds_normalized_out = ds_normalized_out.rename({varname:varname.upper()})
         varname = varname.upper()
     encoding_dict = {varname : {'zlib': True}} 
-    outname       = "%sCESM1LE_%s_NAtl_%s0101_%s0101_%s_detrend%i_regrid%s.nc" % (outpath,varname,ystart,yend,method,detrend,regrid)
+    outname       = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s_detrend%i_regrid%s.nc" % (outpath,varname,ystart,yend,method,detrend,regrid)
     ds_normalized_out.to_netcdf(outname,encoding=encoding_dict)
     print("Saved output tp %s in %.2fs!" % (outname,time.time()-st))
 
