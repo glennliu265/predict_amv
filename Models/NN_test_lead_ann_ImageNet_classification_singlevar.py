@@ -655,7 +655,7 @@ for varname in ("SST","SSS","PSL","BSF","SSH","HMXL",):
             subtitle="\n%s=%s" % (testname, str(testvalues[i]))
             
             # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-            expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_run%i_quant%i_res%s" % (num_classes,netname,max_epochs,ens,
+            expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_run%02i_quant%i_res%s" % (num_classes,netname,max_epochs,ens,
                                                                                       leads[-1],detrend,runid,quantile,regrid,)
             if use_softmax:
                 expname += "_softmax"
