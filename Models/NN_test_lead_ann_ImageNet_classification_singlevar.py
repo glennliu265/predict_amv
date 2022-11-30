@@ -35,20 +35,22 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "FNN4_128_SingleVar"
+expdir         = "fakedata_3reg"
 
 # Data preparation settings
-for varname in ("SST","SSS","PSL","BSF","SSH","HMXL",):
+for varname in ("SST",):
     #varname        = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
     thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
-    
+    usefakedata    = "fakedata_1Neg1Pos1Random_3box.nc"# Set to None, or name of fake dataset.
+
+
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-    runids         = np.arange(11,50,1) # Which runs to do
+    runids         = 0 #np.arange(11,50,1) # Which runs to do
     
     #numruns        = 10    # Number of times to train for each leadtime
     
@@ -607,20 +609,24 @@ for varname in ("SST","SSS","PSL","BSF","SSH","HMXL",):
     else:
         # Load data and target
         # ex. CESM1LE_SSH_NAtl_19200101_20051201_bilinear_detrend0_regridNone.nc
-        ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
+        if usefakedata is not None:
+            ds = xr.open_dataset("../../CESM_data/fakedata_1Neg1Pos1Random_3box.nc")
+        else:
+            ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
         ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
         data   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
         target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
         
         # Apply a landmask based on SST, set all NaN points to zero
-        msk = xr.open_dataset('../../CESM_data/CESM1LE_SST_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (detrend,regrid))
-        msk = msk.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
-        msk = msk["SST"].values
-        msk[~np.isnan(msk)] = 1
-        msk[np.isnan(msk)] = 0
-        # Limit to input to ensemble member and apply mask
-        data = data[:,0:ens,...] * msk[None,0:ens,...]
-        data[np.isnan(data)] = 0
+        if usefakedata is None:
+            msk = xr.open_dataset('../../CESM_data/CESM1LE_SST_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (detrend,regrid))
+            msk = msk.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+            msk = msk["SST"].values
+            msk[~np.isnan(msk)] = 1
+            msk[np.isnan(msk)] = 0
+            # Limit to input to ensemble member and apply mask
+            data = data[:,0:ens,...] * msk[None,0:ens,...]
+            data[np.isnan(data)] = 0
     
     # Limit target to ensemble member
     target     = target[0:ens,:]
