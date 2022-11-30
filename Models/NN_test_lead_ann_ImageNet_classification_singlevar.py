@@ -50,7 +50,7 @@ for varname in ("SST",):
 
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-    runids         = (0,11,1) #np.arange(11,50,1) # Which runs to do
+    runids         = np.arange(0,11,1) #np.arange(11,50,1) # Which runs to do
     
     #numruns        = 10    # Number of times to train for each leadtime
     
