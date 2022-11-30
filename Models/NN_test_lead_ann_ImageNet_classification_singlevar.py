@@ -50,7 +50,7 @@ for varname in ("SST",):
 
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-    runids         = 0 #np.arange(11,50,1) # Which runs to do
+    runids         = (0,) #np.arange(11,50,1) # Which runs to do
     
     #numruns        = 10    # Number of times to train for each leadtime
     
@@ -611,6 +611,7 @@ for varname in ("SST",):
         # ex. CESM1LE_SSH_NAtl_19200101_20051201_bilinear_detrend0_regridNone.nc
         if usefakedata is not None:
             ds = xr.open_dataset("../../CESM_data/fakedata_1Neg1Pos1Random_3box.nc")
+            varname='fakedata'
         else:
             ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
         ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
