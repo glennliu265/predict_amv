@@ -35,11 +35,11 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "fakedata_3reg"
+expdir         = "fakedata_3reg_softmax"
 
 # Data preparation settings
 for varname in ("SST",):
-    #varname        = "SST"               # Select which variable to use
+    #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = (0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
     thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
@@ -57,7 +57,7 @@ for varname in ("SST",):
     # Model training settings
     netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2')
     unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
-    use_softmax   = False                 # Set to true to end on softmax layer
+    use_softmax   = True                 # Set to true to end on softmax layer
     
     # Additional Hyperparameters (CNN)
     early_stop    = 3                    # Number of epochs where validation loss increases before stopping
