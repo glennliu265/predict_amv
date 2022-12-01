@@ -35,7 +35,7 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "fakedata_3reg_softmax_fixval"
+expdir         = "fakedata_3reg_fixval"
 
 # Data preparation settings
 for varname in ("SST",):
@@ -57,7 +57,7 @@ for varname in ("SST",):
     # Model training settings
     netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2')
     unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
-    use_softmax   = True                 # Set to true to end on softmax layer
+    use_softmax   = False                 # Set to true to end on softmax layer
     
     # Additional Hyperparameters (CNN)
     early_stop    = 3                    # Number of epochs where validation loss increases before stopping
