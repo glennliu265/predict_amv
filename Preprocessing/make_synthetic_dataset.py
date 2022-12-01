@@ -45,30 +45,52 @@ fake_bboxes=(
     [-75,-60,10,35]
     )
 
-for bb in range(len(fake_bboxes)):
+mask = np.abs(target) > np.std(target)
+
+# Set Positive/negative
+for bb in range(len(fake_bboxes)-1):
     
     # Get Indices
     bbin = fake_bboxes[bb]
     klats = np.where((lat> bbin[2]) & (lat<=bbin[3]))[0]
     klons = np.where((lon>bbin[0]) & (lon<=bbin[1]))[0]
     
+    # Get neutral timesteps
+    #mask = np.where(np.abs(target)<np.std(target),) # Get neutral Cases
+    
     
     # Set indices
     if bb == 0:
         
-        fill_val = target[...,None,None] 
+        fill_val = target[...,None,None]/np.abs(target[...,None,None])*5
     
     elif bb == 1:
-        fill_val = target[...,None,None] * -1
+        fill_val = target[...,None,None]/np.abs(target[...,None,None])*-5#target[...,None,None] * -1
         
     elif bb == 2:
+        
         fill_val = np.random.normal(0,1,(len(klats),len(klons))) 
+    
+    
+    # if bb < 2:
+    #     fakedata[:,:,:,:,:] = fakedata * mask[None,:,:,None,None] # Set neutral times to zero
+        
         
     fakedata[:,:,:,klats[:,None],klons] = fill_val
+    
+    
+# Set Neutral Values to zero
+fakedata = fakedata.reshape(1,nens*nyr,nlat,nlon)
+fakedata[:,mask.flatten(),:,:] = 0
+fakedata = fakedata.reshape(1,nens,nyr,nlat,nlon)
 
 
-iens = 39
-iyr  = 33
+# Set a random box
+
+
+#%% Test Viz
+iens = 31
+iyr  = 31
 
 fig,ax = plt.subplots(1,1)
 pcm=ax.pcolormesh(lon,lat,fakedata[0,iens,iyr,:,:],vmin=-.5,vmax=.5,cmap='RdBu_r')
@@ -77,7 +99,7 @@ ax.set_title("Ens=%02i, Yr=%02i, Target iAMV=%.2f" % (iens+1,iyr+1920,target[ien
 
 #%% Save the data
 
-fn = "%sfakedata_1Neg1Pos1Random_3box.nc" % (datpath)
+fn = "%sfakedata_1Neg1Pos1Random_3box_fixval.nc" % (datpath)
 
 dsfake = ds.copy()
 
@@ -86,10 +108,8 @@ dsfake = dsfake.drop("SST")
 dsfake.to_netcdf()
 
 
-dsfake.to_netcdf(savenetcdf,
+dsfake.to_netcdf(fn,
          encoding={'fakedata': {'zlib': True}})
-        
-
 
 #%% Train a network to make the prediction (Take from NN_test_lead.py)
 
