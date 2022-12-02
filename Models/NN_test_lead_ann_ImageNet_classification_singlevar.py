@@ -35,18 +35,18 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "FNN4_128_SPG"
+expdir         = "FNN4_128_STG"
 
 # Data preparation settings
 for varname in ("SST","SSS","SSH",):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
-    leads          = np.arange(0,26,1)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
+    leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
     thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = "fakedata_1Neg1Pos1Random_3box_fixval.nc"# Set to None, or name of fake dataset.
-    region         = "SPG"               # Set region of analysis (None for basinwide)
+    region         = "STG"               # Set region of analysis (None for basinwide)
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
