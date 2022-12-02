@@ -35,13 +35,13 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "fakedata_3reg_fixval"
+expdir         = "FNN4_128_otherleads"
 
 # Data preparation settings
-for varname in ("SST",):
+for varname in ("BSF",):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
-    leads          = (0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
+    leads          = [1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23]#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
     thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
@@ -50,7 +50,7 @@ for varname in ("SST",):
 
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-    runids         = np.arange(0,11,1) #np.arange(11,50,1) # Which runs to do
+    runids         = np.arange(0,51,1) #np.arange(11,50,1) # Which runs to do
     
     #numruns        = 10    # Number of times to train for each leadtime
     
@@ -904,7 +904,7 @@ for varname in ("SST",):
                     plt.savefig("../../CESM_data/%s/Figures/%s_%s_leadnum%s_AccbyEpoch.png"%(expdir,expname,varname,lead))
                     
                 print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
-            
+                
                 # Clear some memory
                 del model
                 del X_val
