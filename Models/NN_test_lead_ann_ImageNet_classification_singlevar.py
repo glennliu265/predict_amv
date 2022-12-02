@@ -35,19 +35,19 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "FNN4_128_otherleads"
+expdir         = "FNN4_128_SPG"
 
 # Data preparation settings
-for varname in ("BSF",):
+for varname in ("SST","SSS","SSH",):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
-    leads          = [1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23]#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
+    leads          = np.arange(0,26,1)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
     thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = "fakedata_1Neg1Pos1Random_3box_fixval.nc"# Set to None, or name of fake dataset.
-
-
+    region         = "SPG"               # Set region of analysis (None for basinwide)
+    
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
     runids         = np.arange(0,51,1) #np.arange(11,50,1) # Which runs to do
@@ -91,7 +91,6 @@ for varname in ("BSF",):
     # Data Preparation names
     num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
     season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
-    indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
     resolution     = '1deg'             # Resolution of dataset ('2deg','224pix')
     regrid         = None
     detrend        = False                # Set to true to use detrended data
@@ -601,7 +600,11 @@ for varname in ("BSF",):
         # Apply land mask
         dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
         data[dataori==0] = 0 # change all ocean points to zero
-        target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+        
+        if region is None:
+            target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+        else:
+            target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
         
         #data[dataori==0] = np.nan
         #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
@@ -616,7 +619,11 @@ for varname in ("BSF",):
             ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
         ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
         data   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
-        target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
+        
+        if region is None:
+            target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
+        else:
+            target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
         
         # Apply a landmask based on SST, set all NaN points to zero
         if usefakedata is None:
