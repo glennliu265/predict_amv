@@ -35,7 +35,7 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "FNN4_128_SPG"
+expdir         = "FNN4_128_TRO"
 
 # Data preparation settings
 for varname in ("SST","SSS","SSH",):
@@ -46,7 +46,7 @@ for varname in ("SST","SSS","SSH",):
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = None# Set to None, or name of fake dataset.
-    region         = "SPG"               # Set region of analysis (None for basinwide)
+    region         = "TRO"               # Set region of analysis (None for basinwide)
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
