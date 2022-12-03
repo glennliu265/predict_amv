@@ -45,7 +45,7 @@ for varname in ("SST","SSS","SSH",):
     thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
-    usefakedata    = "fakedata_1Neg1Pos1Random_3box_fixval.nc"# Set to None, or name of fake dataset.
+    usefakedata    = None# Set to None, or name of fake dataset.
     region         = "STG"               # Set region of analysis (None for basinwide)
     
     # Training/Testing Subsets
