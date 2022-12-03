@@ -35,7 +35,7 @@ import xarray as xr
 # -------------
 
 # Create Experiment Directory
-expdir         = "FNN4_128_STG"
+expdir         = "FNN4_128_SPG"
 
 # Data preparation settings
 for varname in ("SST","SSS","SSH",):
