@@ -58,7 +58,7 @@ for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
     #numruns        = 10    # Number of times to train for each leadtime
     
     # Model training settings
-    netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2')
+    netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
     unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
     use_softmax   = False                 # Set to true to end on softmax layer
     
