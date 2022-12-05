@@ -35,10 +35,10 @@ import xarray as xr
 # -------------
 
 #for region in ["TRO","STG","SPG"]:
-expdir         = "CNN2_singlevar"
+#expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-# expdir         = "FNN4_128_TRO"
+expdir         = "FNN4_128_STG"
 
 # Data preparation settings
 for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
@@ -49,7 +49,7 @@ for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = None# Set to None, or name of fake dataset.
-    region         = None#"TRO"               # Set region of analysis (None for basinwide)
+    region         = "STG"               # Set region of analysis (None for basinwide)
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
@@ -58,7 +58,7 @@ for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
     #numruns        = 10    # Number of times to train for each leadtime
     
     # Model training settings
-    netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
+    netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
     unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
     use_softmax   = False                 # Set to true to end on softmax layer
     
