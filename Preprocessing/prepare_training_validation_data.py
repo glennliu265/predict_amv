@@ -18,7 +18,7 @@ import numpy as np
 import xarray as xr
 import xesmf as xe
 
-detrend = False # Detrending is currently not applied
+detrend = True # Detrending is currently not applied
 regrid  = None # Set to desired resolution. Set None for no regridding.
 
 
@@ -51,6 +51,7 @@ psl_deseason *= landmask[:,:,None,None]
 # Detrend the data if option is set
 # --------------------------------
 if detrend:
+    print("Detrending data!")
     sst_deseason = sst_deseason - sst_deseason.mean('ensemble')
     sss_deseason = sss_deseason - sss_deseason.mean('ensemble')
     psl_deseason = psl_deseason - psl_deseason.mean('ensemble')

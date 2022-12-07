@@ -47,9 +47,9 @@ from tqdm import tqdm
 
 stall         = time.time()
 
-varname       = "HMXL"
+varname       = "SST"
 
-detrend       = False # Detrending is currently not applied
+detrend       = True # Detrending is currently not applied
 regrid        = None  # Set to desired resolution. Set None for no regridding.
 
 bbox          = [-90,20,0,90] # Crop Selection
@@ -199,7 +199,7 @@ Based on procedure in prepare_training_validation_data.py
     8. Output in array ['ensemble','year','lat','lon']
 """
 
-for varname in ("sst","sss","psl"):
+for varname in ("sst","sss","psl","HMXL","SSH","BSF",):
     # -------------------
     # Load in the dataset
     # -------------------
