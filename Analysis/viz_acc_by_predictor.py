@@ -231,9 +231,8 @@ for v in range(nvar):
     plt.savefig("%s%s_Acc_byclass.png"% (figpath,varnames[v]),dpi=200)
     
 #%% For a given predictor, visualize the distribution in accuracies
+
 # Leadtime x Variable Plots
-
-
 binedges = np.arange(0,1.05,0.05)
 v        = 0
 
@@ -266,7 +265,10 @@ for c in range(3):
     
     savename = "%sHistograms_By_Leadtime_Variable_Class%s.png" % (figpath,classes[c])
     plt.savefig(savename,dpi=150,bbox_inches='tight')
-        
+
+
+#%% In this section below, we make some comparisons of skill by experiment...
+
 #%% Sort by accuracies
 
 #%% Get (in order) 
