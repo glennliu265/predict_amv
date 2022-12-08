@@ -41,7 +41,7 @@ import xarray as xr
 expdir         = "FNN4_128_ALL"
 
 # Data preparation settings
-for varname in ("ALL"):
+for varname in ("ALL",):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
