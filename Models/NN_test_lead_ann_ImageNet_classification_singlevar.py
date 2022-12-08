@@ -38,10 +38,10 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-expdir         = "FNN4_128_detrend"
+expdir         = "FNN4_128_ALL_CNN2"
 
 # Data preparation settings
-for varname in ("PSL","BSF","HMXL","SST","SSH","SSS"):
+for varname in ("ALL"):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -51,7 +51,7 @@ for varname in ("PSL","BSF","HMXL","SST","SSH","SSS"):
     usefakedata    = None# Set to None, or name of fake dataset.
     region         = None               # Set region of analysis (None for basinwide)
     allpred        = ("SST","SSS","PSL","SSH")
-    detrend        = True                # Set to true to use detrended data
+    detrend        = False                # Set to true to use detrended data
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
@@ -60,7 +60,7 @@ for varname in ("PSL","BSF","HMXL","SST","SSH","SSS"):
     #numruns        = 10    # Number of times to train for each leadtime
     
     # Model training settings
-    netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
+    netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
     unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
     use_softmax   = False                 # Set to true to end on softmax layer
     
