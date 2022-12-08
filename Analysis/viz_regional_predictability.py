@@ -35,9 +35,9 @@ import time
 # Data and variable settings
 #expdir    = "FNN4_128_SingleVar"
 modelname  = "FNN4_128"
-varname    = "SSS" 
+varname    = "SST" 
 leads      = np.arange(0,27,3)
-
+nleads     = len(leads)
 
 datpath    = "../../CESM_data/"
 figpath    = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221209/"
@@ -367,7 +367,6 @@ plt.savefig(savename,dpi=150,bbox_inches='tight')
 
 #%%
 
-
 # -----------------------------------------------------------
 # Visualize mean relevance for top N samples of a given class
 # -----------------------------------------------------------
@@ -494,12 +493,140 @@ for l,lead in enumerate(leads):
 
             
         
-        
-        
+#%% For a given region, do composites by lead for positive and negative AMV
 
+
+topN             = 50 # Top 10 models
+normalize_sample = 1 # 0=None, 1=samplewise, 2=after composite
+absval           = False
+cmax             = .4
+region           = "NAT"
+clvl             = np.arange(-1,1.2,0.2)
+
+fig,axs = plt.subplots(2,9,figsize=(16,4),
+                       subplot_kw={'projection':proj},constrained_layout=True)
+
+for row,c in enumerate([0,2]):
+    for i in range(nleads):
         
+        l = nleads-1-i
+        
+        lead = leads[l]
+        print(l)
+        ax   = axs[row,i]
+        
+        # Get topN Models
+        acc_in = modelacc_all[region][l][:,c] # [model x class]
+        idtopN = am.get_topN(acc_in,topN,sort=True)
+        id_plot = np.array(idcorrect_all[region][l][c])[idtopN]
+        
+        plotrel = np.zeros((nlat,nlon)) # Relevances
+        plotvar = np.zeros((nlat,nlon)) # Variable Value
+        
+        # Get data
+        _,X_val,_,y_val = am.prep_traintest_classification(data,region_targets[0],lead,thresholds,percent_train,
+                                                                       ens=ens,tstep=tstep,quantile=quantile)
+            
+        for NN in range(topN):
+            relevances_sel = relevances_all[region][l][idtopN[NN],id_plot[NN],:,:,:].squeeze()
+            var_sel        = X_val[id_plot[NN],:,:,:].squeeze()
+            
+            if normalize_sample == 1:
+                relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...]
+            if absval:
+                relevances_sel = np.abs(relevances_sel)
+            plotrel += relevances_sel.mean(0)
+            plotvar += var_sel.mean(0)
+            
+        plotrel /= topN
+        plotvar /= topN
+        
+        if normalize_sample == 2:
+            plotrel = plotrel/np.max(np.abs(plotrel))
+        
+        cl = ax.contour(lon,lat,plotvar,levels=clvl,colors="k",linewidths=0.75)
+        pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r",alpha=0.8)
+        ax.clabel(cl,clvl[::2])
+        
+        # Set Labels
+        if row == 0:
+            ax.set_title("Lead %i Years" % (lead))
+        if i == 0:
+            ax.text(-0.05, 0.55, classes[c], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        ax.set_extent(bbox)
+        ax.coastlines()
+cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.01)
+
+cb.set_label("Normalized Relevance")
+plt.suptitle("Composite Relevance for predicting using %s, %s, \n Top %02i Models (%s)" % (varname,modelname,topN,ge_label))
+savename = "%sComposite_LRP_bylead_%s_top%02i_normalize%i_abs%i_%s.png" % (figpath,varname,topN,normalize_sample,absval,ge_label_fn)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+
+#%% Same as above, but in separate figures
+
+for i in range(nleads):
+    
+    l = nleads-1-i
+    
+    lead = leads[l]
+    
+    print(l)
+    
+    fig,axs = plt.subplots(2,1,figsize=(4,6),
+                           subplot_kw={'projection':proj},constrained_layout=True)
     
     
+    for row,c in enumerate([0,2]):
+        ax   = axs[row]
+        # Get topN Models
+        acc_in = modelacc_all[region][l][:,c] # [model x class]
+        idtopN = am.get_topN(acc_in,topN,sort=True)
+        id_plot = np.array(idcorrect_all[region][l][c])[idtopN]
+        
+        plotrel = np.zeros((nlat,nlon)) # Relevances
+        plotvar = np.zeros((nlat,nlon)) # Variable Value
+        
+        # Get data
+        _,X_val,_,y_val = am.prep_traintest_classification(data,region_targets[0],lead,thresholds,percent_train,
+                                                                       ens=ens,tstep=tstep,quantile=quantile)
+            
+        for NN in range(topN):
+            relevances_sel = relevances_all[region][l][idtopN[NN],id_plot[NN],:,:,:].squeeze()
+            var_sel        = X_val[id_plot[NN],:,:,:].squeeze()
+            
+            if normalize_sample == 1:
+                relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...]
+            if absval:
+                relevances_sel = np.abs(relevances_sel)
+            plotrel += relevances_sel.mean(0)
+            plotvar += var_sel.mean(0)
+            
+        plotrel /= topN
+        plotvar /= topN
+        
+        if normalize_sample == 2:
+            plotrel = plotrel/np.max(np.abs(plotrel))
+        
+        cl = ax.contour(lon,lat,plotvar,levels=clvl,colors="k",linewidths=0.75)
+        pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r",alpha=0.8)
+        ax.clabel(cl,clvl[::2])
+        
+        # Set Labels
+        if row == 0:
+            ax.set_title("Lead %i Years" % (lead))
+        ax.text(-0.05, 0.55, classes[c], va='bottom', ha='center',rotation='vertical',
+                rotation_mode='anchor',transform=ax.transAxes)
+        ax.set_extent(bbox)
+        ax.coastlines()
+    
+    cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.045,)
+
+    cb.set_label("Normalized Relevance")
+    plt.suptitle("Composite Relevance for predicting using %s, %s, \n Top %02i Models (%s)" % (varname,modelname,topN,ge_label))
+    savename = "%sComposite_LRP_%s_top%02i_normalize%i_abs%i_%s_lead%02i.png" % (figpath,varname,topN,normalize_sample,absval,ge_label_fn,lead)
+    plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
 #%%
