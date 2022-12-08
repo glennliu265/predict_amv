@@ -38,10 +38,10 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-expdir         = "FNN4_128_detrend"
+expdir         = "FNN4_128_ALL"
 
 # Data preparation settings
-for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
+for varname in ("ALL"):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -50,6 +50,7 @@ for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = None# Set to None, or name of fake dataset.
     region         = None               # Set region of analysis (None for basinwide)
+    allpred        = ("SST","SSS","PSL","SSH")
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
@@ -619,9 +620,23 @@ for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
             ds = xr.open_dataset("../../CESM_data/fakedata_1Neg1Pos1Random_3box.nc")
             varname='fakedata'
         else:
-            ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
-        ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
-        data   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
+            if varname == "ALL":
+                data = []
+                for v in range(len(allpred)):
+                    vname_in = allpred[v]
+                    ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
+                    ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+                    data_in   = ds[vname_in].values[None,...] # [channel x ens x yr x lat x lon]
+                    data.append(data_in)
+                data = np.array(data).squeeze()
+                allflag = True
+            else:
+                ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
+                allflag = False
+                
+        if allflag is False:
+            ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+            data   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
         
         if region is None:
             target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
@@ -652,9 +667,6 @@ for varname in ("SST","SSS","SSH","BSF","HMXL","PSL"):
     
     for nr,runid in enumerate(runids):
         rt = time.time()
-        
-        
-        
         
         for i in range(len(testvalues)):
             
