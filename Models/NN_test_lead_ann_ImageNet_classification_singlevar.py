@@ -623,8 +623,9 @@ for varname in ("ALL"):
             if varname == "ALL":
                 data = []
                 for v in range(len(allpred)):
+                    print("Loading input for %s" % allpred[v])
                     vname_in = allpred[v]
-                    ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
+                    ds     = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (vname_in,detrend,regrid))
                     ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
                     data_in   = ds[vname_in].values[None,...] # [channel x ens x yr x lat x lon]
                     data.append(data_in)
