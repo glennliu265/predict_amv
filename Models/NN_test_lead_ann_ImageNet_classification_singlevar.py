@@ -38,10 +38,10 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-expdir         = "FNN4_128_ALL"
+expdir         = "FNN4_128_detrend"
 
 # Data preparation settings
-for varname in ("ALL",):
+for varname in ("SST","SSS","PSL","SSH","BSF","HMXL"):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -51,6 +51,7 @@ for varname in ("ALL",):
     usefakedata    = None# Set to None, or name of fake dataset.
     region         = None               # Set region of analysis (None for basinwide)
     allpred        = ("SST","SSS","PSL","SSH")
+    detrend        = True                # Set to true to use detrended data
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
@@ -97,7 +98,6 @@ for varname in ("ALL",):
     season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
     resolution     = '1deg'             # Resolution of dataset ('2deg','224pix')
     regrid         = None
-    detrend        = False                # Set to true to use detrended data
     usenoise       = False                # Set to true to train the model with pure noise
     tstep          = 86                   # Size of time dimension (in years)
     ens            = 40                   # Ensemble members (climate model output) to use
