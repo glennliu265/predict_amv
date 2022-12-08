@@ -38,10 +38,10 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-expdir         = "FNN4_128_detrend"
+expdir         = "FNN4_128_SPG"
 
 # Data preparation settings
-for varname in ("SST","SSS","PSL","SSH","BSF","HMXL"):
+for varname in ("PSL","BSF","HMXL"):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -49,9 +49,9 @@ for varname in ("SST","SSS","PSL","SSH","BSF","HMXL"):
     quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = None# Set to None, or name of fake dataset.
-    region         = None               # Set region of analysis (None for basinwide)
+    region         = "SPG"               # Set region of analysis (None for basinwide)
     allpred        = ("SST","SSS","PSL","SSH")
-    detrend        = True                # Set to true to use detrended data
+    detrend        = False                # Set to true to use detrended data
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
