@@ -833,7 +833,8 @@ def make_classes(y,thresholds,exact_value=False,reverse=False,
         return y_class,thresholds
     return y_class
 
-def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
+def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5,
+                     use_softmax=False):
     """
     Build a Feed-foward neural network with N layers, each with corresponding
     number of units indicated in nunits and activations. 
@@ -848,6 +849,7 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
         activations: Tuple of pytorch.nn activations
         --optional--
         dropout: percentage of units to dropout before last layer
+        use_softmax : BOOL, True to end with softmax layer
         
     outputs:
         Tuple containing FNN layers
@@ -866,8 +868,13 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
             
         elif n == (nlayers):
             #print("Last Layer")
-            layers.append(nn.Dropout(p=dropout))
-            layers.append(nn.Linear(nunits[n-1],outsize))
+            if use_softmax:
+                layers.append(nn.Dropout(p=dropout))
+                layers.append(nn.Linear(nunits[n-1],outsize))
+                layers.append(nn.Softmax(dim=0))
+            else:
+                layers.append(nn.Dropout(p=dropout))
+                layers.append(nn.Linear(nunits[n-1],outsize))
             
         else:
             #print("Intermediate")
@@ -1010,4 +1017,289 @@ def get_topN(arr,N,bot=False,sort=False,absval=False):
         else:
             return ids[np.argsort(-arr[ids])] # Greatest to least
     return ids
+
+
+# %% ImageNet Scripts copied from NN_test_lead_classification_singlevar.py on 2022.12.05
+
+# def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False
+#                    ,nlat=224,nlon=224,nchannels=3):
+#     """
+#     Load pretrained weights and architectures based on [modelname]
+    
+#     Parameters
+#     ----------
+#     modelname : STR
+#         Name of model (currently supports 'simplecnn',or any resnet/efficientnet from timms)
+#     num_classes : INT
+#         Dimensions of output (ex. number of classes)
+#     cnndropout : BOOL, optional
+#         Include dropout layer in simplecnn. The default is False.
+#     unfreeze_all : BOOL, optional
+#         Set to True to unfreeze all weights in the model. Otherwise, just
+#         the last layer is unfrozen. The default is False.
+    
+#     Returns
+#     -------
+#     model : PyTorch Model
+#         Returns loaded Pytorch model
+#     """
+#     if 'resnet' in modelname: # Load ResNet
+#         model = timm.create_model(modelname,pretrained=True)
+#         if unfreeze_all is False: # Freeze all layers except the last
+#             for param in model.parameters():
+#                 param.requires_grad = False
+#         model.fc = nn.Linear(model.fc.in_features, num_classes) # Set last layer size
+        
+#     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
+#         # 2 layer CNN settings
+#         nchannels     = [32,64]
+#         filtersizes   = [[2,3],[3,3]]
+#         filterstrides = [[1,1],[1,1]]
+#         poolsizes     = [[2,3],[2,3]]
+#         poolstrides   = [[2,3],[2,3]]
+#         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+#         if cnndropout: # Include Dropout
+#             layers = [
+#                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+#                     nn.Tanh(),
+#                     #nn.ReLU(),
+#                     #nn.Sigmoid(),
+#                     nn.MaxPool2d(kernel_size=poolsizes[0]),
+    
+#                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+#                     nn.Tanh(),
+#                     #nn.ReLU(),
+#                     #nn.Sigmoid(),
+#                     nn.MaxPool2d(kernel_size=poolsizes[1]),
+    
+#                     nn.Flatten(),
+#                     nn.Linear(in_features=firstlineardim,out_features=64),
+#                     nn.Tanh(),
+#                     #nn.ReLU(),
+#                     #nn.Sigmoid(),
+    
+#                     nn.Dropout(p=0.5),
+#                     nn.Linear(in_features=64,out_features=num_classes)
+#                     ]
+#         else: # Do not include dropout
+#             layers = [
+#                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+#                     nn.Tanh(),
+#                     #nn.ReLU(),
+#                     #nn.Sigmoid(),
+#                     nn.MaxPool2d(kernel_size=poolsizes[0]),
+    
+#                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+#                     nn.Tanh(),
+#                     #nn.ReLU(),
+#                     #nn.Sigmoid(),
+#                     nn.MaxPool2d(kernel_size=poolsizes[1]),
+    
+#                     nn.Flatten(),
+#                     nn.Linear(in_features=firstlineardim,out_features=64),
+#                     nn.Tanh(),
+#                     #nn.ReLU(),
+#                     #nn.Sigmoid(),
+
+#                     nn.Linear(in_features=64,out_features=num_classes)
+#                     ]
+#         model = nn.Sequential(*layers) # Set up model
+#     else: # Load Efficientnet from Timmm
+#         model = timm.create_model(modelname,pretrained=True)
+#         if unfreeze_all is False: # Freeze all layers except the last
+#             for param in model.parameters():
+#                 param.requires_grad = False
+#         model.classifier=nn.Linear(model.classifier.in_features,num_classes)
+#     return model
+    
+
+def build_simplecnn(num_classes,cnndropout=False,unfreeze_all=False
+                    ,nlat=224,nlon=224,num_inchannels=3):
+    
+    # 2 layer CNN settings
+    nchannels     = [32,64]
+    filtersizes   = [[2,3],[3,3]]
+    filterstrides = [[1,1],[1,1]]
+    poolsizes     = [[2,3],[2,3]]
+    poolstrides   = [[2,3],[2,3]]
+    firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+    if cnndropout: # Include Dropout
+        layers = [
+                nn.Conv2d(in_channels=num_inchannels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+                nn.MaxPool2d(kernel_size=poolsizes[0]),
+
+                nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+                nn.MaxPool2d(kernel_size=poolsizes[1]),
+
+                nn.Flatten(),
+                nn.Linear(in_features=firstlineardim,out_features=64),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+
+                nn.Dropout(p=0.5),
+                nn.Linear(in_features=64,out_features=num_classes)
+                ]
+    else: # Do not include dropout
+        layers = [
+                nn.Conv2d(in_channels=num_inchannels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+                nn.MaxPool2d(kernel_size=poolsizes[0]),
+
+                nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+                nn.MaxPool2d(kernel_size=poolsizes[1]),
+
+                nn.Flatten(),
+                nn.Linear(in_features=firstlineardim,out_features=64),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+
+                nn.Linear(in_features=64,out_features=num_classes)
+                ]
+    model = nn.Sequential(*layers) # Set up model
+    return model
+
+def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchannels):
+    """
+    For a series of N convolutional layers, calculate the size of the first fully-connected
+    layer
+
+    Inputs:
+        nx:           x dimensions of input
+        ny:           y dimensions of input
+        filtersize:   [ARRAY,length N] sizes of the filter in each layer [(x1,y1),[x2,y2]]
+        poolsize:     [ARRAY,length N] sizes of the maxpooling kernel in each layer
+        nchannels:    [ARRAY,] number of out_channels in each layer
+    output:
+        flattensize:  flattened dimensions of layer for input into FC layer
+
+    """
+    N = len(filtersizes)
+    xsizes = [nx]
+    ysizes = [ny]
+    fcsizes  = []
+    for i in range(N):
+        xsizes.append(np.floor((xsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
+        ysizes.append(np.floor((ysizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
+
+        xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
+        ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
+
+        fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
+    return int(fcsizes[-1])
+
+#%% Convenience Functions
+
+def prep_traintest_classification(data,target,lead,thresholds,percent_train,
+                                  ens=None,tstep=None,
+                                  quantile=False,return_ic=False):
+    """
+    
+
+    Parameters
+    ----------
+    data : ARRAY [variable x ens x yr x lat x lon ]
+        Network Inputs
+    target : ARRAY [ens x yr]
+        Network Outputs
+    lead : INT
+        Leadtime (in years)
+    thresholds : List
+        List of stdev thresholds. See make_classes()
+    percent_train : FLOAT
+        Percentage of data to use for training. Rest for validation.
+    ens : INT, optional
+        # of Ens to include. The default is None (all of them).
+    tstep : INT, optional
+        # of Years to include. The default is None (all of them).
+    quantile : BOOL, optional
+        Use quantiles rather than stdev based thresholds. Default is False.
+    return_ic : BOOL, optional
+        Return the starting class. Quantile thresholds not supported
+
+    Returns
+    -------
+    None.
+
+    """
+    # Get dimensions
+    if ens is None:
+        ens = data.shape[1]
+    if tstep is None:
+        tstep = data.shape[2]
+    nchannels,_,_,nlat,nlon = data.shape
+    
+    # Apply Lead
+    y                            = target[:ens,lead:].reshape(ens*(tstep-lead),1)
+    X                            = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
+    nsamples,_,_,_ = X.shape
+    
+    # Make the labels
+    y_class = make_classes(y,thresholds,reverse=True,quantiles=quantile)
+    if quantile == True:
+        thresholds = y_class[1].T[0]
+        y_class    = y_class[0]
+    if (nsamples is None) or (quantile is True):
+        nthres = len(thresholds) + 1
+        threscount = np.zeros(nthres)
+        for t in range(nthres):
+            threscount[t] = len(np.where(y_class==t)[0])
+        nsamples = int(np.min(threscount))
+    y_val  = y.copy()
+    
+    # Compute class of initial state if option is set
+    if return_ic:
+        y_start    = target[:ens,:tstep-lead].reshape(ens*(tstep-lead),1)
+        y_class_ic = make_classes(y_start,thresholds,reverse=True,quantiles=quantile)
+        
+        y_train_ic = y_class_ic[0:int(np.floor(percent_train*nsamples)),:]
+        y_val_ic   = y_class_ic[int(np.floor(percent_train*nsamples)):,:]
+        
+    
+    # Test/Train Split
+    X_train = X[0:int(np.floor(percent_train*nsamples)),...]
+    X_val   = X[int(np.floor(percent_train*nsamples)):,...]
+    y_train = y_class[0:int(np.floor(percent_train*nsamples)),:]
+    y_val   = y_class[int(np.floor(percent_train*nsamples)):,:]
+        
+    if return_ic:
+        return X_train,X_val,y_train,y_val,y_train_ic,y_val_ic
+    return X_train,X_val,y_train,y_val
+
+
+def get_ensyr(id_val,lead,ens=40,tstep=86,percent_train=0.8,get_train=False):
+    # Get ensemble and year of reshaped valdation indices (or training if get_train=True)
+    # Assume target is of the order [ens  x time] (default is (40,86))
+    # Assumes default 80% used for training
+    id_ensyr = np.zeros((ens,tstep),dtype='object')
+    for e in range(ens):
+        for y in range(tstep):
+            id_ensyr[e,y] = (e,y)
+    reshape_id = id_ensyr[:ens,lead:].reshape(ens*(tstep-lead),1)
+    nsamples = reshape_id.shape[0]
+    if get_train:
+        val_id = reshape_id[0:int(np.floor(percent_train*nsamples)),:]
+    else:
+        val_id = reshape_id[int(np.floor(percent_train*nsamples)):,:]
+    return val_id[id_val]
+
+#def data_loader(varname=None,datpath=None):
+    
+
+
+
+## Added LRP Functions
+
         
