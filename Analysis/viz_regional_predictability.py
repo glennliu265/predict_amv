@@ -56,7 +56,7 @@ import amvmod as am
 
 
 # Load visualization module
-sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/viz")
+sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import viz
 
 # LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
@@ -118,6 +118,16 @@ if "nodropout" in modelname:
 # Plotting Settings
 classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
 proj      = ccrs.PlateCarree()
+
+# Dark mode settings
+darkmode  = True
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+else:
+    plt.style.use('default')
+    dfcol = "k"
+    
 #%% Convenience functions
 
 def get_prediction(factivations):
@@ -135,8 +145,6 @@ ds   = xr.open_dataset(datpath+"CESM1LE_%s_NAtl_19200101_20051201_bilinear_detre
 ds   = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
 data = ds[varname].values[None,...]
 target = np.load(datpath+ "CESM_label_amv_index_detrend%i_regrid%s.npy" % (detrend,regrid))
-
-
 
 region_targets = []
 region_targets.append(target)
@@ -219,9 +227,8 @@ for region in regions:
 
 #%% Obtain validation LRP Maps for each Region
 
-
-nmodels = 50 # Specify manually how much to do in the analysis
-st = time.time()
+nmodels          = 50 # Specify manually how much to do in the analysis
+st               = time.time()
 
 # Preallocate
 relevances_all   = {} # [region][lead][model x sample x inputsize ]
@@ -430,6 +437,7 @@ for topN in np.arange(5,55,5):
 
 #%% Visualize mean relevances for topN models, looping by leadtime
 
+
 c                = 0
 normalize_sample = 2# 0=None, 1=samplewise, 2=after composite
 
@@ -490,18 +498,178 @@ for l,lead in enumerate(leads):
     savename = "%sRegional_LRP_%s_%s_normalize%i_abs%i_%s_lead%02i.png" % (figpath,varname,classes[c],normalize_sample,absval,ge_label_fn,lead)
     plt.savefig(savename,dpi=150,bbox_inches="tight")
 
+#%% Visualize a set of leadtimes, for the AGU presentation
 
-            
+c                = 0  # Class
+topN             = 25 # Top 10 models
+normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
+absval           = False
+cmax             = 1
+# 
+
+pcount = 0
+
+fig,axs = plt.subplots(4,9,figsize=(16,6.5),
+                       subplot_kw={'projection':proj},constrained_layout=True)
+for r,region in enumerate(regions):
+    
+    for l,lead in enumerate(leads):
+        ax = axs[r,l]
         
+        # Get indices of the top 10 models
+        acc_in = modelacc_all[region][l][:,c] # [model x class]
+        idtopN = am.get_topN(acc_in,topN,sort=True)
+        
+        # Get the plotting variables
+        id_plot = np.array(idcorrect_all[region][l][c])[idtopN] # Indices to composite
+        
+        plotrel = np.zeros((nlat,nlon))
+        for NN in range(topN):
+            relevances_sel = relevances_all[region][l][idtopN[NN],id_plot[NN],:,:,:].squeeze()
+            
+            if normalize_sample == 1:
+                relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...]
+            
+            if absval:
+                relevances_sel = np.abs(relevances_sel)
+            plotrel += relevances_sel.mean(0)
+        plotrel /= topN
+            
+        if normalize_sample == 2:
+            plotrel = plotrel/np.max(np.abs(plotrel))
+        
+        plotrel[plotrel==0] = np.nan
+        pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r")
+        
+        # Plot bounding box
+        viz.plot_box(bboxes[r],ax=ax,linewidth=0.5)
+        
+        # Do Plotting Business and labeling
+        if r == 0:
+            ax.set_title("Lead %i" % (lead))
+        if l == 0:
+            ax.text(-0.05, 0.55, region, va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        ax.set_extent(bbox)
+        ax.coastlines()
+        
+cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.05)
+cb.set_label("Normalized Relevance")
+plt.suptitle("Mean LRP Maps for predicting %s using %s, %s, \n Top %02i Models (%s)" % (classes[c],varname,modelname,topN,ge_label))
+savename = "%sRegional_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_AGU%02i.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn,pcount)
+plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
+
+
+
+#%% Same as above but reduce the number of leadtimes
+
+leadsplot = [24,18,12,6,0]
+#cmax      = 0.5
+
+fig,axs = plt.subplots(4,5,figsize=(8,6.5),
+                       subplot_kw={'projection':proj},constrained_layout=True)
+for r,region in enumerate(regions):
+    
+    for i in range(len(leadsplot)):
+        
+        lead = leadsplot[i]
+        print(lead)
+        l    = list(leads).index(lead)
+        print(l)
+        
+        ### Leads are all wrong need to fix it
+        ax = axs[r,i]
+        
+        # Get indices of the top 10 models
+        acc_in = modelacc_all[region][l][:,c] # [model x class]
+        idtopN = am.get_topN(acc_in,topN,sort=True)
+        
+        # Get the plotting variables
+        id_plot = np.array(idcorrect_all[region][l][c])[idtopN] # Indices to composite
+        
+        plotrel = np.zeros((nlat,nlon))
+        for NN in range(topN):
+            relevances_sel = relevances_all[region][l][idtopN[NN],id_plot[NN],:,:,:].squeeze()
+            
+            if normalize_sample == 1:
+                relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...]
+            
+            if absval:
+                relevances_sel = np.abs(relevances_sel)
+            plotrel += relevances_sel.mean(0)
+        plotrel /= topN
+            
+        if normalize_sample == 2:
+            plotrel = plotrel/np.max(np.abs(plotrel))
+        
+        plotrel[plotrel==0] = np.nan
+        pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r")
+        
+        # Plot bounding box
+        if r !=0:
+            viz.plot_box(bboxes[r],ax=ax,color="yellow",
+                         linewidth=2.5)
+        
+        # Do Plotting Business and labeling
+        if r == 0:
+            ax.set_title("Lead %i" % (lead))
+        if i == 0:
+            ax.text(-0.05, 0.55, region, va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        ax.set_extent(bbox)
+        ax.coastlines()
+        
+cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.05)
+cb.set_label("Normalized Relevance")
+plt.suptitle("Mean LRP Maps for Predicting %s using %s, \n Composite of Top %02i FNNs per leadtime" % (classes[c],varname,topN,))
+savename = "%sRegional_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_AGU%02i_smaller.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn,pcount)
+plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
+
+#%% Plot COlorbar
+
+fig,axs = plt.subplots(4,5,figsize=(8,6.5),
+                       subplot_kw={'projection':proj},constrained_layout=True)
+
+for r,region in enumerate(regions):
+    
+    for i in range(len(leadsplot)):
+        
+        lead = leadsplot[i]
+        print(lead)
+        l    = list(leads).index(lead)
+        print(l)
+        
+        ### Leads are all wrong need to fix it
+        ax = axs[r,i]
+        for r,region in enumerate(regions):
+            
+            for i in range(len(leadsplot)):
+                
+                lead = leadsplot[i]
+                print(lead)
+                l    = list(leads).index(lead)
+                print(l)
+                
+                ### Leads are all wrong need to fix it
+                ax = axs[r,i]
+                
+                ax.set_extent(bbox)
+                
+
+fig.colorbar(pcm,ax=axs[0,-1])
+savename = "%sRegional_LRP_AGU_%s_Colorbar.png" % (figpath,varname,)
+plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
+
 #%% For a given region, do composites by lead for positive and negative AMV
 
 
 topN             = 50 # Top 10 models
-normalize_sample = 1 # 0=None, 1=samplewise, 2=after composite
+normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
-cmax             = .4
-region           = "NAT"
-clvl             = np.arange(-1,1.2,0.2)
+cmax             = 0.75
+region           = "TRO"
+r = regions.index(region)
+clvl             = np.arange(-2,2.4,0.4)
 
 fig,axs = plt.subplots(2,9,figsize=(16,4),
                        subplot_kw={'projection':proj},constrained_layout=True)
@@ -531,22 +699,28 @@ for row,c in enumerate([0,2]):
             relevances_sel = relevances_all[region][l][idtopN[NN],id_plot[NN],:,:,:].squeeze()
             var_sel        = X_val[id_plot[NN],:,:,:].squeeze()
             
+            if (relevances_sel.shape[0] == 0) or (var_sel.shape[0]==0):
+                continue
+            
             if normalize_sample == 1:
                 relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...]
             if absval:
                 relevances_sel = np.abs(relevances_sel)
             plotrel += relevances_sel.mean(0)
-            plotvar += var_sel.mean(0)
+            plotvar += np.nanmean(var_sel,0)
             
         plotrel /= topN
         plotvar /= topN
         
         if normalize_sample == 2:
-            plotrel = plotrel/np.max(np.abs(plotrel))
+            plotrel = plotrel/np.nanmax(np.abs(plotrel))
         
         cl = ax.contour(lon,lat,plotvar,levels=clvl,colors="k",linewidths=0.75)
         pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r",alpha=0.8)
         ax.clabel(cl,clvl[::2])
+        
+        # Plot Region
+        viz.plot_box(bboxes[r],ax=ax,linewidth=0.5)
         
         # Set Labels
         if row == 0:
@@ -560,7 +734,7 @@ cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.01)
 
 cb.set_label("Normalized Relevance")
 plt.suptitle("Composite Relevance for predicting using %s, %s, \n Top %02i Models (%s)" % (varname,modelname,topN,ge_label))
-savename = "%sComposite_LRP_bylead_%s_top%02i_normalize%i_abs%i_%s.png" % (figpath,varname,topN,normalize_sample,absval,ge_label_fn)
+savename = "%sComposite_LRP_%s_bylead_%s_top%02i_normalize%i_abs%i_%s.png" % (figpath,region,varname,topN,normalize_sample,absval,ge_label_fn)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
@@ -596,6 +770,9 @@ for i in range(nleads):
             relevances_sel = relevances_all[region][l][idtopN[NN],id_plot[NN],:,:,:].squeeze()
             var_sel        = X_val[id_plot[NN],:,:,:].squeeze()
             
+            if (relevances_sel.shape[0] == 0) or (var_sel.shape[0]==0):
+                continue
+            
             if normalize_sample == 1:
                 relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...]
             if absval:
@@ -613,6 +790,9 @@ for i in range(nleads):
         pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r",alpha=0.8)
         ax.clabel(cl,clvl[::2])
         
+        # Plot Region
+        viz.plot_box(bboxes[r],ax=ax,linewidth=0.5)
+        
         # Set Labels
         if row == 0:
             ax.set_title("Lead %i Years" % (lead))
@@ -625,7 +805,7 @@ for i in range(nleads):
 
     cb.set_label("Normalized Relevance")
     plt.suptitle("Composite Relevance for predicting using %s, %s, \n Top %02i Models (%s)" % (varname,modelname,topN,ge_label))
-    savename = "%sComposite_LRP_%s_top%02i_normalize%i_abs%i_%s_lead%02i.png" % (figpath,varname,topN,normalize_sample,absval,ge_label_fn,lead)
+    savename = "%sComposite_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_lead%02i.png" % (figpath,region,varname,topN,normalize_sample,absval,ge_label_fn,lead)
     plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
