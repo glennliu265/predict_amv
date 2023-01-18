@@ -28,6 +28,8 @@ import cartopy.crs as ccrs
 from tqdm import tqdm
 import time
 
+
+
 #%% # User Edits
 
 # Indicate settings (Network Name)
@@ -35,12 +37,12 @@ import time
 # Data and variable settings
 #expdir    = "FNN4_128_SingleVar"
 modelname  = "FNN4_128"
-varname    = "SST" 
+varname    = "SSH" 
 leads      = np.arange(0,27,3)
 nleads     = len(leads)
 
-datpath    = "../../CESM_data/"
-figpath    = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221209/"
+#datpath    = "../../CESM_data/"
+#figpath    = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221209/"
 #datpath + expdir + "/Figures/"
 
 # lrp methods
@@ -55,9 +57,10 @@ import LRPutils as utils
 import amvmod as am
 
 
+
 # Load visualization module
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
-import viz
+import viz,proc
 
 # LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
 gamma          = 0.1
@@ -80,17 +83,17 @@ bbox           = [-80,0,0,65]
 thresholds     = [-1,1]
 outsize        = len(thresholds) + 1
 
-# Region Settings
-regions = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")
-rcolors = ("k","b",'r',"orange")
-bbox_SP     = [-60,-15,40,65]
-bbox_ST     = [-80,-10,20,40]
-bbox_TR     = [-75,-15,10,20]
-bbox_NA     = [-80,0 ,0,65]
-bbox_NA_new = [-80,0,10,65]
-bbox_ST_w   = [-80,-40,20,40]
-bbox_ST_e   = [-40,-10,20,40]
-bboxes      = (bbox_NA,bbox_SP,bbox_ST,bbox_TR,) # Bounding Boxes
+# # Region Settings
+# regions     = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")
+# rcolors     = ("k","b",'r',"orange")
+# bbox_SP     = [-60,-15,40,65]
+# bbox_ST     = [-80,-10,20,40]
+# bbox_TR     = [-75,-15,10,20]
+# bbox_NA     = [-80,0 ,0,65]
+# bbox_NA_new = [-80,0,10,65]
+# bbox_ST_w   = [-80,-40,20,40]
+# bbox_ST_e   = [-40,-10,20,40]
+# bboxes      = (bbox_NA,bbox_SP,bbox_ST,bbox_TR,) # Bounding Boxes
 
 if modelname == "FNN2":
     nlayers     = 2
@@ -116,11 +119,11 @@ if "nodropout" in modelname:
     
     
 # Plotting Settings
-classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
-proj      = ccrs.PlateCarree()
+#classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
+#proj      = ccrs.PlateCarree()
 
 # Dark mode settings
-darkmode  = True
+darkmode  = False
 if darkmode:
     plt.style.use('dark_background')
     dfcol = "w"
@@ -134,17 +137,44 @@ def get_prediction(factivations):
     # factivations  [model x sample x class]
     return np.argmax(factivations,2)
 
+#%% Load parameters to workspace
+
+import predict_amv_params as pparams
+
+regions = pparams.regions
+bboxes  = pparams.bboxes
+classes = pparams.classes
+proj    = pparams.proj
+
+rcolors = pparams.rcolors
+
+datpath = pparams.datpath
+figpath = pparams.figpath
+proc.makedir(figpath)
+
+
+
     
 # ----------------------
 #%% Load Data and Labels
 # ----------------------
 st = time.time()
 
+
+
+
 # Load in input and labels 
 ds   = xr.open_dataset(datpath+"CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc" % (varname,detrend,regrid) )
 ds   = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
 data = ds[varname].values[None,...]
 target = np.load(datpath+ "CESM_label_amv_index_detrend%i_regrid%s.npy" % (detrend,regrid))
+
+
+# Load in SST just for reference
+ds   = xr.open_dataset(datpath+"CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc" % ("SST",detrend,regrid) )
+ds   = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+datasst = ds["SST"].values[None,...]
+
 
 region_targets = []
 region_targets.append(target)
@@ -169,9 +199,6 @@ inputsize               = nchannels*nlat*nlon # Compute inputsize to remake FNN
 
 
 # Get indices based on training size
-
-
-
 
 # Load Lat/Lon
 lat = ds.lat.values
@@ -383,7 +410,7 @@ topN             = 50 # Top 10 models
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
 cmax             = 1
-# 
+
 for topN in np.arange(5,55,5):
     fig,axs = plt.subplots(4,9,figsize=(16,6.5),
                            subplot_kw={'projection':proj},constrained_layout=True)
@@ -436,8 +463,6 @@ for topN in np.arange(5,55,5):
 
 
 #%% Visualize mean relevances for topN models, looping by leadtime
-
-
 c                = 0
 normalize_sample = 2# 0=None, 1=samplewise, 2=after composite
 
@@ -809,13 +834,507 @@ for i in range(nleads):
     plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
-#%%
+
+# ===========================
+#%% Try Clustering the Output
+# Based on: https://www.linkedin.com/pulse/identify-north-atlantic-winter-weather-regimes-k-means-chonghua-yin
+# ===========================
+
+from sklearn.cluster import KMeans
+
+nclusts         = 6
+norm_samplewise = False
 
 
-for r,region in enumerate(regions):
+rname           = "NAT"
+il              = -1
+iclass          = 0
+rtest = relevances_all[rname][il]
+
+# Restrict to particular class and samples
+# Reassemble
+
+for nm in range(nmodels):
     
-    for l,lead in enumerate(leads):
+    ids_model = idcorrect_all[rname][il][iclass][nm]
+    relevances_nm = rtest[nm,ids_model,:,:,:].squeeze()
+    if nm == 0:
+        rtest_use = relevances_nm
+    else:
+        rtest_use = np.concatenate([rtest_use,relevances_nm],axis=0)
+
+# [region][lead][class][model][ids]
 
 
+if iclass is None:
+    nmod,nsamples,_,_,_ = rtest.shape
+    rtest = rtest.squeeze().reshape(nmod*nsamples,nlat*nlon)
+else:
+    nsamples,_,_ = rtest_use.shape
+    nmod = 1
+    rtest = rtest_use.reshape(nsamples,nlat*nlon)
+    
+
+if norm_samplewise:
+    normconst = (np.max(np.abs(rtest),0))
+    normconst[np.isnan(normconst)] = 1 # Set NaNs to 1
+    normconst[normconst == 0] = 1 # Set zeros to 1
+    rtest = rtest / normconst
+
+st = time.time()
+mk       = KMeans(n_clusters=nclusts, random_state=0,).fit(rtest)
+ccenters = mk.cluster_centers_.reshape(nclusts,nlat,nlon)
+clabels  = mk.labels_#.reshape(nmod*nsamples)
+print("Completed clustering in %.2fs" % (time.time()-st))
+
+# Reshape (sample x lat x lon)
+rtest = rtest.reshape(nmod*nsamples,nlat,nlon)
+
+
+#%% Plot Cluster Centers
+
+fig,axs = plt.subplots(2,3,constrained_layout=True,figsize=(8,4),
+                       subplot_kw={'projection':ccrs.PlateCarree()})
+
+for n in range(nclusts):
+    ax = axs.flatten()[n]
+    
+    # if norm_samplewise:
+    #     pcm = ax.pcolormesh(lon,lat,ccenters[n,:,:],vmin=0,vmax=0.25,cmap="inferno")
+    # else:
+    #     pcm = ax.pcolormesh(lon,lat,ccenters[n,:,:],cmap="inferno")
+        
+    pcm = ax.pcolormesh(lon,lat,ccenters[n,:,:],cmap="inferno")
+    
+    ax.coastlines()
+    fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.025)
+    ax.set_title("Cluster %i" % (n+1))
+    
+plt.suptitle("Cluster Centers (%s, %s, Lead %02i)" % (classes[iclass],rname,leads[il]))
+
+savename = "%sCluster_result_%s_nclusts%i_region%s_lead%02i_cluster_means_normsmp%i.png" % (figpath,classes[iclass],nclusts,rname,leads[il],norm_samplewise)
+plt.savefig(savename,dpi=150)
+
+#%% Plot within cluster stdev
+
+fig,axs = plt.subplots(2,3,constrained_layout=True,figsize=(8,4),
+                       subplot_kw={'projection':ccrs.PlateCarree()})
+
+for n in range(nclusts):
+    ax = axs.flatten()[n]
+    
+    id_clust = np.where(clabels == n)[0]
+    clustrel = rtest[id_clust,:,:].std(0)
+    
+    pcm = ax.pcolormesh(lon,lat,clustrel,cmap="inferno")
+    ax.coastlines()
+    fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.025)
+    ax.set_title("Cluster %i" % (n+1))
+    
+plt.suptitle("Cluster Stdev (%s, %s, Lead %02i)" % (classes[iclass],rname,leads[il]))
+savename = "%sCluster_result_%s_nclusts%i_region%s_lead%02i_cluster_std_normsmp%i.png" % (figpath,classes[iclass],nclusts,rname,leads[il],norm_samplewise)
+plt.savefig(savename,dpi=150)
+
+
+#%% Plot samples from each cluster
+
+
+
+clustsizes = []
+
+for ic in range(6):
+    
+    id_clust = np.where(clabels == ic)[0]
+    clustsizes.append(len(id_clust))
+    
+    fig,axs = plt.subplots(5,5,constrained_layout=True,figsize=(8,10),
+                           subplot_kw={'projection':ccrs.PlateCarree()})
+    
+    for a in range(5*5):
+        
+        # Set up plot
+        ax = axs.flatten()[a]
+        ax.coastlines()
+        ax.set_extent(bbox)
+        ax.set_title("Sample = %i" % (id_clust[a]))
+        
+        # Plot 1 Sample
+        pcm = ax.pcolormesh(lon,lat,rtest[id_clust[a],:,:],cmap="inferno")
+        fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.025)
+        
+    plt.suptitle("Cluster %i, nsamples=%i (%s, %s, Lead %02i)" % (ic+1,clustsizes[ic],classes[iclass],rname,leads[il])
+)    
+    savename = "%sCluster_result_%s_nclusts%i_region%s_lead%02i_cluster%02i_normsmp%i..png" % (figpath,classes[iclass],nclusts,rname,leads[il],ic+1,norm_samplewise)
+    plt.savefig(savename,dpi=150)
+    
+
+# ======================
+#%% Event Based Analysis
+# ======================
+
+#%% Compute the "Accuracy" of each AMV event
+
+rname = "NAT"
+
+# Compute accuracy for each leadtime
+amvacc_bylead = []
+for il in range(nleads):
+    
+    # Get Label, Activation, Prediction
+    labels_in = labels_all[rname][il] # [Sample x 1]
+    actin     = factivations_all[rname][il]
+    pred_in   = np.argmax(actin,2)
+    
+    # Get accuracy for the events
+    correct = labels_in.T == pred_in
+    leadacc = correct.sum(0)/len(correct)
+    
+    # Get the accuracy for that leadtime
+    amvacc_bylead.append(leadacc)
+    
+    
+
+# Average Accuracy for a given event
+all_labels_acc = np.zeros((ens,tstep,nleads)) # Mean accuracy for each lead (of 50 models)
+all_labels_cnt = np.zeros((ens,tstep))        # Count of leads for each label
+all_labels_val = np.zeros((ens,tstep,))       # Class of label Last dimension should be redundant
+all_labels_cls = np.zeros((ens,tstep,nleads))
+all_labels_pre = np.zeros((ens,tstep,nleads,nmodels)) # Predictions for each model
+all_labels_rel = np.zeros((ens,tstep,nleads,nmodels,nlat,nlon)) # Corresponding relevance Map
+
+all_labels_slab = np.zeros((ens,tstep),dtype="object")
+
+for il in range(nleads):
+    
+    # Get lead and label value
+    leadaccs  = amvacc_bylead[il]
+    labels_in = labels_all[rname][il]
+    
+    nsamples  = len(leadaccs)
+    leadinds  = am.get_ensyr(np.arange(0,nsamples),leads[il])
+    
+    # Get predictions
+    actin     = factivations_all[rname][il]
+    pred_in   = np.argmax(actin,2)
+    
+    # Get relevances
+    rel_in    = relevances_all[rname][il].squeeze()
+    
+    
+    for n in tqdm(range(nsamples)):
+        e,y = leadinds.squeeze()[n]
+        if il == 0:
+            start_iens = e
+            start_iyr = y
+        all_labels_acc[e,y,il] = leadaccs[n]
+        all_labels_cnt[e,y] += 1
+        all_labels_cls[e,y,il] = labels_in[n] 
+        all_labels_val[e,y] = target[e,y]
+        all_labels_slab[e,y] = (e,y)
+        all_labels_pre[e,y,il,:] = pred_in[:,n]
+        all_labels_rel[e,y,il,:,:,:] = rel_in[:,n,:,:]
+        
+all_labels_acc_avg = all_labels_acc.sum(2)/all_labels_cnt
+
+
+# Get rid of zero points
+for e in range(ens):
+    for y in range(tstep):
+        if all_labels_cnt[e,y] == 0:
+            all_labels_acc[e,y,il] = np.nan
+
+#%% Scatterplot selected leads (leadtime vs. AMV Index value)
+
+plotabs = True
+
+fig,ax = plt.subplots(1,1,figsize=(8,8))
+
+plotx = all_labels_val[start_iens:,:]
+xlab  = "AMV Index Value"
+if plotabs:
+    plotx = np.abs(plotx)
+    xlab  = "|AMV Index Value|"
+
+ax.scatter(plotx,
+           all_labels_acc_avg[start_iens:,:],
+           c=all_labels_cls[start_iens:,:,0],
+           alpha=0.7,marker="o")
+ax.set_xlabel(xlab)
+ax.set_ylabel("Average Accuracy (All Leads)")
+ax.grid(True,ls='dotted')
+
+for n in range(len(plotx.flatten())):
+    txt = str((all_labels_slab[start_iens:,:].flatten()[n]))
+    ax.annotate(txt,
+                (plotx.flatten()[n],all_labels_acc_avg[start_iens:,:].flatten()[n]),
+                fontsize=8)
+
+
+
+plt.savefig("%sAMVIdx_vs_TestAcc_LeadAvg_%s_plotabs%i.png" % (figpath,rname,plotabs),dpi=150)
+#%% Make Scatterplot by Leadtime
+
+fig,axs = plt.subplots(1,nleads,figsize=(16,4),constrained_layout=True)
+
+for il in range(nleads):
+    ax = axs[il]
+    
+    plotx = all_labels_val[start_iens:,:]
+    xlab  = "AMV Index Value"
+    if plotabs:
+        plotx = np.abs(plotx)
+        xlab  = "|AMV Index Value|"
+    
+    ax.scatter(plotx,
+               all_labels_acc[start_iens:,:,il],
+               c=all_labels_cls[start_iens:,:,0],
+               alpha=0.7,marker="o",s=4)
+    if il == 0:
+        ax.set_xlabel("AMV Index Value")
+        ax.set_ylabel("Average Accuracy (All Leads)")
+    ax.grid(True,ls='dotted')
+    ax.set_aspect('equal', adjustable='box')
+    ax.set_title("Lead %02i" % leads[il])
+    
+    
+    # for n in range(len(plotx.flatten())):
+    #     txt = str((all_labels_slab[start_iens:,:].flatten()[n]))
+    #     ax.annotate(txt,
+    #                 (plotx.flatten()[n],all_labels_acc_avg[start_iens:,:].flatten()[n]),
+    #                 fontsize=8)
+    
+plt.savefig("%sAMVIdx_vs_TestAcc_ByLead_%s_plotabs%i.png" % (figpath,rname,plotabs),dpi=150)
+#%% Select and plot event (spatial volution of the predictor)
+
+e = 39
+y = 46
+
+
+plotsst = False
+
+
+cints = np.arange(-10,11,1)
+
+
+fig,axs = plt.subplots(1,nleads,subplot_kw={'projection':proj},figsize=(27,6),
+                       constrained_layout=True)
+
+for il in range(nleads):
+    
+    # Index Backwards from 24, 21, ..., 0
+    kl   = nleads-il-1
+    lead = leads[kl] 
+    print("Lead index for interation %i is %i, l=%02i" % (il,kl,leads[kl]))
+    
+    ax = axs.flatten()[il]
+    ax.coastlines()
+    ax.set_extent(bbox)
+    ax.set_title("Lead %02i" % (leads[kl]))
+    
+    if plotsst:
+        plotdata = datasst[0,e,y-lead,:,:]
+    else:
+        plotdata = data[0,e,y-lead,:,:]
+    cf       = ax.contourf(lon,lat,plotdata,cmap="RdBu_r",levels=cints)
+    cl       = ax.contour(lon,lat,plotdata,colors="k",linewidths=0.5,levels=cints)
+    ax.clabel(cl)
+    
+    fig.colorbar(cf,ax=ax,orientation='horizontal',fraction=0.026)
+    if il == 0:
+        if plotsst:
+            ylab = "SST"
+        else:
+            ylab = varname
+        ax.text(-0.05, 0.55, "%s, ens%02i" % (ylab,e+1), va='bottom', ha='center',rotation='vertical',
+                rotation_mode='anchor',transform=ax.transAxes)
+        
+savename = "%s%s_Plot_%s_Prediction_e%02i_y%02i_plotsst%i.png" % (figpath,varname,rname,e,y,plotsst)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+
+#%% Plot the timeseries for this period
+yrs   = np.arange(0,tstep) + 1920
+yrtks = yrs[::4] 
+
+restrict_range=False # Restrict to prediction period (w/ 2 year buffer)
+
+plot_idx    = target[e,:]
+plot_idx_lp = proc.lp_butter(plot_idx,10,5) 
+
+fig,ax = plt.subplots(1,1,figsize=(16,4))
+
+ax.plot(yrs,plot_idx,color="gray",label="NASST")
+ax.plot(yrs,plot_idx_lp,color="k",label="AMV Index")
+
+
+ax.plot(yrs[(y-leads[-1]):(y+1)][::3],
+        target[e,(y-leads[-1]):(y+1)][::3],
+        color='magenta',marker="d",linestyle="",label="Prediction Leads for Target y=%04i" % (yrs[y]))
+
+
+ax.axhline([0],ls='dashed',color="k",lw=0.75)
+ax.axhline([0.3625],ls='dashed',color="gray",lw=0.75)
+ax.axhline([-0.3625],ls='dashed',color="gray",lw=0.75)
+
+ax.grid(True,ls='dotted')
+if restrict_range:
+    ax.set_xlim([yrs[y-leads[-1]-2],yrs[y+2]])
+    ax.set_xticks(np.arange(yrs[y-leads[-1]-2],yrs[y+2]))
+else:
+    ax.set_xlim([yrs[0],yrs[-1]])
+    ax.set_xticks(yrtks)
+    
+ax.set_title("AMV Index for Ens%02i" % (e+1))
+ax.legend()
+
+savename = "%sAMVIndex_Plot_%s_Prediction_e%02i_y%02i_plotsst%i_restrict%i.png" % (figpath,rname,e,y,plotsst,restrict_range)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+
+#%% Copying from the above code, make a plot for each model
+
+
+
+for n in tqdm(range(nmodels)):
+    
+    fig,axs = plt.subplots(1,nleads,subplot_kw={'projection':proj},figsize=(27,6),
+                           constrained_layout=True)
+    
+    for il in range(nleads):
+        
+        # Index Backwards from 24, 21, ..., 0
+        kl   = nleads-il-1
+        lead = leads[kl] 
+        print("Lead index for interation %i is %i, l=%02i" % (il,kl,leads[kl]))
+        
+        # Get predictions for the given model
+        predlag   = all_labels_pre[e,y,kl,n]
+        chk       = (predlag == all_labels_cls[e,y,kl])
+        
+        # Compute Plotting variables and normalize relevance
+        plotdata  = data[0,e,y-lead,:,:]
+        plotrel   = all_labels_rel[e,y,kl,n,:,:]
+        normfactor = np.nanmax(np.abs(plotrel.flatten()))
+        plotrel   = plotrel / normfactor
+        
+        
+        ax = axs.flatten()[il]
+        ax.coastlines()
+        ax.set_extent(bbox)
+        ax.set_title("l=%02i, Pred: %s (%s)\n normfac=%.02e" % (leads[kl],classes[int(predlag)],
+                                                                chk,normfactor))
+        
+        
+        pcm      = ax.pcolormesh(lon,lat,plotrel,cmap="RdBu_r",vmin=-1,vmax=1)
+        #pcm      = ax.pcolormesh(lon,lat,plotrel,cmap="RdBu_r")
+        cl       = ax.contour(lon,lat,plotdata,colors="k",linewidths=0.5,levels=cints)
+        
+        
+        ax.clabel(cl)
+        fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.026)
+        if il == 0:
+            if plotsst:
+                ylab = "SST"
+            else:
+                ylab = varname
+            ax.text(-0.05, 0.55, "%s, run%02i" % ("Relevance",n+1), va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        
+        
+    savename = "%s%s_Plot_%s_Prediction_e%02i_y%02i_Relevances_model%02i.png" % (figpath,varname,rname,e,y,n)
+    plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+
+
+#%% Compute mean and stdev of a particular prediction (intermodel)
+
+
+
+intermodel_std = np.zeros((nleads,nlat,nlon)) * np.nan
+intermodel_avg = intermodel_std.copy()
+intermodel_acc = np.zeros((nleads)) * np.nan
+intermodel_cnt = intermodel_acc.copy()
+
+
+for moment in range(2):
+    fig,axs = plt.subplots(1,nleads,subplot_kw={'projection':proj},figsize=(27,6),
+                           constrained_layout=True)
+    
+    for il in range(nleads):
+        
+        # Index Backwards from 24, 21, ..., 0
+        kl   = nleads-il-1
+        lead = leads[kl] 
+        print("Lead index for interation %i is %i, l=%02i" % (il,kl,leads[kl]))
+        
+        
+        # Get indices of CORRECT predictions
+        predlag   = all_labels_pre[e,y,kl,:]
+        targlag   = all_labels_cls[e,y,il]
+        correctid = np.where(predlag == int(targlag))[0]
+        acclag    = len(correctid)/nmodels
+        intermodel_acc[il] = acclag
+        intermodel_cnt[il] = len(correctid)
+        
+        # Compute Plotting variables and normalize relevance
+        plotdata  = data[0,e,y-lead,:,:]
+        plotrel   = all_labels_rel[e,y,kl,correctid,:,:]
+        
+        
+        # Compute Mean/Stdev (between N iterations of correct models)
+        if moment == 0:
+            mode = "Mean"
+            plotrel                = np.mean(plotrel,0)
+            intermodel_avg[il,:,:] = plotrel.copy()
+            plotrng                = [-1,1]
+            cmap                   = 'RdBu_r'
+        elif moment == 1:
+            mode = "Std. Dev."
+            plotrel = np.std(plotrel,0)
+            intermodel_std[il,:,:] = plotrel.copy()
+            plotrng                = [0,1]
+            cmap                   = "Greens"
+        
+        # Normalize for plotting
+        #if moment == 0:
+        normfactor = np.nanmax(np.abs(plotrel.flatten()))
+        plotrel   = plotrel / normfactor
+        # else:
+        #     normfactor = "NA"
+        
+        # Start Plotting
+        ax = axs.flatten()[il]
+        ax.coastlines()
+        ax.set_extent(bbox)
+        ax.set_title("l=%02i, Acc=%.02f" % (leads[kl],acclag))
+        
+        # Contour and Pcolor
+        pcm      = ax.pcolormesh(lon,lat,plotrel,cmap=cmap,vmin=plotrng[0],vmax=plotrng[1])
+        cl       = ax.contour(lon,lat,plotdata,colors="k",linewidths=0.5,levels=cints)
+        ax.clabel(cl)
+        fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.026)
+        
+        # More Labeling
+        if il == 0:
+            
+            if plotsst:
+                ylab = "SST"
+            else:
+                ylab = varname
+            ax.text(-0.05, 0.55, "%s, %s" % ("Relevance",mode,), va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        
+        
+    savename = "%s%s_Plot_%s_Prediction_e%02i_y%02i_Relevances_%s.png" % (figpath,varname,rname,e,y,mode)
+    plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+#%% Save the mean and stdev
+savename = "%sEvent_based_intermodel_relevance_composites_e%02i_y%02i.npz" % (figpath,e,y)
+np.savez(savename,**{
+    'intermodel_avg':intermodel_avg,
+    'intermodel_std':intermodel_std,
+    'intermodel_acc':intermodel_acc,},allow_pickle=True)
+# Testing the Load
+#ld = np.load(savename,allow_pickle=True)
 
 #%%
