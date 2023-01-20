@@ -8,13 +8,15 @@ Created on Mon Jan 16 13:32:37 2023
 @author: gliu
 """
 
+import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
+
 
 #%% Project paths
 
 datpath = "../../CESM_data/"
-figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230117/"
+figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230120/"
 
 
 
@@ -43,16 +45,39 @@ threscolors   = ("r","gray","cornflowerblue")
 # Variables (all, new since 2022.12.09)
 varnames      = ("SST","SSS","PSL","BSF","SSH","HMXL")
 varnamesplot  = ("SST","SSS","SLP","BSF","SSH","MLD")
+varnames_long = ("Temperature","Salinity","Pressure","Surface Height",
+                 "Barotropic Streamfunction","Mixed-Layer Depth")
+vunits        = ("$\degree$C","psu","mb","cm","Sv","cm")
 varcolors     = ("r","violet","yellow","darkblue","dodgerblue","cyan")
 varmarker     = ("o","d","x","v","^","*")
 
 # Class Names and colors
-classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
 
+classes    = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
 
 
 # Plotting
-proj = ccrs.PlateCarree()
+proj     = ccrs.PlateCarree()
+bbox     = [-80,0,0,65]
+plotbbox = [-80,0,0,62]
+
+
+
+# ML Training Parameters
+detrend       = 0
+leads         = np.arange(0,27,3)
+regrid        = None
+tstep         = 86
+ens           = 40
+thresholds    = [-1,1] 
+quantile      = False
+percent_train = 0.8
+
+
+
+#%%
+
+
 
 # # Darkmode Settings
 # darkmode  = True
@@ -71,9 +96,6 @@ proj = ccrs.PlateCarree()
 # allpred        = ("SST","SSS","PSL","SSH")
 
 # #%%
-
-
-
 # #%% Simple CNN
 # modelname = "simplecnn"
 
