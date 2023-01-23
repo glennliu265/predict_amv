@@ -30,10 +30,7 @@ import scipy
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import sys
-
-
 #from scipy.io import loadmat
-
 #%%
 
 # Variables I downloaded from NCAR
@@ -41,7 +38,6 @@ import sys
 
 # Variables downloaded by Young-Oh
 # /vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/ % varname
-
 
 #%% User Edits
 
@@ -80,7 +76,7 @@ ens           = 40 # Number of ensemble members to include
 
 # UO Calculation Options
 
-
+save_netcdf=True
 debug=False
 
 #%% Set up coordinates
@@ -115,24 +111,19 @@ for ii in range(2):
     
 #%%
 
-
-def select_depth(ds_in,zlimit,zname="z_t"):
-    # zbounds  = ds_in[zname]
-    # zmax     = np.argmax(zbounds > zlimit)+1
-    # idz      = np.argmax(dztop > mldpt)+1 
-    # zbounds  = zbounds.where(zbounds < zlimit,other=zlimit)
-    # dz       = np.abs(zbounds-np.roll(zbounds,-1))
-    # dz       
-    return
+# def select_depth(ds_in,zlimit,zname="z_t"):
+#     # zbounds  = ds_in[zname]
+#     # zmax     = np.argmax(zbounds > zlimit)+1
+#     # idz      = np.argmax(dztop > mldpt)+1 
+#     # zbounds  = zbounds.where(zbounds < zlimit,other=zlimit)
+#     # dz       = np.abs(zbounds-np.roll(zbounds,-1))
+#     # dz       
+#     return
     
 
 # Preallocate
-
-
-
-
-
-for e in range(ens): # Looping for each ensemble member
+##### for e in range(ens): # Looping for each ensemble member NOTE I HAVE CHANGED THIS, switch it back later
+for e in np.arange(1,ens+1):
     st_e = time.time()
     
     # Open DataArray
@@ -148,8 +139,7 @@ for e in range(ens): # Looping for each ensemble member
     ds_mld = ds_mld[mldname].sel(time=slice(tstart,tend)).load()
     ds_var = ds_var[varname].sel(time=slice(tstart,tend)).load()
     times  = ds_mld.time.values
-    print("Data loaded in %.2fs for Ens. %02i" % (time.time()-stld,e))
-
+    print("Data loaded in %.2fs for Ens. %02i" % (time.time()-stld,e+1))
     
     # Preallocate for ensemble member
     ntime     = len(ds_mld.time)
@@ -195,13 +185,26 @@ for e in range(ens): # Looping for each ensemble member
         # End Lon Loop
     
     # Save information for variable (integrated variable)
-    savename_var = "%s%s_%s_%s_ens%02i.nc" % (outpath,outname,scenario,bboxfn,e+1)
-    proc.numpy_to_da(intgr_var,times,lat,lon,outname,savenetcdf=True)
-    
-    # Save Integrated depth
-    savename_var = "%s%s_%s_%s_ens%02i.nc" % (outpath,outname+"_dz",scenario,bboxfn,e+1)
-    proc.numpy_to_da(mld_depth,times,lat,lon,outname+"_dz",savenetcdf=True)
-    
+    if save_netcdf:
+        # Save variable
+        savename_var = "%s%s_%s_%s_ens%02i.nc" % (outpath,outname,scenario,bboxfn,e+1)
+        da = proc.numpy_to_da(intgr_var,times,lat,lon,outname) # NOTE: funky error when saving within function having to do with zlib on stormtrack....
+        da.to_netcdf(savename_var,
+                 encoding={outname: {'zlib': True}})
+        
+        # Save Integrated depth
+        savename_var = "%s%s_%s_%s_ens%02i.nc" % (outpath,outname+"_dz",scenario,bboxfn,e+1)
+        da = proc.numpy_to_da(mld_depth,times,lat,lon,outname+"_dz")
+        da.to_netcdf(savename_var,
+                 encoding={outname+"_dz": {'zlib': True}})
+    else:
+        # Save variable # (units degC*h)
+        savename_var = "%s%s_%s_%s_ens%02i.npy" % (outpath,outname,scenario,bboxfn,e+1)
+        np.save(savename_var,intgr_var,)
+        
+        # Save Integrated depth 
+        savename_var = "%s%s_%s_%s_ens%02i.npy" % (outpath,outname+"_dz",scenario,bboxfn,e+1)
+        np.save(savename_var,mld_depth,)
     
     print("Completed calculations for Ens %02i in %.2fs" % (e+1,time.time()-st_e))
     # For each timestep, add up to the surface
