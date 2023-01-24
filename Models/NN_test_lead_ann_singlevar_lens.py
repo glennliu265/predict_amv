@@ -38,7 +38,7 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-expdir             = "FNN4_128_ALL_CESM_Train"
+expdir             = "FNN4_128_ALL_CESM1_Train"
 datdir             = "../../CESM_data/LENS_other/processed"
 # Data preparation settings
 
@@ -599,8 +599,6 @@ for fn in ("Metrics","Models","Figures"):
 # -------------
 # Load the data
 # -------------
-
-
 if varname == "ALL":
     print("WARNING, varname == ALL currently not supported")
     # data = []
@@ -616,7 +614,13 @@ if varname == "ALL":
     # allflag = True
     
 else:
-    fname = "%s%s_lens_%s_NAtl_%s_%ito%i_detrend%i_regrid%ideg" % (datdir,datasetname,varname,ystart,yend,detrend,regrid)
+    fname = "%s/%s_%s_NAtl_%ito%i_detrend%i_regrid%sdeg.nc" % (datdir,
+                                                                   datasetname,
+                                                                   varname,
+                                                                   ystart,
+                                                                   yend,
+                                                                   detrend,
+                                                                   regrid)
     ds     = xr.open_dataset(fname)
     allflag = False
         
@@ -625,8 +629,8 @@ if allflag is False:
     data   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
     
 if region is None:
-    targname = "%s%s_lens_nasst_label_%ito%i_detrend%i_regrid%ideg" % (datdir,datasetname,ystart,yend,detrend,regrid)
-    target = np.load(targname)
+    targname = "%s/%s_nasst_label_%ito%i_detrend%i_regrid%sdeg.npy" % (datdir,datasetname,ystart,yend,detrend,regrid)
+    target = np.load(targname,allow_pickle=True)
 else:
     print("WARNING, region currently not supported")
     #target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
