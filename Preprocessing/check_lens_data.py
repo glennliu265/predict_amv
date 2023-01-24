@@ -89,7 +89,7 @@ for d in range(ndata):
                                                                          dataset_names[d],
                                                                          dataset_starts[d],
                                                                          detrend,regrid)
-    np.save(savename,dsidx.values)
+    np.save(savename,dsidx.sst.values)
     print("Saved Target to %s"%savename)
     
 #%% Visualize the ens-avg timeseries for each large ensemble
