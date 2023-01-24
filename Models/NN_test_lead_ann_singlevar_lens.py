@@ -627,6 +627,7 @@ else:
 if allflag is False:
     ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
     data   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
+    data[np.isnan(data)] = 0
     
 if region is None:
     targname = "%s/%s_nasst_label_%ito%i_detrend%i_regrid%sdeg.npy" % (datdir,datasetname,ystart,yend,detrend,regrid)
