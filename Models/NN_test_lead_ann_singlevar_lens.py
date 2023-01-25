@@ -31,7 +31,7 @@ import timm
 import xarray as xr
 
 #%% Import some parameters (add more here eventually)
-
+sys.path.append("../")
 import predict_amv_params as pparams
 
 dataset_names = pparams.dataset_names
