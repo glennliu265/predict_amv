@@ -29,6 +29,7 @@ import os
 import copy
 import timm
 import xarray as xr
+import sys
 
 #%% Import some parameters (add more here eventually)
 sys.path.append("../")
