@@ -62,7 +62,7 @@ for d,datasetname in enumerate(dataset_names):
     bbox           = [-80,0,0,65]               # Bounding box of predictor
     leads          = np.arange(0,27,3)#(0,)     # np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
     thresholds     = [-1,1]#[1/3,2/3]           # Thresholds (standard deviations, or quantile values) 
-    quantile       = False                      # Set to True to use quantiles
+    quantile       = True                      # Set to True to use quantiles
     ens            = 30                   # Ensemble members (climate model output) to use
     
     usefakedata    = None                       # Set to None, or name of fake dataset.
@@ -71,7 +71,7 @@ for d,datasetname in enumerate(dataset_names):
     detrend        = False                      # Set to true to use detrended data
     
     # Training/Testing Subsets
-    nsamples       = 150                        # Number of samples for each class. Set to None to use all
+    nsamples       = 300                        # Number of samples for each class. Set to None to use all
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
     runids         = np.arange(0,50,1) #np.arange(11,50,1) # Which runs to do
     #numruns       = 10    # Number of times to train for each leadtime
