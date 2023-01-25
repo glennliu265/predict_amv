@@ -50,8 +50,9 @@ yend               = 2005
 datdir             = "../../CESM_data/LENS_other/processed"
 
 # # Create Experiment Directory
-for d,datasetname in enumerate(dataset_names):
+for d in range(len(dataset_names)):
     
+    datasetname    = dataset_names[d]
     expdir         = "LENS_30_1950/FNN4_128_ALL_%s_Train" % datasetname
     ystart         = ystarts[d]
     
@@ -61,7 +62,7 @@ for d,datasetname in enumerate(dataset_names):
     
     bbox           = [-80,0,0,65]               # Bounding box of predictor
     leads          = np.arange(0,27,3)#(0,)     # np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
-    thresholds     = [1/3,2/3]           # Thresholds (standard deviations, or quantile values) 
+    thresholds     = [1/3,2/3]           #[-1,1]# Thresholds (standard deviations, or quantile values) 
     quantile       = True                      # Set to True to use quantiles
     ens            = 30                   # Ensemble members (climate model output) to use
     
@@ -652,7 +653,6 @@ for d,datasetname in enumerate(dataset_names):
         print("WARNING, region currently not supported")
         #target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
     
-    
     # Apply a landmask based on SST, set all NaN points to zero
     ### CURRENTLY NOT Supported
     # if usefakedata is None:
@@ -665,14 +665,14 @@ for d,datasetname in enumerate(dataset_names):
     #     data = data[:,0:ens,...] * msk[None,0:ens,...]
     #     data[np.isnan(data)] = 0
     
-    # Limit target to ensemble member
+    # Limit target to ensemble member and time
     target     = target[0:ens,:]
+    if limit_time is not None:
+        yrvalues = np.arange(ystart,ystart+target.shape[1])
+        istart   = np.argwhere(yrvalues==ystart)[0][0]
+        iend     = np.argwhere(yrvalues==yend)[0][0]
+        target = target[:,istart:iend+1]
     
-    #testvalues = [1e-3,1e-2,1e-1,1,2]
-    #testname = "LR"
-    
-    #testvalues = [False]
-    #testname   = "cnndropout" # Note need to manually locate variable and edit
     testvalues=[True]
     testname='unfreeze_all'
     
