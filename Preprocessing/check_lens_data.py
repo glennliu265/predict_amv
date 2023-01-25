@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import sys
 
 import cartopy.crs as ccrs
-
+from mpl_toolkits.axes_grid.inset_locator import inset_axes
 #%% User Edits
 
 # I/O, dataset, paths
@@ -50,6 +50,10 @@ import predict_amv_params as pparams
 # Import paths
 figpath         = pparams.figpath
 proc.makedir(figpath)
+
+# Import class information
+classes         = pparams.classes
+class_colors    = pparams.class_colors
 
 
 
@@ -156,13 +160,26 @@ for d in range(ndata):
 
 #%% Visualize the distribution of + and - AMV events
 
-fig,axs =  plt.subplots(ndata,1,figsize=(4,12),constrained_layout=True,
-                        sharex=True,sharey=False)
+# Some visualization toggles
+makepie = False # If false, include a barplot instead
+addtxt  = True # If true, include count in each class
 
+if makepie:
+    fig,axs =  plt.subplots(ndata,2,figsize=(8,12),constrained_layout=True,
+                            sharex=True,sharey=False)
+else:
+    
+    fig,axs =  plt.subplots(ndata,1,figsize=(8,12),constrained_layout=True,
+                            sharex=True,sharey=False)
+    
 binedges = np.arange(-1.5,1.6,.1)
 for d in range(ndata):
     
-    ax = axs[d]
+    # Make the Bar Plot
+    if makepie:
+        ax = axs[d,0]
+    else:
+        ax = axs[d]
     plotdata = amvids[d].sst.values.flatten()
     mu    = np.mean(plotdata)
     stdev = np.std(plotdata)
@@ -174,27 +191,52 @@ for d in range(ndata):
     ax.axvline([mu-stdev],ls="dashed",lw=0.7,color="k")
     
 
-    cntpos = np.sum(plotdata > mu+stdev)
-    cntneg = np.sum(plotdata < mu-stdev)
-    cntneu = np.sum( (plotdata < mu+stdev) * (plotdata > mu-stdev) )
+    cntpos       = np.sum(plotdata > mu+stdev)
+    cntneg       = np.sum(plotdata < mu-stdev)
+    cntneu       = np.sum( (plotdata < mu+stdev) * (plotdata > mu-stdev) )
+    class_counts = [cntpos,cntneu,cntneg]
     
-    pcts   = np.array([cntneg,cntneu,cntpos])/len(plotdata)
+    
     title = "%s (N=%i) \n $\mu=%.2e$, $\sigma=%.2f$" % (dataset_long[d],
                                                         dataset_enssize[d],
                                                         mu,
                                                         stdev)
     
-    ax.text(0.05,.7,"AMV-\n %i \n%.2f" % (cntneg,pcts[0]),transform=ax.transAxes,
-            bbox=dict(facecolor='w', alpha=0.2))
-    ax.text(0.40,.7,"Neutral\n %i \n%.2f" % (cntneu,pcts[1]),transform=ax.transAxes,
-            bbox=dict(facecolor='w', alpha=0.2))
-    ax.text(0.75,.7,"AMV+\n %i \n%.2f" % (cntpos,pcts[2]),transform=ax.transAxes,
-            bbox=dict(facecolor='w', alpha=0.2))
-    
+    # Text Labels (too messy, but works for single panel..)
+    if addtxt:
+        ax.text(0.05,.7,"AMV-\n%i" % (cntneg),transform=ax.transAxes,
+                bbox=dict(facecolor='w', alpha=0.2))
+        ax.text(0.45,.7,"Neutral\n%i" % (cntneu),transform=ax.transAxes,
+                bbox=dict(facecolor='w', alpha=0.2))
+        ax.text(0.75,.7,"AMV+\n%i" % (cntpos),transform=ax.transAxes,
+                bbox=dict(facecolor='w', alpha=0.2))
+        
+    # pcts   = np.array([cntneg,cntneu,cntpos])/len(plotdata)
+    # ax.text(0.05,.7,"AMV-\n %i \n%.2f" % (cntneg,pcts[0]),transform=ax.transAxes,
+    #         bbox=dict(facecolor='w', alpha=0.2))
+    # ax.text(0.40,.7,"Neutral\n %i \n%.2f" % (cntneu,pcts[1]),transform=ax.transAxes,
+    #         bbox=dict(facecolor='w', alpha=0.2))
+    # ax.text(0.75,.7,"AMV+\n %i \n%.2f" % (cntpos,pcts[2]),transform=ax.transAxes,
+    #         bbox=dict(facecolor='w', alpha=0.2))
     ax.set_title(title)
     ax.grid(True,ls="dotted")
     
-savename = "%sNASST_%s_Histogram_Lens.png" % (figpath,bbox_fn)
+    
+    # Make pie plot
+    if makepie:
+        ax =axs[d,1]
+        labels = ["%s\n %.2f" % (classes[i],class_counts[i]/len(plotdata)*100)+"%" for i in range(3)]
+        ax.pie(class_counts,colors=class_colors,
+                labels=labels,labeldistance=1)
+savename = "%sNASST_%s_Histogram_Lens_makepie%i.png" % (figpath,bbox_fn,makepie)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+#%%
+
+fig,ax = plt.subplots(1,1)
+labels = ["%s\n(%.2f)" % (classes[i],class_counts[i]/len(plotdata)*100)+"%" for i in range(3)]
+ax.pie(class_counts,colors=class_colors,
+       labels=labels,labeldistance=0.4)
+
 
 #%% Compute Power Spectra, AMV, Etc

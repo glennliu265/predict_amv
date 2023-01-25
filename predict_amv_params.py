@@ -16,7 +16,8 @@ import cartopy.crs as ccrs
 #%% Project paths
 
 datpath = "../../CESM_data/"
-figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230120/"
+figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230127/"
+
 
 
 
@@ -53,8 +54,8 @@ varmarker     = ("o","d","x","v","^","*")
 
 # Class Names and colors
 
-classes    = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
-
+classes       = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
+class_colors  = ("salmon","gray","cornflowerblue")
 
 # Plotting
 proj     = ccrs.PlateCarree()
@@ -73,12 +74,7 @@ thresholds    = [-1,1]
 quantile      = False
 percent_train = 0.8
 
-
-
 #%%
-
-
-
 # # Darkmode Settings
 # darkmode  = True
 # if darkmode:
