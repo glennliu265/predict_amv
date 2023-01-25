@@ -455,10 +455,10 @@ plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 #%% Plot Covariance for individual ensemble members
 
-vmn  = 0.2
-step = 0.05
+vmn  = 0.5
+step = 0.1
 
-for e in rannge(ens):
+for e in range(ens):
         fig,axs = plt.subplots(1,nleads,subplot_kw={'projection':proj},figsize=(27,6),
                                constrained_layout=True)
         
@@ -474,7 +474,7 @@ for e in rannge(ens):
             ax.set_extent(bbox)
             ax.set_title("Lead %02i" % (leads[kl]))
             
-            plotdata = cov_bylag[kl,:,:,:].mean(0)
+            plotdata = cov_bylag[kl,e,:,:]
             cf       = ax.pcolormesh(lon,lat,plotdata,cmap="RdBu_r",vmax=vmn,vmin=-vmn)
             cl       = ax.contour(lon,lat,plotdata,colors="k",linewidths=0.5,levels=np.arange(-vmn,vmn+step,step))
             ax.clabel(cl)

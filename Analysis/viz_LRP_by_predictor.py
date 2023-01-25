@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-
 ----------------------------------
 Visualize LRP Results by Predictor
 ----------------------------------
@@ -37,10 +36,10 @@ import time
 expdir     = "CNN2_singlevar"
 modelname  = "simplecnn"
 
-datpath   = "../../CESM_data/"
-figpath   = datpath + expdir + "/Figures/"
-varname   = "HMXL" 
-lead      = 24
+datpath    = "../../CESM_data/"
+figpath    = datpath + expdir + "/Figures/"
+varname    = "SST" 
+lead       = 24
 
 # lrp methods
 sys.path.append("/Users/gliu/Downloads/02_Research/03_Code/github/Pytorch-LRP-master/")
@@ -55,15 +54,14 @@ import LRPutils as utils
 import amvmod as am
         
         
-lrpmethod    = 1 # Set LRP method
-gamma        = 0.1
-epsilon      = 0.1
-innexp       = 2
-innmethod    ='b-rule'
-innbeta      = 0.1
+lrpmethod     = 1 # Set LRP method
+gamma         = 0.1
+epsilon       = 0.1
+innexp        = 2
+innmethod     ='b-rule'
+innbeta       = 0.1
 
 leads         = np.arange(0,27,3)
-
 
 #%% Loop by variable and leadtime
 for varname in ("HMXL","BSF","SSH","SST","SSS","PSL"):
@@ -103,11 +101,10 @@ for varname in ("HMXL","BSF","SSH","SST","SSS","PSL"):
             nunits      = [128,128,128,128]
             activations = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
             dropout     = 0.5
-            
         elif modelname == "simplecnn":
-            cnndropout  = True
-            num_classes = 3
-            
+            cnndropout     = True
+            num_classes    = 3 # 3 AMV States
+            num_inchannels = 1 # Single Predictor
         if "nodropout" in modelname:
             dropout = 0
             
@@ -140,32 +137,38 @@ for varname in ("HMXL","BSF","SSH","SST","SSS","PSL"):
         print(lon.shape),print(lat.shape)
         
         # Restrict to select lead time and train.test
-        y                            = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-        X                            = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
-        nsamples,_,_,_ = X.shape
-        x_in                         = X.reshape(nsamples,nchannels*nlat*nlon) # Flatten for processing
-        inputsize                    = nchannels*nlat*nlon
+        # Functionalized version below, Erase block once I confirm that it works...
+        X_train,X_val,y_train,y_val = am.prep_traintest_classification(data,target,lead,thresholds,percent_train,
+                                                                       ens=ens,tstep=tstep,quantile=quantile)
         
-        # Make the labels
-        y_class = am.make_classes(y,thresholds,reverse=True,quantiles=quantile)
-        if quantile == True:
-            thresholds = y_class[1].T[0]
-            y_class   = y_class[0]
-        if (nsamples is None) or (quantile is True):
-            nthres = len(thresholds) + 1
-            threscount = np.zeros(nthres)
-            for t in range(nthres):
-                threscount[t] = len(np.where(y_class==t)[0])
-            nsamples = int(np.min(threscount))
-        y_targ = y_class.copy()
-        y_val  = y.copy()
+        # >> Start functionalized section
+        # y                            = target[:ens,lead:].reshape(ens*(tstep-lead),1)
+        # X                            = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
+        # nsamples,_,_,_ = X.shape
+        # x_in                         = X.reshape(nsamples,nchannels*nlat*nlon) # Flatten for processing
+        # inputsize                    = nchannels*nlat*nlon
         
-        # Test/Train Split
-        X_train = X[0:int(np.floor(percent_train*nsamples)),...]
-        X_val   = X[int(np.floor(percent_train*nsamples)):,...]
-        y_train = y_class[0:int(np.floor(percent_train*nsamples)),:]
-        y_val   = y_class[int(np.floor(percent_train*nsamples)):,:]
-        print("Preproc data in %.2fs"%(time.time()-st))
+        # # Make the labels
+        # y_class = am.make_classes(y,thresholds,reverse=True,quantiles=quantile)
+        # if quantile == True:
+        #     thresholds = y_class[1].T[0]
+        #     y_class   = y_class[0]
+        # if (nsamples is None) or (quantile is True):
+        #     nthres = len(thresholds) + 1
+        #     threscount = np.zeros(nthres)
+        #     for t in range(nthres):
+        #         threscount[t] = len(np.where(y_class==t)[0])
+        #     nsamples = int(np.min(threscount))
+        # y_targ = y_class.copy()
+        # y_val  = y.copy()
+        
+        # # Test/Train Split
+        # X_train = X[0:int(np.floor(percent_train*nsamples)),...]
+        # X_val   = X[int(np.floor(percent_train*nsamples)):,...]
+        # y_train = y_class[0:int(np.floor(percent_train*nsamples)),:]
+        # y_val   = y_class[int(np.floor(percent_train*nsamples)):,:]
+        # print("Preproc data in %.2fs"%(time.time()-st))
+        # << End functionalized section
         
         # Make land/ice mask
         xsum = np.sum(np.abs(X_val),(0,1))

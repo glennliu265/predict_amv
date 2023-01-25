@@ -45,7 +45,7 @@ fake_bboxes=(
     [-75,-60,10,35]
     )
 
-mask = np.abs(target) > np.std(target)
+mask = np.abs(target) < np.std(target)
 
 # Set Positive/negative
 for bb in range(len(fake_bboxes)-1):
@@ -67,9 +67,8 @@ for bb in range(len(fake_bboxes)-1):
     elif bb == 1:
         fill_val = target[...,None,None]/np.abs(target[...,None,None])*-5#target[...,None,None] * -1
         
-    elif bb == 2:
         
-        fill_val = np.random.normal(0,1,(len(klats),len(klons))) 
+        
     
     
     # if bb < 2:
@@ -86,11 +85,16 @@ fakedata = fakedata.reshape(1,nens,nyr,nlat,nlon)
 
 
 # Set a random box
-
+bb = 2
+bbin = fake_bboxes[bb]
+klats = np.where((lat> bbin[2]) & (lat<=bbin[3]))[0]
+klons = np.where((lon>bbin[0]) & (lon<=bbin[1]))[0]
+fill_val = np.random.normal(0,1,(len(klats),len(klons))) 
+fakedata[:,:,:,klats[:,None],klons] = fill_val
 
 #%% Test Viz
-iens = 31
-iyr  = 31
+iens = 2
+iyr  = 80
 
 fig,ax = plt.subplots(1,1)
 pcm=ax.pcolormesh(lon,lat,fakedata[0,iens,iyr,:,:],vmin=-.5,vmax=.5,cmap='RdBu_r')

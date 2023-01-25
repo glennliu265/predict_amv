@@ -720,8 +720,6 @@ for v in range(nvar):
         if c == 2:
             ax.set_xlabel("Prediction Lead Time (Years)",fontsize=fsz)
         
-        
-        
     savename = "%sClassAcc_CNNvFNN_%s_conf%03i.png" % (figpath,varnames[v],plotconf*100)
     print(savename)
     plt.savefig(savename,dpi=200,bbox_inches='tight',transparent=True)

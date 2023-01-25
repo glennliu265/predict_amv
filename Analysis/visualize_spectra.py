@@ -8,7 +8,6 @@ Created on Fri Oct 14 11:13:05 2022
 @author: gliu
 """
 
-
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import numpy as np

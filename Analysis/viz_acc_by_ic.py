@@ -197,7 +197,6 @@ for lead in leads:
 
 #%% Use LRP to compute the relevance
 
-
 nmodels = 50 # Specify manually how much to do in the analysis
 st = time.time()
 
@@ -306,7 +305,6 @@ print("\nComputed relevances in %.2fs" % (time.time()-st))
 #%% Using Activations (predictions), Labels, and Indices, try to recalculate accuracies
 # based on the initial state
 
-
 acc_by_ic       = np.zeros((nleads,nmodels,3))
 classcount_ic   = np.zeros((nleads,3))
 
@@ -390,14 +388,11 @@ plt.savefig(savename,transparent=True,dpi=150)
 
 # Write Script to visualize relevances (using relevances and variables_ic)
 
-
-nv = 0
+nv   = 3
 clvl = np.arange(-3,3.25,.25)
 
 fig,axs = plt.subplots(3,9,constrained_layout=True,figsize=(16,5),
                        subplot_kw={'projection':ccrs.PlateCarree()})
-
-
 
 for c in range(3):
     for l in range(nleads):
@@ -418,8 +413,13 @@ for c in range(3):
         
         if c == 0:
             ax.set_title(leads[l])
+            
+        if l == 0:
+            lbl = "%s" % (classes[c])
+            ax.text(-0.05, 0.55, lbl, va='bottom', ha='center',rotation='vertical',
+                rotation_mode='anchor',transform=ax.transAxes)
         
 plt.suptitle("Relevances and %s by Initial Class" % (varnames[nv]))
 
-
-
+savename = "%sRelevances_and_%s_byIC_%s.png" % (figpath,varnames[nv],modelname)
+plt.savefig(savename,dpi=150,bbox_tight='inches')

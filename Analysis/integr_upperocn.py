@@ -21,7 +21,6 @@ Created on Fri Jan 20 14:08:53 2023
 @author: gliu
 """
 
-
 import time
 import numpy as np
 import xarray as xr
@@ -30,6 +29,7 @@ import scipy
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import sys
+
 #from scipy.io import loadmat
 #%%
 
@@ -47,17 +47,20 @@ from amv import proc
 
 # Data Information
 scenario       = "20TR" 
-varname        = "TEMP"
+varname        = "SALT"
 mldname        = "HMXL"
-datpath_var    = "/stormtrack/data4/share/deep_learning/data_yuchiaol/cesm_le/"
+if varname == "TEMP":
+    datpath_var    = "/stormtrack/data4/share/deep_learning/data_yuchiaol/cesm_le/"
+else:
+    datpath_var    = "/stormtrack/data3/glliu/01_Data/02_AMV_Project/00_Commons/CESM1_LE/"
 datpath_mld    = "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/"
 
 # Output Information
-outname        = "UOHC"
+outname        = "UOSC"
 outpath        = "/stormtrack/data3/glliu/01_Data/02_AMV_Project/02_stochmod/%s/" % outname
 proc.makedir(outpath)
 
-# Set Bounding Box/Lat/Lon Infor,ation
+# Set Bounding Box/Lat/Lon Info
 bbox          = [-80,0,0,65] # Set Bounding Box
 bboxfn        = "lon%ito%i_lat%ito%i" % (bbox[0],bbox[1],bbox[2],bbox[3])
 ldz           = np.load("/stormtrack/home/glliu/01_Data/cesm_latlon360.npz",allow_pickle=True)
@@ -68,16 +71,10 @@ latglob       = ldz['lat']
 tstart        = "1920-02-01"
 tend          = "2006-01-01"
 
-longlob = np.load("/stormtrack/data3/glliu/01_Data/02_AMV_Project/02_stochmod/Model_Data/lon.npy")
-latglob = np.load("/stormtrack/data3/glliu/01_Data/02_AMV_Project/02_stochmod/Model_Data/lat.npy")
-
-# Other Preprocessing Options
+# Other Preprocessing Options/Toggles
 ens           = 40 # Number of ensemble members to include
-
-# UO Calculation Options
-
-save_netcdf=True
-debug=False
+save_netcdf   = True  # Set to True to save as netcdf rather than .npy
+debug         = False
 
 #%% Set up coordinates
 
@@ -122,8 +119,8 @@ for ii in range(2):
     
 
 # Preallocate
-##### for e in range(ens): # Looping for each ensemble member NOTE I HAVE CHANGED THIS, switch it back later
-for e in np.arange(1,ens+1):
+for e in range(ens): # Looping for each ensemble member NOTE I HAVE CHANGED THIS, switch it back later
+#for e in np.arange(1,ens+1):
     st_e = time.time()
     
     # Open DataArray

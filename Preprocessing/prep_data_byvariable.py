@@ -49,8 +49,9 @@ stall         = time.time()
 
 varname       = "SST"
 
-detrend       = True # Detrending is currently not applied
-regrid        = None  # Set to desired resolution. Set None for no regridding.
+detrend       = False # Detrending is currently not applied
+regrid        = 3  # Set to desired resolution. Set None for no regridding.
+regrid_step   = True # Set to true if regrid indicates the stepsize rather than total dimension size..
 
 bbox          = [-90,20,0,90] # Crop Selection
 ystart        = 1920
@@ -176,7 +177,8 @@ ensavg.to_netcdf(outname,encoding=encoding_dict)
     
     # Remove the ensemble average, save the output
     #ds_all_anom = ds_all_anom - ensavg
-
+# if "z_t" in ds_all.dims:
+#     ds_all = ds_all.drop_dims('z_t')
 ds_all  = ds_all.transpose('ensemble','time','lat','lon')
 outname = "%sCESM1LE_%s_NAtl_%s0101_%s0101_%s.nc" % (outpath,varname,ystart,yend,method)
 ds_all.to_netcdf(outname,encoding=encoding_dict)
@@ -232,15 +234,19 @@ for varname in ("sst","sss","psl","HMXL","SSH","BSF",):
     np.save('%sCESM1LE_nfactors_%s_detrend%i_regrid%s.npy' % (outpath,varname,detrend,regrid),(mu.to_array().values,sigma.to_array().values))
     
     # ------------------------
-    # Regrid, if option is set <Add this section later...>
+    # Regrid, if option is set 
     # ------------------------
     if regrid is not None:
         print("Data will be regridded to %i degree resolution." % regrid)
         # Prepare Latitude/Longitude
         lat = ds_normalized.lat
         lon = ds_normalized.lon
-        lat_out = np.linspace(lat[0],lat[-1],regrid)
-        lon_out = np.linspace(lon[0],lon[-1],regrid)
+        if regrid_step:
+            lat_out = np.arange(lat[0],lat[-1]+regrid,regrid)
+            lon_out = np.arange(lon[0],lon[-1]+regrid,regrid)
+        else:
+            lat_out = np.linspace(lat[0],lat[-1],regrid)
+            lon_out = np.linspace(lon[0],lon[-1],regrid)
         
         # Make Regridder
         ds_out    = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
@@ -251,8 +257,7 @@ for varname in ("sst","sss","psl","HMXL","SSH","BSF",):
     else:
         print("Data will not be regridded.")
         ds_normalized_out = ds_normalized.transpose('ensemble','year','lat','lon')
-        
-        
+    
     # ---------------
     # Save the output
     # ---------------
@@ -265,7 +270,6 @@ for varname in ("sst","sss","psl","HMXL","SSH","BSF",):
     outname       = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s_detrend%i_regrid%s.nc" % (outpath,varname,ystart,yend,method,detrend,regrid)
     ds_normalized_out.to_netcdf(outname,encoding=encoding_dict)
     print("Saved output tp %s in %.2fs!" % (outname,time.time()-st))
-
 #%%
 
 

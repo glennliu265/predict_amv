@@ -1107,10 +1107,10 @@ plt.savefig("%sAMVIdx_vs_TestAcc_ByLead_%s_plotabs%i.png" % (figpath,rname,plota
 #%% Select and plot event (spatial volution of the predictor)
 
 e = 39
-y = 46
+y = 5
 
 
-plotsst = False
+plotsst= False
 
 
 cints = np.arange(-10,11,1)
@@ -1156,7 +1156,7 @@ plt.savefig(savename,dpi=150,bbox_inches="tight")
 yrs   = np.arange(0,tstep) + 1920
 yrtks = yrs[::4] 
 
-restrict_range=False # Restrict to prediction period (w/ 2 year buffer)
+restrict_range=True # Restrict to prediction period (w/ 2 year buffer)
 
 plot_idx    = target[e,:]
 plot_idx_lp = proc.lp_butter(plot_idx,10,5) 
