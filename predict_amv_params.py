@@ -74,6 +74,16 @@ thresholds    = [-1,1]
 quantile      = False
 percent_train = 0.8
 
+
+#%% LENs Parameters
+
+dataset_names  = ("canesm2_lens" ,"csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens"  ,"CESM1")
+dataset_long   = ("CCCma-CanESM2","CSIRO-MK3.6"    ,"GFDL-ESM2M"     ,"MPI-ESM-LR","NCAR-CESM1")
+dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"limegreen")
+dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
+
+
+
 #%%
 # # Darkmode Settings
 # darkmode  = True
