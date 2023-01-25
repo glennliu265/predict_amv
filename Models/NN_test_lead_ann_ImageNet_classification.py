@@ -34,14 +34,15 @@ import timm
 # -------------
 
 # Data preparation settings
-leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
+leads          = [1,2,4,5,7,8,10,11,13,14,16,17,19,20,22,23] #np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
 thresholds     = [-1,1]#[1/3,2/3]   # Thresholds (standard deviations, or quantile values) 
 quantile       = False                # Set to True to use quantiles
 nsamples       = 300                 # Number of samples for each class. Set to None to use all
+usefakedata    = None#"fakedata_1Neg1Pos1Random_3box.nc"# Set to None, or name of fake dataset.
 
 # Training/Testing Subsets
 percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-runids         = np.arange(0,11,1) # Which runs to do
+runids         = np.arange(0,51,1) # Which runs to do
 
 #numruns        = 10    # Number of times to train for each leadtime
 
@@ -573,6 +574,7 @@ if usenoise:
     #target = np.nanmean(((np.cos(np.pi*lat/180))[None,None,:,None] * data[0,:,:,:,:]),(2,3)) 
     #data[np.isnan(data)] = 0
 else:
+    
     data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i_regrid%s.npy'% (detrend,regrid))
     target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
 data   = data[:,0:ens,:,:,:]

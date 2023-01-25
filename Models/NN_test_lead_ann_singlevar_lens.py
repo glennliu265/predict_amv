@@ -40,16 +40,16 @@ import xarray as xr
 # # Create Experiment Directory
 expdir             = "FNN4_128_ALL_CESM1_Train"
 datdir             = "../../CESM_data/LENS_other/processed"
-# Data preparation settings
 
-    
+# Data preparation settings
 datasetname    = "CESM1"
 varname        = "sst"
 ystart         = 1920
 yend           = 2005
+limit_time     = [1950,2005] # Set Dates here to limit the range of the variable
 
 bbox           = [-80,0,0,65]        # Bounding box of predictor
-leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
+leads          = np.arange(0,31,1)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
 thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
 quantile       = False               # Set to True to use quantiles
 nsamples       = 300                 # Number of samples for each class. Set to None to use all
@@ -60,25 +60,24 @@ detrend        = False                # Set to true to use detrended data
 
 # Training/Testing Subsets
 percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-runids         = np.arange(0,51,1) #np.arange(11,50,1) # Which runs to do
-
-#numruns        = 10    # Number of times to train for each leadtime
+runids         = np.arange(0,50,1) #np.arange(11,50,1) # Which runs to do
+#numruns       = 10    # Number of times to train for each leadtime
 
 # Model training settings
-netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
-unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
-use_softmax   = False                 # Set to true to end on softmax layer
+netname        = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
+unfreeze_all   = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
+use_softmax    = False                 # Set to true to end on softmax layer
 
 # Additional Hyperparameters (CNN)
-early_stop    = 3                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                   # Maximum number of epochs
-batch_size    = 16                   # Pairs of predictions
-loss_fn       = nn.CrossEntropyLoss()# Loss Function (nn.CrossEntropyLoss())
-opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight Decay]
-reduceLR      = False                # Set to true to use LR scheduler
-LRpatience    = 3                    # Set patience for LR scheduler
-cnndropout    = True                 # Set to 1 to test simple CNN with dropout layer
-fnndropout    = 0.5                  # 0.5
+early_stop     = 3                    # Number of epochs where validation loss increases before stopping
+max_epochs     = 20                   # Maximum number of epochs
+batch_size     = 16                   # Pairs of predictions
+loss_fn        = nn.CrossEntropyLoss()# Loss Function (nn.CrossEntropyLoss())
+opt            = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight Decay]
+reduceLR       = False                # Set to true to use LR scheduler
+LRpatience     = 3                    # Set patience for LR scheduler
+cnndropout     = True                 # Set to 1 to test simple CNN with dropout layer
+fnndropout     = 0.5                  # 0.5
 
 # Hyperparameters (FNN)
 # ----------------
