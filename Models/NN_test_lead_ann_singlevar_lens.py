@@ -61,7 +61,7 @@ for d,datasetname in enumerate(dataset_names):
     
     bbox           = [-80,0,0,65]               # Bounding box of predictor
     leads          = np.arange(0,27,3)#(0,)     # np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
-    thresholds     = [-1,1]#[1/3,2/3]           # Thresholds (standard deviations, or quantile values) 
+    thresholds     = [1/3,2/3]           # Thresholds (standard deviations, or quantile values) 
     quantile       = True                      # Set to True to use quantiles
     ens            = 30                   # Ensemble members (climate model output) to use
     
