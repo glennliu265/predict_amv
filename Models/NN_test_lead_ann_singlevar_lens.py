@@ -669,9 +669,9 @@ for d in range(len(dataset_names)):
     target     = target[0:ens,:]
     if limit_time is not None:
         yrvalues = np.arange(ystart,ystart+target.shape[1])
-        istart   = np.argwhere(yrvalues==ystart)[0][0]
-        iend     = np.argwhere(yrvalues==yend)[0][0]
-        target = target[:,istart:iend+1]
+        istart   = np.argwhere(yrvalues==limit_time[0])[0][0]
+        iend     = np.argwhere(yrvalues==limit_time[1])[0][0]
+        target   = target[:,istart:iend+1]
     
     testvalues=[True]
     testname='unfreeze_all'
