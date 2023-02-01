@@ -23,10 +23,10 @@ from mpl_toolkits.axes_grid.inset_locator import inset_axes
 
 # I/O, dataset, paths
 regrid         = 3
-dataset_names  = ("canesm2_lens" ,"csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens"  ,"CESM1")
-dataset_long   = ("CCCma-CanESM2","CSIRO-MK3.6"    ,"GFDL-ESM2M"     ,"MPI-ESM-LR","NCAR-CESM1")
-dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"limegreen")
-dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
+# dataset_names  = ("canesm2_lens" ,"csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens"  ,"CESM1")
+# dataset_long   = ("CCCma-CanESM2","CSIRO-MK3.6"    ,"GFDL-ESM2M"     ,"MPI-ESM-LR","NCAR-CESM1")
+# dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"limegreen")
+# dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
 varname        = "sst"
 
 # Preprocessing and Cropping Options
@@ -55,7 +55,11 @@ proc.makedir(figpath)
 classes         = pparams.classes
 class_colors    = pparams.class_colors
 
-
+# Import dataset inforation
+dataset_names = pparams.dataset_names
+dataset_long  = pparams.dataset_long
+dataset_colors= pparams.dataset_colors
+dataset_starts= pparams.dataset_starts
 
 #%% Load datasets in to dataarrays
 
@@ -82,11 +86,15 @@ lon = ds_all[0].lon.values
 lat = ds_all[0].lat.values
 #%% Compute NASST from each dataset
 
-amvids = []
+amvids    = []
+amvids_lp = []
 for d in range(ndata):
     ds        = ds_all[d].sel(lon=slice(amvbbox[0],amvbbox[1]),lat=slice(amvbbox[2],amvbbox[3]))
     dsidx = (np.cos(np.pi*ds.lat/180) * ds).mean(dim=('lat','lon'))
     amvids.append(dsidx)
+    
+    amvid_lp = proc.lp_butter(dsidx.sst.values.T[...,None],10,order=6).squeeze()
+    amvids_lp.append(amvid_lp)
     
     # Save the labels
     savename       = "%s%s_nasst_label_%sto2005_detrend%i_regrid%sdeg.npy" % (datpath,
@@ -103,13 +111,17 @@ fig,ax = plt.subplots(1,1,figsize=(12,4),constrained_layout=True)
 for d in range(ndata):
     t = np.arange(dataset_starts[d],2005+1,1)
     label = "%s (N=%i)" % (dataset_long[d],dataset_enssize[d])
-    ax.plot(t,amvids[d].sst.mean('ensemble'),label=label,color=dataset_colors[d],lw=2.5)
+    ax.plot(t,amvids[d].sst.mean('ensemble'),label="",color=dataset_colors[d],lw=2.5,alpha=0.5)
+    ax.plot(t,amvids_lp[d].mean(1),label=label,color=dataset_colors[d],lw=1.5)
+    
 
 ax.axhline([0],ls="dashed",lw=0.75,color="k")
 ax.set_ylim([-1.25,1.25])
 ax.set_xlim([1920,2005])
 ax.grid(True,ls="dotted")
-ax.set_title("Ensemble Average NASST")
+ax.set_title("Ensemble Average AMV and NASST Index")
+ax.set_xlabel("Years")
+ax.set_ylabel("Index Value ($\degree$C)")
 ax.legend()
 
 savename = "%sNASST_%s_EnsAvg_Lens.png" % (figpath,bbox_fn)
@@ -157,6 +169,69 @@ for d in range(ndata):
         plotvar = ds_all[d].sst.isel(year=t,ensemble=e)
         pcm     = ax.pcolormesh(lon,lat,plotvar)
         fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.025)
+
+#%% Calculate and visualize the AMV pattern
+
+
+nasstpats_all = []
+amvpats_all   = []
+
+for d in range(ndata):
+    
+    indata   = ds_all[d].sst.values
+    nens,ntime,nlat,nlon = indata.shape
+    indata   = indata.transpose(0,3,2,1) # [ens x lon x lat x time]
+    inidx    = amvids[d].sst.values
+    inidx_lp = amvids_lp[d]
+    
+    amvpats = np.zeros((nlon,nlat,nens))
+    nasstpats = amvpats.copy()
+    for e in range(nens):
+        
+        nasstpats[:,:,e] = proc.regress2ts(indata[e,...],inidx[e,:])
+        amvpats[:,:,e]   = proc.regress2ts(indata[e,...],inidx_lp[:,e])
+        
+    amvpats_all.append(amvpats.transpose(2,1,0)) # [ens x lat x lon]
+    nasstpats_all.append(nasstpats.transpose(2,1,0))
+    
+
+#%% Visualize the AMV Patterns
+
+ylabelnames = ("NASST","AMV")
+
+cints   = np.arange(-3,3.2,0.2)
+fig,axs = plt.subplots(2,ndata,figsize=(14,5.5),subplot_kw={'projection':ccrs.PlateCarree()},
+                       constrained_layout=True)
+for d in range(ndata):
+    
+    for ii in range(2):
+        ax = axs[ii,d]
+        ax.coastlines()
+        ax.set_extent(amvbbox)
+        
+        if ii == 0:   # Plot the NASST Pattern
+            plotpat = nasstpats_all[d].mean(0)
+            ax.set_title("%s" % (dataset_long[d]))
+        elif ii == 1: # Plot the AMV Pattern
+            plotpat = amvpats_all[d].mean(0)
+            
+        cf = ax.contourf(lon,lat,plotpat,levels=cints,cmap="RdBu_r",extend="both")
+        cl = ax.contour(lon,lat,plotpat,levels=cints,colors="k",linewidths=0.45)
+        ax.clabel(cl,cints[::2],fontsize=8)
+        
+        if d == 0:
+            ax.text(-0.05, 0.55, ylabelnames[ii], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+fig.colorbar(cf,ax=axs.flatten(),orientation='horizontal',fraction=.045)
+            
+            
+savename = "%sAMV_NASST_Patterns_EnsAvg_LENS.png" % (figpath)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+    
+    
+
+    
+
 
 #%% Visualize the distribution of + and - AMV events
 

@@ -48,7 +48,9 @@ lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS
 outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/processed/"
 varname_out    = "sst"
 
+
 # Preprocessing and Cropping Options
+#apply_limask   = False
 detrend        = False
 start          = "1920-01-01"
 end            = "2005-12-31"
