@@ -82,8 +82,6 @@ dataset_long   = ("CCCma-CanESM2","CSIRO-MK3.6"    ,"GFDL-ESM2M"     ,"MPI-ESM-L
 dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"limegreen")
 dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
 
-
-
 #%%
 # # Darkmode Settings
 # darkmode  = True

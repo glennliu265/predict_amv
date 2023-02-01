@@ -18,8 +18,10 @@ import os
 import glob
 
 import sys
+
 # Load my own custom modules
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
+sys.path.append("../")
 import viz,proc
 import amvmod as am # Import amv module for predict amv
 #%% Import common parameters from file
@@ -36,7 +38,7 @@ classes         = pparams.classes
 class_colors    = pparams.class_colors
 
 # Import other information
-leads           = pparams.leads
+leads           = np.arange(0,26,1)#pparams.leads
 
 #%% User Edits
 
@@ -54,7 +56,7 @@ exp1 = {"expdir"        :  , # Directory of the experiment
         }
 """
 
-# ----
+# ---- CESM1_res_1v3 ----
 
 exp0 = {"expdir"        : "FNN4_128_SingleVar"   , # Directory of the experiment
         "searchstr"     :  "*SST*"               , # Search/Glob string used for pulling files
@@ -76,6 +78,61 @@ exp1 = {"expdir"        : "FNN4_128_ALL_CESM1_Train" , # Directory of the experi
 
 inexps   = [exp0,exp1] # Put in experiments here...
 compname = "CESM1_res_1v3"# CHANGE THIS for each new comparison
+
+
+#%%
+
+exp0 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_canesm2_lens_Train/"   , # Directory of the experiment
+        "searchstr"     :  "*"               , # Search/Glob string used for pulling files
+        "expname"       : "canesm2_lens"       , # Name of the experiment (Short)
+        "expname_long"  : "CCCma-CanESM2"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "r"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+exp1 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_csiro_mk36_lens_Train/"   , # Directory of the experiment
+        "searchstr"     :  "*"               , # Search/Glob string used for pulling files
+        "expname"       : "csiro_mk36_lens"       , # Name of the experiment (Short)
+        "expname_long"  : "CSIRO-MK3.6"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "b"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+exp2 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_gfdl_esm2m_lens_Train/"   , # Directory of the experiment
+        "searchstr"     :  "*"               , # Search/Glob string used for pulling files
+        "expname"       : "gfdl_esm2m_lens"       , # Name of the experiment (Short)
+        "expname_long"  : "GFDL-ESM2M"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "magenta"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+
+exp3 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_mpi_lens_Train/"   , # Directory of the experiment
+        "searchstr"     :  "*"               , # Search/Glob string used for pulling files
+        "expname"       : "mpi_lens"       , # Name of the experiment (Short)
+        "expname_long"  : "MPI-ESM-LR"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "gold"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+
+exp4 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_CESM1_Train/"   , # Directory of the experiment
+        "searchstr"     :  "*"               , # Search/Glob string used for pulling files
+        "expname"       : "CESM1"       , # Name of the experiment (Short)
+        "expname_long"  : "NCAR-CESM1"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "limegreen"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+inexps   = [exp0,exp1,exp2,exp3,exp4] # Put in experiments here...
+compname = "CMIP5_Lens_30_1950"# CHANGE THIS for each new comparison
+quartile = True
+
 #%% Locate the files
 
 nexps = len(inexps)
@@ -102,7 +159,12 @@ for ex in range(nexps):
 expdict = am.make_expdict(flists,leads)
 
 # Gather some dimension information for plotting
-_,nruns,nleads,nclasses      = expdict['classacc'].shape
+if quartile is True:
+    nruns    = expdict['classacc'].shape[1]
+    nleads   = expdict['classacc'][0][0].shape[0]
+    nclasses = expdict['classacc'][0][0].shape[1]
+else:
+    _,nruns,nleads,nclasses      = expdict['classacc'].shape
 
 # Unpack Dictionary
 totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict)
@@ -153,10 +215,19 @@ for c in range(3):
         lbl = inexps[i]['expname_long']
         mrk = inexps[i]['marker']
         
-        if plotmax:
-            plotacc = classacc[i,:,:,c].max(0)
+        if quartile:
+            
+            if plotmax:
+                plotacc = classacc[i,:,:,c].max(0)
+            else:
+                plotacc = classacc[i,:,:,c].mean(0)
+                
         else:
-            plotacc = classacc[i,:,:,c].mean(0)
+            
+            if plotmax:
+                plotacc = classacc[i,:,:,c].max(0)
+            else:
+                plotacc = classacc[i,:,:,c].mean(0)
         
         # Calculate some statistics
         mu        = classacc[i,:50,:,c].mean(0)
@@ -174,7 +245,7 @@ for c in range(3):
             else:
                 ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=col,zorder=1)
         
-    ax.plot(leads,persacctotal,color=dfcol,label="Persistence",ls="dashed")
+    #ax.plot(leads,persacctotal,color=dfcol,label="Persistence",ls="dashed")
     ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
     
     ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color='k')

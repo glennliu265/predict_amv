@@ -6,20 +6,155 @@ amvmod
 Module containing functions for predict_amv
 Working on updating documentation...
 
-
+------------------------
+  Metrics and Analysis  
+------------------------
+    Convenience functions for working with the metrics output
+    
+    --- Loading the metrics file ---
+    load_result        : Given a metrics file, load out the results 
+    load_metrics_byrun : Load all training runs for a given experiment
+    
+    --- Organization into an experiment dictionary ---
+    make_expdict       : Load experiment metrics/runs into array and make into a dict
+    unpack_expdict     : Unpack variables from expdict of a metrics file
+    
+    --- 
+    retrieve_lead      : Get prediction leadtime/index from shuffled indices
+    
 @author: gliu
 """
 
 from scipy.signal import butter,filtfilt
-
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 from cartopy.util import add_cyclic_point
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-
 from torch import nn
+#%% Metrics and Analysis ----
+
+def load_result(fn,debug=False):
+    """
+    Load results for each of the variable names (testacc, etc)
+    input: fn (str), Name of the file
+    Copied from viz_acc_by_predictor.py on 2023.01.25
+    """
+    
+    ld = np.load(fn,allow_pickle=True)
+    vnames = ld.files
+    if debug:
+        print(vnames)
+    output = []
+    for v in vnames:
+        output.append(ld[v])
+    return output,vnames
+
+def load_metrics_byrun(flist,leads,debug=False,runmax=None):
+    """
+    Given a list of metric files [flist] and leadtimes for each training run,
+    Load the output and append.
+    Dependencies: load_result()
+    """
+    flist.sort()
+    if runmax is None:
+        nruns = len(flist)
+    else:
+        nruns = runmax
+    # Load Result for each model training run
+    totalm    = [] # Total Test Accuracy
+    classm    = [] # Test Accuracy by Class
+    ypredm    = [] # Predicted Class
+    ylabsm    = [] # Actual Class
+    shuffidsm = [] # Shuffled Indices
+    for i in range(nruns): # Load for [nruns] files
+        output,vnames = load_result(flist[i],debug=debug)
+        # if len(output[4]) > len(leads):
+        #     print("Selecting Specific Leads!")
+        #     output = [out[leads] for out in output]
+        totalm.append(output[4])
+        classm.append(output[5])
+        ypredm.append(output[6])
+        ylabsm.append(output[7])
+        shuffidsm.append(output[8])
+        print("\tLoaded %s, %s, %s, and %s for run %02i" % (vnames[4],vnames[5],vnames[6],vnames[7],i))
+    return totalm,classm,ypredm,ylabsm,shuffidsm,vnames
+    
+def make_expdict(flists,leads):
+    """
+    Given a nested list of metric files for the 
+    training runs for each experiment, ([experiment][run]),
+    Load out the data into arrays and create and experiment dictionary for analysis
+    This data can later be unpacked by unpack_expdict
+    
+    Contents of expdict: 
+        totalacc = [] # Accuracy for all classes combined [exp x run x leadtime]
+        classacc = [] # Accuracy by class                 [exp x run x leadtime x class]
+        ypred    = [] # Predictions                       [exp x run x leadtime x sample]
+        ylabs    = [] # Labels                            [exp x run x leadtime x sample]
+        shuffids = [] # Indices                           [exp x run x leadtime x sample]
+    
+    Dependencies: 
+        - load_metrics_byrun
+        - load_result
+    """
+    # Check the # of runs
+    nruns = [len(f) for f in flists]
+    if len(np.unique(nruns)) > 1:
+        print("Warning, limiting experiments to %i runs" % np.min(nruns))
+    runmax = np.min(nruns)
+    
+    # Preallocate
+    totalacc = [] # Accuracy for all classes combined [exp x run x leadtime]
+    classacc = [] # Accuracy by class                 [exp x run x leadtime x class]
+    ypred    = [] # Predictions                       [exp x run x leadtime x sample] # Last array (tercile based) is not an even sample size...
+    ylabs    = [] # Labels                            [exp x run x leadtime x sample]
+    shuffids = [] # Indices                           [exp x run x leadtime x sample]
+    for exp in range(len(flists)):
+        # Load metrics for a given experiment
+        exp_metrics = load_metrics_byrun(flists[exp],leads,runmax=runmax)
+        
+        # Load out and append variables
+        totalm,classm,ypredm,ylabsm,shuffidsm,vnames = exp_metrics
+        totalacc.append(totalm)
+        classacc.append(classm)
+        ypred.append(ypredm)
+        ylabs.append(ylabsm)
+        shuffids.append(shuffidsm)
+        print("Loaded data for experiment %02i!" % (exp+1))
+    
+    # Add to dictionary
+    outputs = [totalacc,classacc,ypred,ylabs,shuffids]
+    expdict = {}
+    dictkeys = ("totalacc","classacc","ypred","ylabs","shuffids")
+    for k,key in enumerate(dictkeys):
+        expdict[key] = np.array(outputs[k])
+    return expdict
+
+def retrieve_lead(shuffidx,lead,nens,tstep):
+    """
+    Get prediction leadtime/index from shuffled indices (?)
+    Copied from viz_acc_by_predictor.py on 2023.01.25
+    """
+    orishape = [nens,tstep-lead]
+    outidx   = np.unravel_index(shuffidx,orishape)
+    return outidx
+
+def unpack_expdict(expdict,dictkeys=None):
+    """
+    Unpack expdict generated by load_result from the metrics file
+    
+    Copied from viz_acc_by_predictor.py on 2023.01.25
+    """
+    if dictkeys is None:
+        dictkeys = ("totalacc","classacc","ypred","ylabs","shuffids")
+    unpacked = [expdict[key] for key in expdict]
+    return unpacked
+
+
+
+#%% Unorganized section below
 
 ## Processing/Analysis ----
 def find_nan(data,dim):
@@ -33,7 +168,6 @@ def find_nan(data,dim):
         1) okdata: data with nan points removed
         2) knan: boolean array with indices of nan points
         
-
     """
     
     # Sum along select dimension
@@ -1296,10 +1430,6 @@ def get_ensyr(id_val,lead,ens=40,tstep=86,percent_train=0.8,get_train=False):
     return val_id[id_val]
 
 #def data_loader(varname=None,datpath=None):
-    
-
-
-
 ## Added LRP Functions
 
         
