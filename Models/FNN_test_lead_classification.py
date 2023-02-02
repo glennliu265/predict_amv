@@ -135,45 +135,139 @@ def build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=0.5):
 #%% User Edits
 # -------------
 
+allstart=time.time()
+
 # Indicate machine to set path
-machine='pdwang'
+# ----------------------------
+machine='stormtrack'
 
 # Set directory and load data depending on machine
-if machine == 'local-glenn':
-    os.chdir('/Users/gliu/Downloads/2020_Fall/6.862/Project/predict_amv/')
-    outpath = '/Users/gliu/Downloads/2020_Fall/6.862/Project'
-    sst_normed = np.load('../CESM_data/CESM_SST_normalized_lat_weighted.npy').astype(np.float32)
-    sss_normed = np.load('../CESM_data/CESM_SSS_normalized_lat_weighted.npy').astype(np.float32)
-    psl_normed = np.load('../CESM_data/CESM_PSL_normalized_lat_weighted.npy').astype(np.float32)
-else:
-    outpath = os.getcwd()
-    sst_normed = np.load('../../CESM_data/CESM_sst_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
-    sss_normed = np.load('../../CESM_data/CESM_sss_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
-    psl_normed = np.load('../../CESM_data/CESM_psl_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
-    
+# ------------------------------------------------
+
+
+# Load Old Data (Remove this)
+# Note that these are 40 x 86 x 33 x 41
+# outpath    = '../../CESM_data/'
+# sst_normed = np.load('../../CESM_data/CESM_sst_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
+# sss_normed = np.load('../../CESM_data/CESM_sss_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
+# psl_normed = np.load('../../CESM_data/CESM_psl_normalized_lat_weighted_2deg_NAT_Ann.npy').astype(np.float32)
+
 # Data preparation settings
-#tunits         = 'year'               # Indicate units of time ('month' or 'year)
+# -------------------------
 leads          = np.arange(0,25,1)    # Time ahead (in tunits) to forecast AMV
-tstep          = 1032             # Total number of time units
-
-percent_train = 0.8   # Percentage of data to use for training (remaining for testing)
-ens           = 40    # Ensemble members to use
-
-# Select variable
+thresholds     = [1/3,2/3]            # Thresholds (standard deviations, or quantile values) 
+quantile       = True                 # Set to True to use quantiles
+nsamples       = None                 # Number of samples for each class. Set to None to use all
 
 
-# Model training settings
-max_epochs    = 10 
-batch_size    = 32                    # Pairs of predictions
+# Training/Testing Subsets
+# ------------------------
+percent_train  = 0.8   # Percentage of data to use for training (remaining for testing)
+numruns        = 10    # Number of times to train for each leadtime
+
+early_stop    = 3
+max_epochs    = 20 
+batch_size    = 16                    # Pairs of predictions
 loss_fn       = nn.MSELoss()          # Loss Function
 opt           = ['Adadelta',0.1,0]    # Name optimizer
 
 # FNN Architecture
-nlayers = 2
-nunits  = [20,20]
+# ----------------
+nlayers     = 2
+nunits      = [20,20]
 activations = [nn.ReLU(),nn.ReLU()]
-outsize = 1
-netname = "FNN2"
+outsize     = 1
+netname     = "FNN2"
+
+# Toggle Options
+debug         = True # Visualize training and testing loss
+verbose       = True # Print loss for each epoch
+checkgpu      = True # Set to true to check for GPU otherwise run on CPU
+savemodel     = True # Set to true to save model dict.
+
+# -----------------------------------------------------------------
+#%% Additional (Legacy) Variables (modify for future customization)
+# -----------------------------------------------------------------
+
+# Data Preparation names
+num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
+season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
+indexregion    = 'NAT'                # One of the following ("SPG","STG","TRO","NAT")
+resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
+detrend        = False                # Set to true to use detrended data
+usenoise       = False                # Set to true to train the model with pure noise
+tstep          = 86                   # Size of time dimension (in years)
+ens            = 40                   # Ensemble members (climate model output) to use 
+
+# -------------
+#%% Load the data
+# -------------
+"""
+Section below here is copied from NN_test_lead_ann ... .py
+
+data   : [ 3 x 40 x 86 x 224 x 224] (variable x ens x year x lon(?) x lat(?))
+target : [40 x 86] (ens x year)
+
+"""
+# Load the data for whole North Atlantic
+if usenoise:
+    # Make white noise time series
+    data   = np.random.normal(0,1,(3,40,tstep,224,224))
+    
+    ## Load latitude
+    #lat = np.linspace(0.4712,64.55497382,224)
+    
+    # Apply land mask
+    dataori   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)[:,:40,...]
+    data[dataori==0] = 0 # change all ocean points to zero
+    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+    
+else:
+    data   = np.load('../../CESM_data/CESM_data_sst_sss_psl_deseason_normalized_resized_detrend%i.npy'%detrend)
+    target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+data   = data[:,0:ens,:,:,:]
+target = target[0:ens,:]
+
+
+
+for nr in range(numruns):
+    rt = time.time()
+    
+    # Set experiment names ---- (Will need to adjust later when testing individual variables)
+    channels = 3
+    start    = time.time()
+    varname  = 'ALL'
+    nlead    = len(leads)
+    
+    
+    # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+    expname = "AMVClass%i_%s_nepoch%02i_nens%02i_maxlead%02i_detrend%i_noise%i_run%i_quant%i" % (num_classes,netname,max_epochs,ens,
+                                                                              leads[-1],detrend,usenoise,
+                                                                              nr,quantile)
+    
+    # Preallocate Evaluation Metrics...
+    corr_grid_train = np.zeros((nlead))
+    corr_grid_test  = np.zeros((nlead))
+    train_loss_grid = []#np.zeros((max_epochs,nlead))
+    test_loss_grid  = []#np.zeros((max_epochs,nlead))
+    train_acc_grid  = []
+    test_acc_grid   = []
+    acc_by_class    = []
+    total_acc       = []
+    yvalpred        = []
+    yvallabels      = []
+    sampled_idx     = []
+    thresholds_all  = []
+    
+    if checkgpu:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else:
+        device = torch.device('cpu')
+        
+    
+    
+    
+    
 
 
 # ----------------------------------------
@@ -223,6 +317,13 @@ for v in range(nvar): # Loop for each variable
         X = np.transpose(
             np.array(invars)[:,:ens,0:tstep-lead,:,:].reshape(channels,(tstep-lead)*ens,33,89),
             (1,0,2,3))
+        
+        
+        # Make the classes based on Y (copied from NN_test_lead..._classification.py)
+        
+        
+        
+        
         
         # Reshape to combine variable/lat/lon for X
         ndat,nchan,nlat,nlon = X.shape # Get latitude and longitude sizes for dimension calculation
