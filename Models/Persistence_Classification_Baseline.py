@@ -192,7 +192,7 @@ channels = 3
 start    = time.time()
 varname  = 'ALL'
 #subtitle = "\n %s = %i; detrend = %s"% (testname,testvalues[i],detrend)
-subtitle="\nPersistence Baseline, averaging %s years before" % (str(nbefore))
+subtitle = "\nPersistence Baseline, averaging %s years before" % (str(nbefore))
 
 # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
 expname = "AMVClass%i_PersistenceBaseline_%sbefore_nens%02i_maxlead%02i_detrend%i_noise%i_nsample%i_limitsamples%i" % (num_classes,str(nbefore),ens,leads[-1],detrend,usenoise,nsamples,limitsamples)
@@ -256,7 +256,7 @@ for l,lead in enumerate(leads):
         if actual == y_pred:
             correct[actual] += 1
         total[actual] += 1
-    
+    x`
     # ----------------------------------
     # Calculate and save overall results
     # ----------------------------------
