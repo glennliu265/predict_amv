@@ -17,22 +17,23 @@ Outputs data to the same directory.
 import numpy as np
 import xarray as xr
 import xesmf as xe
+import time
 
-detrend = True # Detrending is currently not applied
-regrid  = None # Set to desired resolution. Set None for no regridding.
-
+detrend     = False # Detrending is currently not applied
+regrid      = 3 # Set to desired resolution. Set None for no regridding.
+regrid_step = True # Set to true if regrid indicates the stepsize rather than total dimension size.
 
 # --------------------------------
-# Select Box in the North Atlantic
+# Select Box in the North Atlantic (LON: -80 to 0, LAT: 0 to 65)
 # --------------------------------
 sst_ds = xr.open_dataset('../../CESM_data/CESM1LE_sst_NAtl_19200101_20051201.nc')['sst'][0:69,8:-16,:,:]
 sss_ds = xr.open_dataset('../../CESM_data/CESM1LE_sss_NAtl_19200101_20051201.nc')['sss'][0:69,8:-32,:,:]
 psl_ds = xr.open_dataset('../../CESM_data/CESM1LE_psl_NAtl_19200101_20051201.nc')['psl'][0:69,8:-32,:,:]
 
-
 # ----------------------------------------------------------------
 # Calculate Monhtly Anomalies (Remove mean seasonal cycle)
 # ----------------------------------------------------------------
+dstime = time.time()
 print('begin deseason')
 sst_deseason = (sst_ds.groupby('time.month') - sst_ds.groupby('time.month').mean('time')).groupby('time.year').mean('time')
 print('finished SST deseason')
@@ -40,11 +41,12 @@ sss_deseason = (sss_ds.groupby('time.month') - sss_ds.groupby('time.month').mean
 print('finished SSS deseason')
 psl_deseason = (psl_ds.groupby('time.month') - psl_ds.groupby('time.month').mean('time')).groupby('time.year').mean('time')
 print('finished PSL deseason')
+print("Finished deseasoning data in %.2fs" % (time.time()-dstime))
 
 # --------------------------------
 # Apply Land/Ice Mask to PSL
 # --------------------------------
-landmask = ~np.isnan( sst_ds[:,:,0,0].values )
+landmask     = ~np.isnan( sst_ds[:,:,0,0].values )
 psl_deseason *= landmask[:,:,None,None]
 
 # --------------------------------
@@ -77,12 +79,16 @@ if regrid is not None:
     # Prepare Latitude/Longitude
     lat = sst_ds.lat
     lon = sst_ds.lon
-    lat_out = np.linspace(lat[0],lat[-1],regrid)
-    lon_out = np.linspace(lon[0],lon[-1],regrid)
+    if regrid_step:
+        lat_out = np.arange(lat[0],lat[-1]+regrid,regrid)
+        lon_out = np.arange(lon[0],lon[-1]+regrid,regrid)
+    else:
+        lat_out = np.linspace(lat[0],lat[-1],regrid)
+        lon_out = np.linspace(lon[0],lon[-1],regrid)
     
     # Make Regridder
     ds_out    = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
-    regridder = xe.Regridder(sst_ds, ds_out, 'nearest_s2d')
+    regridder = xe.Regridder(sst_ds, ds_out, 'bilinear')
 
     # Regrid
     sst_out = regridder( sst_normalized.transpose('ensemble','year','lat','lon') )
