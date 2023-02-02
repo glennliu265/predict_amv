@@ -24,7 +24,6 @@ Working on updating documentation...
     
 @author: gliu
 """
-
 from scipy.signal import butter,filtfilt
 import numpy as np
 import matplotlib.pyplot as plt
