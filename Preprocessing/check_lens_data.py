@@ -188,8 +188,8 @@ for d in range(ndata):
     nasstpats = amvpats.copy()
     for e in range(nens):
         
-        nasstpats[:,:,e] = proc.regress2ts(indata[e,...],inidx[e,:])
-        amvpats[:,:,e]   = proc.regress2ts(indata[e,...],inidx_lp[:,e])
+        nasstpats[:,:,e] = proc.regress2ts(indata[e,...],inidx[e,:]/inidx[e,:].std())
+        amvpats[:,:,e]   = proc.regress2ts(indata[e,...],inidx_lp[:,e]/inidx_lp[:,e].std())
         
     amvpats_all.append(amvpats.transpose(2,1,0)) # [ens x lat x lon]
     nasstpats_all.append(nasstpats.transpose(2,1,0))
