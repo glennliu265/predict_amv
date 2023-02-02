@@ -44,10 +44,8 @@ import matplotlib.pyplot as plt
 regrid         = 3
 dataset_names  = ("canesm2_lens","csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens","CESM1")
 varnames       = ("ts","ts","ts","ts","ts")
-lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/"
-outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/processed/"
+apply_limask   = False
 varname_out    = "sst"
-
 
 # Preprocessing and Cropping Options
 #apply_limask   = False
@@ -58,6 +56,12 @@ bbox           = [-90,20,0,90] # Crop Selection
 bbox_fn        = "lon%ito%i_lat%ito%i" % (bbox[0],bbox[1],bbox[2],bbox[3])
 
 
+if apply_limask:
+    lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # limkased
+    outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/processed/"
+else:
+    lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/"
+    outpath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/processed/"
 
 #%% Get list of files (last one is ensemble average)
 
