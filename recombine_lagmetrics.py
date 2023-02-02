@@ -6,6 +6,11 @@ Recombine Lag Metrics
 
 Script to fix a silly mistake where I have two lag file styles
 
+One is 0,3, ... 24 in intervals of 3, other is missed lags.
+Just change the datpath to the metrics folder, and this will automatically combine both files
+and move it into a folder /proc/ 
+
+
 Created on Wed Feb  1 15:26:47 2023
 
 @author: gliu
@@ -38,7 +43,7 @@ llidx = [ll1,ll2]
 #%%
 
 
-datpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/LENS_30_1950/FNN4_128_ALL_CESM1_Train/Metrics/"
+datpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/LENS_30_1950/FNN4_128_ALL_canesm2_lens_Train/Metrics/"
 datpath_new = datpath + "proc/"
 debug   = False
 
@@ -54,7 +59,7 @@ print(len(flist))
 
 
 for run in range(int(len(flist)/2)):
-    print("Processing run%02* ...")
+    print("Processing run%02i ..." % run)
     
     runlist = list(filter(lambda fn: "run%02i" % run in fn,flist))
     runlist.sort()
