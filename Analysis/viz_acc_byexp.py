@@ -258,6 +258,99 @@ for c in range(3):
     
 savename = "%sExperiment_Intercomparison_byclass_plotmax%i_%s.png"% (figpath,plotmax,compname)
 plt.savefig(savename,dpi=200,bbox_inches="tight",transparent=True)
+
+
+
+#%% Get counts of each class...
+
+
+classcounts_all = np.zeros((nexps,nleads,nclasses,nruns))
+for d in range(nexps):
+    
+    for l in range(nleads):
+         # [runs]
+        
+        for r in range(nruns):
+            
+            samples = ylabs[d][r,l]
+            
+            for c in range(nclasses):
+            
+                classcounts_all[d,l,c,r] += (samples == c).sum()
+#%% Visualize distributions by class and leadtime
+
+
+# General plotting options
+lwall      = 2.5
+darkmode   = False
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+else:
+    plt.style.use('default')
+    dfcol = "k"
+
+# Visualize Accuracy by Class
+add_conf   = True  # Add confidence intervals
+plotconf   = 0.95  # Select which intervals to plot
+
+fig,axs = plt.subplots(1,3,figsize=(18,4))
+for c in range(3):
+    
+    # Initialize plot
+    ax = axs[c]
+    ax.set_title("%s" %(classes[c]),fontsize=16,)
+    ax.set_xlim([0,24])
+    ax.set_xticks(leads)
+    #ax.set_ylim([125,40])
+    #ax.set_ylim([0,1])
+    #ax.set_yticks(np.arange(0,1.25,.25))
+    ax.grid(True,ls='dotted')
+    
+    for i in range(nexps):
+
+        col = inexps[i]['c']
+        lbl = inexps[i]['expname_long']
+        mrk = inexps[i]['marker']
+        
+        
+        # Calculate some statistics
+        mu        = classcounts_all[i,:,c,:].mean(1) # Mean by Run
+        sigma     = classcounts_all[i,:,c,:].std(1) # Stdev by run
+        
+        sortacc   = np.sort(classcounts_all[i,:,c,:],1)
+        sortacc   = sortacc.T
+        idpct     = sortacc.shape[0] * plotconf
+        lobnd     = np.floor(idpct).astype(int)
+        hibnd     = np.ceil(sortacc.shape[0]-idpct).astype(int)
+        
+        # Plot things
+        ax.plot(leads,mu,color=col,marker=mrk,alpha=1.0,lw=2.5,label=lbl,zorder=9)
+        if add_conf:
+            if plotconf:
+                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.2,color=col,zorder=1,label="")
+            else:
+                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=col,zorder=1)
+        
+    #ax.plot(leads,persacctotal,color=dfcol,label="Persistence",ls="dashed")
+    #ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
+    #ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color='k')
+    
+    if c == 0:
+        ax.set_ylabel("Accuracy")
+    if c == 1:
+        ax.legend(ncol=2,fontsize=10)
+        ax.set_xlabel("Prediction Lead (Years)")
+    
+savename = "%sExperiment_Intercomparison_ClassCount_%s.png"% (figpath,compname)
+plt.savefig(savename,dpi=200,bbox_inches="tight",transparent=True)
+
+
+
+
+
+
+
 #%% Unorganized Below --------------------------------------------------------------------------
 #%% For a given predictor, visualize the distribution in accuracies
 
