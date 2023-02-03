@@ -41,7 +41,7 @@ import xarray as xr
 expdir             = "FNN4_128_ALL_CNN2"
 
 # Data preparation settings
-for varname in ("ALL",):
+for varname in ("UOHC","UOSC"):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -57,10 +57,10 @@ for varname in ("ALL",):
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
     runids         = np.arange(0,51,1) #np.arange(11,50,1) # Which runs to do
     
-    #numruns        = 10    # Number of times to train for each leadtime
+    #numruns      = 10    # Number of times to train for each leadtime
     
     # Model training settings
-    netname       = 'simplecnn'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
+    netname       = 'FNN4_128'           # Name of network ('resnet50','simplecnn','FNN2',"FNN4_128")
     unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
     use_softmax   = False                 # Set to true to end on softmax layer
     

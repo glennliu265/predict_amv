@@ -47,10 +47,10 @@ from tqdm import tqdm
 
 stall         = time.time()
 
-varname       = "SST"
+varname       = "UOHC"
 
 detrend       = False # Detrending is currently not applied
-regrid        = 3  # Set to desired resolution. Set None for no regridding.
+regrid        = None  # Set to desired resolution. Set None for no regridding.
 regrid_step   = True # Set to true if regrid indicates the stepsize rather than total dimension size..
 
 bbox          = [-90,20,0,90] # Crop Selection
@@ -95,7 +95,11 @@ def xrdeseason(ds):
 #%% Get the data
 
 # Ex: SSH_FULL_HTR_bilinear_num01.nc
-ncsearch = "%s%s/%s_%s_%s*.nc" % (datpath,varname,varname,mconfig,method)
+if varname in ("UOHC","UOSC"):
+    ncsearch = "%s%s/%s_20TR_lon-80to0_lat0to65_ens*.nc" % (datpath,varname,varname,
+                                                               )
+else:
+    ncsearch = "%s%s/%s_%s_%s*.nc" % (datpath,varname,varname,mconfig,method)
 nclist   = glob.glob(ncsearch)
 nclist.sort()
 nens     = len(nclist)
@@ -162,7 +166,7 @@ for e in tqdm(range(nens)):
 
 # Compute and remove trend
 #if detrend:
-    
+
 # Set encoding dictionary
 encoding_dict = {varname : {'zlib': True}} 
 
@@ -201,7 +205,7 @@ Based on procedure in prepare_training_validation_data.py
     8. Output in array ['ensemble','year','lat','lon']
 """
 
-for varname in ("sst","sss","psl","HMXL","SSH","BSF",):
+for varname in ("UOHC","UOSC"):#"sst","sss","psl","HMXL","SSH","BSF",):
     # -------------------
     # Load in the dataset
     # -------------------
