@@ -38,7 +38,7 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-expdir             = "FNN4_128_ALL_CNN2"
+expdir             = "FNN4_128_SingleVar"
 
 # Data preparation settings
 for varname in ("UOHC","UOSC"):
