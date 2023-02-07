@@ -79,8 +79,8 @@ for d in range(len(dataset_names)):
         # Data preparation settings
         bbox           = [-80,0,0,65]               # Bounding box of predictor
         leads          = np.arange(0,26,1)#[a for a in np.arange(0,26,1) if a not in np.arange(0,27,3)]#np.arange(0,27,3)#(0,)     # np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
-        thresholds     = [-1,1]#[1/3,2/3]           # Thresholds (standard deviations, or quantile values) 
-        quantile       = False                      # Set to True to use quantiles
+        thresholds     = [1/3,2/3]      #[-1,1]#     # Thresholds (standard deviations, or quantile values) 
+        quantile       = True                      # Set to True to use quantiles
         
         usefakedata    = None                       # Set to None, or name of fake dataset.
         region         = None                       # Set region of analysis (None for basinwide)
