@@ -20,7 +20,7 @@ Performs the following preprocessing steps based on:
 1. Concatenate each ensembl member
 2. Crop to time period (post-1920)
 3. Crop to region ([-90,20,0,90])
-    
+
 <Section 2: Normalize, Detrend, Deseason>
 4. Calculate Monthly Anomalies + Annual Averages
 5. Remove trend (if specified)
@@ -40,6 +40,10 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 #%% User Edits
 
+# indicate CMIP version
+cmipver        = 6 # 5 or 6
+
+
 # I/O, dataset, paths
 regrid         = 3
 dataset_names  = ("canesm2_lens","csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens","CESM1")
@@ -54,7 +58,6 @@ start          = "1920-01-01"
 end            = "2005-12-31"
 bbox           = [-90,20,0,90] # Crop Selection
 bbox_fn        = "lon%ito%i_lat%ito%i" % (bbox[0],bbox[1],bbox[2],bbox[3])
-
 
 if apply_limask:
     lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # limkased
