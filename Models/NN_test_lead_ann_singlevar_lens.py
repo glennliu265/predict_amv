@@ -70,7 +70,7 @@ for d in range(len(dataset_names)):
     expdir         = "CMIP6_LENS_/FNN4_128_SingleVar_%s_Train" % datasetname
     ystart         = ystarts[d]
     
-    for v in range(len(3)):
+    for v in range(len(varnames)):
         
         varname        = varnames[v]
         
