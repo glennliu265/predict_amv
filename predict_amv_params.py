@@ -16,7 +16,7 @@ import cartopy.crs as ccrs
 #%% Project paths
 
 datpath = "../../CESM_data/"
-figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230203/"
+figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230210/"
 
 
 
@@ -43,14 +43,15 @@ varnames      = ("SST","SSS","PSL","SSH","BSF","HMXL",)
 varcolors     = ("r","limegreen","pink","darkblue","purple","cyan")
 threscolors   = ("r","gray","cornflowerblue")
 
-# Variables (all, new since 2022.12.09)
-varnames      = ("SST","SSS","PSL","BSF","SSH","HMXL")
-varnamesplot  = ("SST","SSS","SLP","BSF","SSH","MLD")
+# Variables (all, new since 2022.12.09, updated 2023.02.07 adding UOHC/UOSC)
+varnames      = ("SST","SSS","PSL","BSF","SSH","HMXL","UOHC","UOSC")
+varnamesplot  = ("SST","SSS","SLP","BSF","SSH","MLD","UOHC","UOSC")
 varnames_long = ("Temperature","Salinity","Pressure","Surface Height",
-                 "Barotropic Streamfunction","Mixed-Layer Depth")
-vunits        = ("$\degree$C","psu","mb","cm","Sv","cm")
-varcolors     = ("r","violet","yellow","darkblue","dodgerblue","cyan")
-varmarker     = ("o","d","x","v","^","*")
+                 "Barotropic Streamfunction","Mixed-Layer Depth",
+                 "Upper Ocean Heat Content","Upper Ocean Salt Content")
+vunits        = ("$\degree$C","psu","mb","cm","Sv","cm","$J\,m^{-2}$","$J\,m^{-2}$")
+varcolors     = ("r","violet","yellow","darkblue","dodgerblue","cyan","lightcoral","orchid")
+varmarker     = ("o","d","x","v","^","*","1","2")
 
 # Class Names and colors
 
@@ -77,10 +78,17 @@ percent_train = 0.8
 
 #%% LENs Parameters
 
+# CMIP5
 dataset_names  = ("canesm2_lens" ,"csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens"  ,"CESM1")
 dataset_long   = ("CCCma-CanESM2","CSIRO-MK3.6"    ,"GFDL-ESM2M"     ,"MPI-ESM-LR","NCAR-CESM1")
 dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"limegreen")
 dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
+
+# CMIP6
+cmip6_varnames       = ("tos","sos","zos")
+cmip6_varnames_remap = ("SST","SSS","SSH")
+cmip6_names          = ("ACCESS-ESM1-5","CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR")
+cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"        )
 
 #%%
 # # Darkmode Settings
