@@ -44,14 +44,16 @@ if cmipver == 5:
     datdir        =  "../../CESM_data/LENS_other/processed"
     limit_time    = [1950,2005] # Set Dates here to limit the range of the variable
     ens           = 30
+    regrid        = 3
     
 elif cmipver == 6:
     dataset_names = pparams.cmip6_names[1:-1]
     ystarts       = (1850,)*len(dataset_names)
-    datdir        = "../../CESM_data/CMIP6_LENS/processed" 
+    datdir        = "../../CESM_data/CMIP6_LENS/" 
     varnames      = ("sst","ssh","sss")
     limit_time    = [1850,2014] # Set Dates here to limit the range of the variable
     ens           = 25
+    regrid        = None
 
 # -------------
 #%% User Edits
@@ -129,7 +131,6 @@ for d in range(len(dataset_names)):
         num_classes    = len(thresholds)+1    # Set up number of classes for prediction (current supports)
         season         = 'Ann'                # Season to take mean over ['Ann','DJF','MAM',...]
         resolution     = '1deg'             # Resolution of dataset ('2deg','224pix')
-        regrid         = 3
         usenoise       = False                # Set to true to train the model with pure noise
         tstep          = 86                   # Size of time dimension (in years)
         outpath        = ""
