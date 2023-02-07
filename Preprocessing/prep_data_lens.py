@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-
+--------------------------------
 Prepare datasets for ML training
-    
+--------------------------------
     
 Works with output from the hfcalc package with [pred_prep=True]:
     preproc_damping_lens.py
@@ -17,7 +17,7 @@ Performs the following preprocessing steps based on:
     prepare_training_validation_data
     
 <Section 1: Finalize PostProc>
-1. Concatenate each ensembl member
+1. Concatenate each ensemble member
 2. Crop to time period (post-1920)
 3. Crop to region ([-90,20,0,90])
 
@@ -26,67 +26,119 @@ Performs the following preprocessing steps based on:
 5. Remove trend (if specified)
 6. Normalize data
 10. Output in array ['ensemble','year','lat','lon']
-    
+
+
+Note: labels are calculated in [prep_labels_lens.py]
+
+
 Created on Mon Jan 23 11:55:25 2023
 @author: gliu
 """
-
 import time
 import numpy as np
 import xarray as xr
 import glob
+import os
+import sys
 from scipy.io import loadmat
 from tqdm import tqdm
 import matplotlib.pyplot as plt
+
+#%% Load some necessary variables
+
+# Note; Need to set script into current working directory (need to think of a better way)
+cwd = os.getcwd()
+sys.path.append(cwd+"/../")
+import predict_amv_params as pparams
+
 #%% User Edits
 
-# indicate CMIP version
+# Indicate CMIP version
 cmipver        = 6 # 5 or 6
 
+# Indicate Machine (will add functionality later...)
+# Currently, cmip5 only works for stormtrack, and cmip6 for Astraeus
+machine        = "Astraeus" # "stormtrack" (for cmip5) or "Astraeus" (for cmip6)
 
-# I/O, dataset, paths
-regrid         = 3
-dataset_names  = ("canesm2_lens","csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens","CESM1")
-varnames       = ("ts","ts","ts","ts","ts")
-apply_limask   = False
-varname_out    = "sst"
-
-# Preprocessing and Cropping Options
-#apply_limask   = False
-detrend        = False
-start          = "1920-01-01"
-end            = "2005-12-31"
+# Set Region Crop
 bbox           = [-90,20,0,90] # Crop Selection
 bbox_fn        = "lon%ito%i_lat%ito%i" % (bbox[0],bbox[1],bbox[2],bbox[3])
 
-if apply_limask:
-    lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # limkased
-    outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/processed/"
-else:
-    lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/"
-    outpath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/processed/"
+# Other preprocessing options ...
+apply_limask   = False # Set Land/Ice Mask Application (only for CMIP5 LENS)
+detrend        = False # Option to remove the ensemble mean
+
+if cmipver == 5:
+    # I/O, dataset, paths
+    regrid         = 3
+    dataset_names  = ("canesm2_lens","csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens","CESM1")
+    varnames       = ("ts","ts","ts","ts","ts")
+    varname_out    = "sst"
+
+    
+    start          = "1920-01-01"
+    end            = "2005-12-31"
+
+    if apply_limask:
+        lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # limkased
+        outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/processed/"
+    else:
+        lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/"
+        outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/processed/"
+
+elif cmipver == 6:
+    
+    regrid        = None # Data already regridded. See "auto_regrid_cdo.sh"
+    dataset_names = pparams.cmip6_names
+    varnames      = ("sos",) * 6
+    varname_out   = "sss"
+    
+    # Set Paths
+    lenspath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CMIP6_LENS/regridded/"
+    outpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CMIP6_LENS/processed/"
+    
+    # Currently no icemask available...
+    apply_limask = False
+    
+    # Start and end is set...
+    start          = "1850-01-01"
+    end            = "2014-12-31"
 
 #%% Get list of files (last one is ensemble average)
 
 ndata = len(dataset_names)
 nclists = []
 for d in range(ndata):
-    ncsearch = "%s%s*.nc" % (lenspath,dataset_names[d])
+    if cmipver == 5:
+        ncsearch = "%s%s*.nc" % (lenspath,dataset_names[d])
+    elif cmipver == 6:
+        ncsearch = "%s%s_%s*.nc" % (lenspath,varnames[d],dataset_names[d])
     nclist   = glob.glob(ncsearch)
     nclist.sort()
     print("Found %02i files for %s!" % (len(nclist),dataset_names[d]))
     nclists.append(nclist)
-    
+
+
+#%% Write some preprocessing functions
+
 #%% Section 1 (Finish Postprocessing for each dataset)
+
+skipdata = ("ACCESS-ESM1-5",)
 
 for d in range(len(dataset_names)):
     
     st_s1 = time.time()
-    
+    if dataset_names[d] in skipdata:
+        print("Skipping %s."%(dataset_names[d]))
+        continue
+        
     # <1> Concatenate Ensemble Members
     # Read in data [ens x time x lat x lon]
     varname = varnames[d] # Get variable name
-    dsall   = xr.open_mfdataset(nclists[d][:-1],concat_dim="ensemble",combine="nested")
+    if cmipver == 5:
+        dsall   = xr.open_mfdataset(nclists[d][:-1],concat_dim="ensemble",combine="nested")
+    else:
+        dsall   = xr.open_mfdataset(nclists[d],concat_dim="ensemble",combine="nested")
     
     # <2> Crop to Time
     dssel      = dsall.sel(time=slice(start,end))
@@ -95,17 +147,20 @@ for d in range(len(dataset_names)):
     print("Time dimension is size %i from %s to %s" % (len(dssel.time),start_crop,end_crop))
     
     # <3> Crop to Region
-    # First, fix an issue with longitude
-    # Double counted longitude values by checking first and last longitude
-    if np.all(dssel.isel(lon=0,ensemble=0,lat=50).ts.values == dssel.isel(lon=-1,ensemble=0,lat=50).ts.values):
-        # Drop the last
-        dssel = dssel.sel(lon=slice(dssel.lon[0],dssel.lon[-2]))
     
+    if cmipver==5:
+        # First, fix an issue with longitude
+        # Double counted longitude values by checking first and last longitude
+        if np.all(dssel.isel(lon=0,ensemble=0,lat=50).ts.values == dssel.isel(lon=-1,ensemble=0,lat=50).ts.values):
+            # Drop the last
+            dssel = dssel.sel(lon=slice(dssel.lon[0],dssel.lon[-2]))
+        
     if not np.any((dssel.lon.values)<0): # Longitude not flipped
         print("Correcting longitude values for %s because no negative one was found..." % (dataset_names[d]))
         dssel.coords['lon'] = (dssel.coords['lon'] + 180) % 360 - 180
         dssel = dssel.sortby(dssel['lon'])
     dssel = dssel.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+    
     
     # Load out data
     ds_all = dssel.load()

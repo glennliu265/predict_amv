@@ -62,6 +62,7 @@ class_colors  = ("salmon","gray","cornflowerblue")
 proj     = ccrs.PlateCarree()
 bbox     = [-80,0,0,65]
 plotbbox = [-80,0,0,62]
+amvbbox  = [-80,0,0,65]
 
 
 
