@@ -871,26 +871,37 @@ for d in range(len(dataset_names)):
                         y_valdt    = np.asarray([])
                         
                         for i,vdata in enumerate(val_loader):
-                        
-                            #print(i)
+                            
                             # Get mini batch
-                            batch_x, batch_y = vdata
-                            batch_x = batch_x.to(device)
-                            batch_y = batch_y.to(device)
+                            batch_x, batch_y = vdata     # For debugging: vdata = next(iter(val_loader))
+                            batch_x = batch_x.to(device) # [batch x input_size]
+                            batch_y = batch_y.to(device) # [batch x 1]
                             
                             # Make prediction and concatenate
-                            batch_pred = model(batch_x)
+                            batch_pred = model(batch_x)  # [batch x class activation]
                             
                             # Convert predicted values
-                            y_batch_pred = np.argmax(batch_pred.detach().cpu().numpy(),axis=1)
-                            y_batch_lab  = batch_y.detach().cpu().numpy().squeeze()
+                            y_batch_pred = np.argmax(batch_pred.detach().cpu().numpy(),axis=1) # [batch,]
+                            y_batch_lab  = batch_y.detach().cpu().numpy()            # Removed .squeeze() as it fails when batch size is 1
+                            y_batch_size = batch_y.detach().cpu().numpy().shape[0]
+                            if y_batch_size == 1:
+                                y_batch_lab = y_batch_lab[0,:] # Index to keep as array [1,] instead of collapsing to 0-dim value
+                            else:
+                                y_batch_lab = y_batch_lab.squeeze()
+                            if debug:
+                                print("Batch Shape on iter %i is %s" % (i,y_batch_size))
+                                print("\t the shape wihout squeeze is %s" % (batch_y.detach().cpu().numpy().shape[0]))
                             batch_acc    = np.sum(y_batch_pred==y_batch_lab)/y_batch_lab.shape[0]
                             #print("Acc. for batch %i is %.2f" % (i,batch_acc))
                             #print(y_batch_pred==y_batch_lab)
                             
                             # Store Predictions
                             y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
-                            y_valdt = np.concatenate([y_valdt,y_batch_lab])
+                            if debug:
+                                print("\ty_valdt size is %s" % (y_valdt.shape))
+                                print("\ty_batch_lab size is %s" % (y_batch_lab.shape))
+                            y_valdt = np.concatenate([y_valdt,y_batch_lab],axis=0)
+                            print("\tFinal shape is %s" % y_valdt.shape)
                             
                     # --------------
                     # Save the model
