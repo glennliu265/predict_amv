@@ -11,7 +11,7 @@ Created on Mon Jan 16 13:32:37 2023
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-
+from torch import nn
 
 #%% Project paths
 
@@ -87,9 +87,70 @@ dataset_starts = (1950           ,1920             ,1950             ,1920      
 
 # CMIP6
 cmip6_varnames       = ("tos","sos","zos")
-cmip6_varnames_remap = ("SST","SSS","SSH")
-cmip6_names          = ("ACCESS-ESM1-5","CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR")
-cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"        )
+cmip6_varnames_remap = ("SST","SSS","SSH") # Also the CESM2 variable names...
+cmip6_names          = ("ACCESS-ESM1-5","CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR","CESM2")
+cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"         ,"limegreen")
+
+
+#%% Data Regridding Settings
+
+
+# cmip6_dict={
+#     "regrid"   : None
+#     "quantile" : True
+#     "ens"      : 
+#     "ens"
+#     }
+
+
+
+# # Data Settings
+# regrid         = None
+# quantile       = False
+# ens            = 40
+# tstep          = 86
+# percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
+# detrend        = 0
+# bbox           = [-80,0,0,65]
+# thresholds     = [-1,1]
+# outsize        = len(thresholds) + 1
+
+
+
+#%% ML Model Parameters/Dictionary
+
+# FNN2
+FNN2_dict={
+    "nlayers"     : 2,
+    "nunits"      : [20,20],
+    "activations" : [nn.ReLU(),nn.ReLU()],
+    "dropout"     : 0.5}
+
+# FNN4_120
+FNN120_dict={
+    "nlayers"     : 4,
+    "nunits"      : [120,120,120,120],
+    "activations" : [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()],
+    "dropout"     : 0.5}
+
+# FNN4_128
+FNN128_dict={
+    "nlayers"     : 4,
+    "nunits"      : [128,128,128,128],
+    "activations" : [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()],
+    "dropout"     : 0.5}
+
+# simplecnn
+simplecnn_dict={
+    "cnndropout"     : True,
+    "num_classes"    : 3, # 3 AMV States
+    "num_inchannels" : 1, # Single Predictor
+    }
+
+# Assemble the dictionaries ...
+modelnames = ("FNN2"   , "FNN4_120"   , "FNN4_128"   , "simplecnn")
+indicts    = (FNN2_dict, FNN120_dict  , FNN128_dict  , simplecnn_dict)
+nn_param_dict = dict(zip(modelnames,indicts))
 
 #%%
 # # Darkmode Settings
