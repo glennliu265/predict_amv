@@ -109,9 +109,17 @@ elif cmipver == 6:
     end            = "2014-12-31"
 #%% Functions
 
-def drop_time_bnds(ds):
-    return ds.drop("time_bnds")
+# def drop_extra_dims(ds,dimlist=None): # Drop all other dimensions beyond the specified ones..
+#     if dimlist is None:
+#         dimlist = ("ensemble","time","lat","lon")
+#     remvar = [i for i in list(ds.dims) if i not in dimlist]
+#     #print(remvar)
+#     #print(list(ds.dims))
+#     return ds.drop_dims(remvar)
 
+
+def drop_time_bnds(ds):
+    return ds.drop('time_bnds')
 #%% Get list of files (last one is ensemble average)
 stall = time.time()
 ndata = len(dataset_names)
@@ -147,6 +155,8 @@ for d in range(len(dataset_names)):
     # <1> Concatenate Ensemble Members
     # Read in data [ens x time x lat x lon]
     varname = varnames[d] # Get variable name
+    if dataset_names[d] == "CESM2":
+        varname = varname_out.upper() # ex. "SST" --> "sst", Another silly exception for CESM2...
     if cmipver == 5:
         dsall   = xr.open_mfdataset(nclists[d][:-1],concat_dim="ensemble",combine="nested")
     else:
@@ -185,10 +195,18 @@ for d in range(len(dataset_names)):
     ds_all_anom = (ds_all.groupby('time.month') - ds_all.groupby('time.month').mean('time')).groupby('time.year').mean('time')
     print("Deseasoned in %.2fs!" % (time.time()-st))
     
+    #
+    # Silly step to drop z_t from variable
+    #
+    if (dataset_names[d] == "CESM2") and ("z_t" in list(ds_all_anom.dims)):
+        print("Dims are %s" % (list(ds_all_anom.dims)))
+        ds_all_anom = ds_all_anom.isel(z_t=0,drop=True)
+        print("Dropping z_t. Remaining dims are %s" % (list(ds_all_anom.dims)))
+    
     # -------
     # Detrend
     # -------
-    if detrend:
+    if detrend: 
         ds_all_anom = ds_all_anom - ds_all_anom.mean('ensemble')
     
     # -------------------------
@@ -207,7 +225,7 @@ for d in range(len(dataset_names)):
     # ---------------
     st = time.time() #387 sec
     ds_normalized_out = ds_normalized.transpose('ensemble','year','lat','lon') # Transpose
-    ds_normalized_out = ds_normalized_out.rename({varname:varname_out})        # Rename
+    ds_normalized_out = ds_normalized_out.rename({varname : varname_out})        # Rename
     encoding_dict = {varname_out : {'zlib': True}}
     outname       = "%s%s_%s_NAtl_%sto%s_detrend%i_regrid%sdeg.nc" % (outpath,
                                                                              dataset_names[d],
