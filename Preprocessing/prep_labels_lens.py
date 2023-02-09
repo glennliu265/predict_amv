@@ -28,7 +28,6 @@ detrend        = False
 ystart         = 1850
 yend           = 2014
 regrid         = None
-
 debug          = True # Set to true to do some debugging
 
 # Preprocessing and Cropping Options
@@ -80,9 +79,16 @@ amvbbox         = pparams.amvbbox
 
 d = 1
 
-ds_all = []
-ndata  = len(dataset_names)
-for d in range(1,ndata):
+ds_all    = []
+ndata     = len(dataset_names)
+
+
+nasst_all = []
+amvid_all = []
+amvpats_all = []
+nasstpats_all = []
+
+for d in range(ndata):
     # Open the dataset
     ncsearch = "%s%s_%s_NAtl_%sto%s_detrend%i_regrid%sdeg.nc" % (datpath,dataset_names[d],
                                                                  varname,ystart,yend,
@@ -130,8 +136,6 @@ for d in range(1,ndata):
                 plotidx = amvid_lp
                 idx_name = "AMV"
                 ax.set_xlabel("Years")
-                
-            
             
             for e in range(nens):
                 ax.plot(yrs,plotidx[e,:],label="",alpha=0.1,color="k")
@@ -144,32 +148,131 @@ for d in range(1,ndata):
             ax.axhline([0],ls="dashed",lw=0.75,color="k")
             
         plt.savefig("%s%s_AMV_Indices.png" % (figpath,dataset_names[d]),dpi=150,bbox_inches="tight",transparent=True)
-
-
-#%% Plot the AMV pattern for each large ensemble
-
-
-nasstpats_all = []
-amvpats_all   = []
-
-for d in range(ndata):
-
-    indata   = ds_all_nomask[d].sst.values
-    nens,ntime,nlat,nlon = indata.shape
-    indata   = indata.transpose(0,3,2,1) # [ens x lon x lat x time]
-    inidx    = amvids[d].sst.values
-    inidx_lp = amvids_lp[d]
     
-    amvpats = np.zeros((nlon,nlat,nens))
+    # Plot AMV
+    indata   = ds.sst.values#ds_all[d].sst.values
+    nens,ntime,nlat,nlon = indata.shape
+    indata   = indata.transpose(0,3,2,1) #  --> [ens x lon x lat x time]
+    
+    # Preallocate and regress (need to remove NaNs or write a functions)
+    amvpats   = np.zeros((nlon,nlat,nens))
     nasstpats = amvpats.copy()
+    inidx     = nasst
+    inidx_lp  = amvid_lp
     for e in range(nens):
         
         nasstpats[:,:,e] = proc.regress2ts(indata[e,...],inidx[e,:]/inidx[e,:].std())
-        amvpats[:,:,e]   = proc.regress2ts(indata[e,...],inidx_lp[:,e]/inidx_lp[:,e].std())
-        
+        amvpats[:,:,e]   = proc.regress2ts(indata[e,...],inidx_lp[e,:]/inidx_lp[e,:].std())
+    
     amvpats_all.append(amvpats.transpose(2,1,0)) # [ens x lat x lon]
     nasstpats_all.append(nasstpats.transpose(2,1,0))
+    
+    amvid_all.append(amvid_lp)
+    nasst_all.append(nasst)
+
+#%% Visualize the [ensemble mean] AMVs for each large ensemble
+
+lon = ds.lon.values
+lat = ds.lat.values
+plotdatasets = np.arange(0,ndata)
+
+ylabelnames = ("NASST","AMV")
+
+cints       = np.arange(-2,2.1,0.1)
+fig,axs = plt.subplots(2,ndata,figsize=(14,5.5),subplot_kw={'projection':ccrs.PlateCarree()},
+                           constrained_layout=True)
+for d in range(len(plotdatasets)):
+    print(d)
+    for ii in range(2):
+        ax = axs[ii,d]
+        ax.coastlines()
+        ax.set_extent(amvbbox)
+        
+        if ii == 0:   # Plot the NASST Pattern
+            plotpat = nasstpats_all[d].mean(0)
+            ax.set_title("%s, nens=%i" % (dataset_long[d],nasstpats_all[d].shape[0]))
+        elif ii == 1: # Plot the AMV Pattern
+            plotpat = amvpats_all[d].mean(0)
+            
+        cf = ax.contourf(lon,lat,plotpat,levels=cints,cmap="RdBu_r",extend="both")
+        cl = ax.contour(lon,lat,plotpat,levels=cints,colors="k",linewidths=0.45)
+        ax.clabel(cl,cints[::2],fontsize=8)
+        
+        if d == 0:
+            ax.text(-0.05, 0.55, ylabelnames[ii], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+fig.colorbar(cf,ax=axs.flatten(),orientation='horizontal',fraction=.045)
+            
+            
+savename = "%sAMV_NASST_Patterns_EnsAvg_CMIP6_LENS.png" % (figpath)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
+#%% Plot AMVs for 10 members of each large ensemble
+
+plotnums = np.arange(1,11)
+idxmode  = "AMV"
+
+cints       = np.arange(-2.6,2.8,0.2)
+
+
+fig,axs  = plt.subplots(len(plotdatasets),10,figsize=(20,8.0),subplot_kw={'projection':ccrs.PlateCarree()},
+                           constrained_layout=True)
+
+for d in range(len(plotdatasets)):
+    
+    if idxmode == "AMV":
+        inpats = amvpats_all[d]
+    elif idxmode == "NASST":
+        inpats = nasstpats_all[d]
+    
+    for e in range(10):
+        
+        ax = axs[d,e]
+        ax.coastlines()
+        ax.set_extent(amvbbox)
+        
+        if d == 0:
+            ax.set_title("Member %i" % (plotnums[e]))
+            
+        if e == 0:
+            ax.text(-0.05, 0.55, dataset_names[d], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        
+
+        plotpat = inpats[e,...]
+        cf = ax.contourf(lon,lat,plotpat,levels=cints,cmap="RdBu_r",extend="both")
+        cl = ax.contour(lon,lat,plotpat,levels=cints,colors="k",linewidths=0.45)
+        ax.clabel(cl,cints[::2],fontsize=8)
+        
+            
+fig.colorbar(cf,ax=axs.flatten(),orientation='horizontal',fraction=.035)
+plt.suptitle("%s Regression Patterns ($\degree$C per 1$\sigma_{%s}$)" % (idxmode,idxmode),fontsize=16)
+
+
+savename = "%sAMV_NASST_Patterns_10mem_CMIP6_LENS.png" % (figpath)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+#%%
+    
+
+    for ii in range(2):
+
+        
+        if ii == 0:   # Plot the NASST Pattern
+            plotpat = nasstpats_all[d].mean(0)
+            ax.set_title("%s, nens=%i" % (dataset_long[d],nasstpats_all[d].shape[0]))
+        elif ii == 1: # Plot the AMV Pattern
+            plotpat = amvpats_all[d].mean(0)
+            
+        cf = ax.contourf(lon,lat,plotpat,levels=cints,cmap="RdBu_r",extend="both")
+        cl = ax.contour(lon,lat,plotpat,levels=cints,colors="k",linewidths=0.45)
+        ax.clabel(cl,cints[::2],fontsize=8)
+        
+
+fig.colorbar(cf,ax=axs.flatten(),orientation='horizontal',fraction=.045)
+            
+            
+savename = "%sAMV_NASST_Patterns_EnsAvg_CMIP6_LENS.png" % (figpath)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
