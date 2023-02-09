@@ -30,7 +30,6 @@ Performs the following preprocessing steps based on:
 
 Note: labels are calculated in [prep_labels_lens.py]
 
-
 Created on Mon Jan 23 11:55:25 2023
 @author: gliu
 """
@@ -69,33 +68,38 @@ apply_limask   = False # Set Land/Ice Mask Application (only for CMIP5 LENS)
 detrend        = False # Option to remove the ensemble mean
 
 if cmipver == 5:
-    # I/O, dataset, paths
+    # I/O, dataset
     regrid         = 3
     dataset_names  = ("canesm2_lens","csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens","CESM1")
     varnames       = ("ts","ts","ts","ts","ts")
     varname_out    = "sst"
-
     
+    # Set Start/End
     start          = "1920-01-01"
     end            = "2005-12-31"
-
+    
+    # Set Paths based on land/ice masking option
     if apply_limask:
         lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # limkased
         outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/processed/"
     else:
         lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/"
         outpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/nomask/processed/"
-
+    
 elif cmipver == 6:
     
+    # I/O, dataset Info
     regrid        = None # Data already regridded. See "auto_regrid_cdo.sh"
     dataset_names = pparams.cmip6_names
-    varnames      = ("sos",) * 6
-    varname_out   = "sss"
+    varnames      = ('zos',)*6#("sos",) * 6
+    
+    varname_out   = 'ssh'#"sss"
+    cesm_varname = varname_out.upper()
     
     # Set Paths
     lenspath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CMIP6_LENS/regridded/"
     outpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CMIP6_LENS/processed/"
+    cesm2path     = "/Users/gliu/Globus_File_Transfer/CESM2_LE/1x1/"
     
     # Currently no icemask available...
     apply_limask = False
@@ -103,27 +107,35 @@ elif cmipver == 6:
     # Start and end is set...
     start          = "1850-01-01"
     end            = "2014-12-31"
+#%% Functions
+
+def drop_time_bnds(ds):
+    return ds.drop("time_bnds")
 
 #%% Get list of files (last one is ensemble average)
-
+stall = time.time()
 ndata = len(dataset_names)
 nclists = []
 for d in range(ndata):
     if cmipver == 5:
         ncsearch = "%s%s*.nc" % (lenspath,dataset_names[d])
     elif cmipver == 6:
-        ncsearch = "%s%s_%s*.nc" % (lenspath,varnames[d],dataset_names[d])
+        if dataset_names[d] == "CESM2":
+            ncsearch = "%s/%s/%s_%s*.nc" % (cesm2path,cesm_varname,cesm_varname,"LE2")
+        else:
+            ncsearch = "%s%s_%s*.nc" % (lenspath,varnames[d],dataset_names[d])
     nclist   = glob.glob(ncsearch)
     nclist.sort()
     print("Found %02i files for %s!" % (len(nclist),dataset_names[d]))
     nclists.append(nclist)
-
-
+    
 #%% Write some preprocessing functions
 
-#%% Section 1 (Finish Postprocessing for each dataset)
 
-skipdata = ("ACCESS-ESM1-5",)
+#%% Section 1 (Finish Postprocessing for each dataset)
+st_all = time.time()
+
+skipdata = ("CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR","ACCESS-ESM1-5",)
 
 for d in range(len(dataset_names)):
     
@@ -138,7 +150,7 @@ for d in range(len(dataset_names)):
     if cmipver == 5:
         dsall   = xr.open_mfdataset(nclists[d][:-1],concat_dim="ensemble",combine="nested")
     else:
-        dsall   = xr.open_mfdataset(nclists[d],concat_dim="ensemble",combine="nested")
+        dsall   = xr.open_mfdataset(nclists[d],concat_dim="ensemble",combine="nested",preprocess=drop_time_bnds)
     
     # <2> Crop to Time
     dssel      = dsall.sel(time=slice(start,end))
@@ -147,7 +159,6 @@ for d in range(len(dataset_names)):
     print("Time dimension is size %i from %s to %s" % (len(dssel.time),start_crop,end_crop))
     
     # <3> Crop to Region
-    
     if cmipver==5:
         # First, fix an issue with longitude
         # Double counted longitude values by checking first and last longitude
@@ -203,6 +214,9 @@ for d in range(len(dataset_names)):
                                                                              varname_out,start_crop[:4],end_crop[:4],detrend,regrid)
     ds_normalized_out.to_netcdf(outname,encoding=encoding_dict)
     print("Saved output to %s in %.2fs!" % (outname,time.time()-st))
+    print("Processed %s in %.2fs" % (dataset_names[d],time.time()-st_s1))
+    
+print("Ran script in %.2fs" % (time.time()-st_all))
 
 #%%
 
