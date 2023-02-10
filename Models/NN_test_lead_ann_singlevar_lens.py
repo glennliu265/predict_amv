@@ -49,7 +49,7 @@ if cmipver == 5:
     regrid        = 3
     
 elif cmipver == 6:
-    dataset_names = pparams.cmip6_names[1:-1]
+    dataset_names = pparams.cmip6_names
     ystarts       = (1850,)*len(dataset_names)
     datdir        = "../../CESM_data/CMIP6_LENS/" 
     varnames      = ("sst","ssh","sss")
