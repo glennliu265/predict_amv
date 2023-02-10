@@ -133,6 +133,43 @@ inexps   = [exp0,exp1,exp2,exp3,exp4] # Put in experiments here...
 compname = "CMIP5_Lens_30_1950"# CHANGE THIS for each new comparison
 quartile = True
 
+
+
+#%% CMIP6_Singlevar
+
+dataset_name = "CanESM5"#"IPSL-CM6A-LR"
+
+exp0 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
+        "searchstr"     :  "*sst*"               , # Search/Glob string used for pulling files
+        "expname"       : "SST"       , # Name of the experiment (Short)
+        "expname_long"  : "SST"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "r"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+exp1 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
+        "searchstr"     :  "*sss*"               , # Search/Glob string used for pulling files
+        "expname"       : "SSS"       , # Name of the experiment (Short)
+        "expname_long"  : "SSS"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "limegreen"                    , # Color for plotting
+        "marker"        : "x"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+exp2 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
+        "searchstr"     :  "*ssh*"               , # Search/Glob string used for pulling files
+        "expname"       : "SSH"       , # Name of the experiment (Short)
+        "expname_long"  : "SSH"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "darkblue"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+inexps   = [exp0,exp1,exp2,] # Put in experiments here...
+compname = "%s_SingleVar" % dataset_name# CHANGE THIS for each new comparison
+quartile = True
+
 #%% Locate the files
 
 nexps = len(inexps)
