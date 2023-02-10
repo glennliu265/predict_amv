@@ -1389,7 +1389,7 @@ def prep_traintest_classification(data,target,lead,thresholds,percent_train,
         threscount = np.zeros(nthres)
         for t in range(nthres):
             threscount[t] = len(np.where(y_class==t)[0])
-        nsamples = int(np.min(threscount))
+        nsamples = int(np.min(threscount))*3
     y_val  = y.copy()
     
     # Compute class of initial state if option is set
@@ -1431,4 +1431,50 @@ def get_ensyr(id_val,lead,ens=40,tstep=86,percent_train=0.8,get_train=False):
 #def data_loader(varname=None,datpath=None):
 ## Added LRP Functions
 
-        
+# Remake an NN Model
+def recreate_model(modelname,nn_param_dict,inputsize,outsize,nlat=180,nlon=360):
+    """
+    Recreate a NN model for loading weights, based on the modelname, nn_param_dict, inputsize, outsize
+    For CNN, need to specify the actual longitude/latitude dimensions (default is 1x1 deg).
+    Works with nn_param_dict detailed in predict_amv_params.py
+
+    Parameters
+    ----------
+    modelname       (STR)   : Name of the Model. See predcit_amv_params for supported models.
+    nn_param_dict   (DICT)  : Load this from predict_amv_params. Contains all named model parameters
+    inputsize       (INT)   : Size of the input/predictor
+    outsize         (INT)   : Size of the model output
+    nlat            (INT)   : (optional) Size of latitude input (Y)
+    nlon            (INT)   : (optional) Size of longitude input (X)
+
+    Returns
+    -------
+    pmodel          (torch.NN): Pytorch model with structure loaded (weights are NOT loaded!)
+
+    """
+    
+    
+    # Retrieve Parameters
+    param_dict = nn_param_dict[modelname]
+    if "nodropout" in modelname:
+        dropout = 0
+    else:
+        dropout = 0.5
+    # Recreate the model
+    if "FNN" in modelname:
+        layers = build_FNN_simple(inputsize,
+                                  outsize,
+                                  param_dict["nlayers"],
+                                  param_dict["nunits"],
+                                  param_dict["activations"],
+                                  dropout=dropout)
+        pmodel = nn.Sequential(*layers)
+    elif modelname == "simplecnn":
+        pmodel = build_simplecnn(param_dict["num_classes"],
+                                 cnndropout=param_dict["cnndropout"],
+                                 unfreeze_all=True,
+                                 nlat=nlat,
+                                 nlon=nlon,
+                                 num_inchannels=param_dict["num_inchannels"])
+    return pmodel
+    
