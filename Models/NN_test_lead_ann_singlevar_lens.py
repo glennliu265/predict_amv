@@ -76,6 +76,7 @@ for d in range(len(dataset_names)):
     
     if do_only is not None: # Do some skippin'
         if datasetname not in do_only:
+            print("Skipping %s"% datasetname)
             continue
     
     for v in range(len(varnames)):
