@@ -35,6 +35,8 @@ import sys
 
 cmipver = 6
 
+do_only = ["CESM2","ACCESS-ESM1-5"]
+
 sys.path.append("../")
 import predict_amv_params as pparams
 
@@ -69,8 +71,12 @@ lp                  = 0
 for d in range(len(dataset_names)):
     
     datasetname    = dataset_names[d]
-    expdir         = "CMIP6_LENS_/FNN4_128_SingleVar_%s_Train" % datasetname
+    expdir         = "CMIP6_LENS/FNN4_128_SingleVar_%s_Train" % datasetname
     ystart         = ystarts[d]
+    
+    if do_only is not None: # Do some skippin'
+        if datasetname not in do_only:
+            continue
     
     for v in range(len(varnames)):
         
@@ -819,8 +825,8 @@ for d in range(len(dataset_names)):
                     y: time x 1                      ex: [3438 x 1]
                     
                     FNN
-                    X: time x inputsize     ex: [3438 x 15028]
-                    y: time x 1             ex: [3438 x 15028]
+                    X: time x inputsize              ex: [3438 x 15028]
+                    y: time x 1                      ex: [3438 x 15028]
                     """
                     # ---------------------------------
                     # Split into training and test sets
@@ -901,8 +907,9 @@ for d in range(len(dataset_names)):
                                 print("\ty_valdt size is %s" % (y_valdt.shape))
                                 print("\ty_batch_lab size is %s" % (y_batch_lab.shape))
                             y_valdt = np.concatenate([y_valdt,y_batch_lab],axis=0)
-                            print("\tFinal shape is %s" % y_valdt.shape)
-                            
+                            if debug:
+                                print("\tFinal shape is %s" % y_valdt.shape)
+                         
                     # --------------
                     # Save the model
                     # --------------
