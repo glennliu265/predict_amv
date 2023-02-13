@@ -38,15 +38,15 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
     
 # # Create Experiment Directory
-expdir             = "FNN4_128_SingleVar"
+expdir             = "FNN4_128_SingleVar_Quartile"
 
 # Data preparation settings
-for varname in ("UOHC","UOSC"):
+for varname in ("SST","SSH","SSS"):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
-    thresholds     = [-1,1]#[1/3,2/3]    # Thresholds (standard deviations, or quantile values) 
-    quantile       = False               # Set to True to use quantiles
+    thresholds     = [1/3,2/3]#[-1,1]#    # Thresholds (standard deviations, or quantile values) 
+    quantile       = True               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = None# Set to None, or name of fake dataset.
     region         = None               # Set region of analysis (None for basinwide)
