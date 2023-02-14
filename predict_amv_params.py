@@ -16,11 +16,7 @@ from torch import nn
 #%% Project paths
 
 datpath = "../../CESM_data/"
-figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230210/"
-
-
-
-
+figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230217/"
 
 #%% Regions (Bounding Boxes and Names)
 regions       = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")
@@ -46,25 +42,26 @@ threscolors   = ("r","gray","cornflowerblue")
 # Variables (all, new since 2022.12.09, updated 2023.02.07 adding UOHC/UOSC)
 varnames      = ("SST","SSS","PSL","BSF","SSH","HMXL","UOHC","UOSC")
 varnamesplot  = ("SST","SSS","SLP","BSF","SSH","MLD","UOHC","UOSC")
-varnames_long = ("Temperature","Salinity","Pressure","Surface Height",
-                 "Barotropic Streamfunction","Mixed-Layer Depth",
+varnames_long = ("Temperature","Salinity","Pressure","Barotropic Streamfunction",
+                 "Sea Surface Height","Mixed-Layer Depth",
                  "Upper Ocean Heat Content","Upper Ocean Salt Content")
 vunits        = ("$\degree$C","psu","mb","cm","Sv","cm","$J\,m^{-2}$","$J\,m^{-2}$")
 varcolors     = ("r","violet","yellow","darkblue","dodgerblue","cyan","lightcoral","orchid")
 varmarker     = ("o","d","x","v","^","*","1","2")
 
 # Class Names and colors
-
 classes       = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
 class_colors  = ("salmon","gray","cornflowerblue")
 
-# Plotting
+# Plotting (map)
 proj     = ccrs.PlateCarree()
 bbox     = [-80,0,0,65]
 plotbbox = [-80,0,0,62]
 amvbbox  = [-80,0,0,65]
 
-
+# Plotting (acc by leadtime)
+leadticks24 = np.arange(0,25,3)
+leadticks25 = np.arange(0,26,5)
 
 # ML Training Parameters
 detrend       = 0
@@ -86,14 +83,23 @@ dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"l
 dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
 
 # CMIP6
+"""
+"CESM2"
+"IPSL-CM6A-LR"
+"CanESM5"
+"MIROC6"
+"ACCESS-ESM1-5"
+"""
 cmip6_varnames       = ("tos","sos","zos")
-cmip6_varnames_remap = ("SST","SSS","SSH") # Also the CESM2 variable names...
+cmip6_varnames_remap = ("sst","sss","ssh") # Also the CESM2 variable names...
+cmip6_varcolors      = ("r"  ,"violet","dodgerblue")
+cmip6_varnames_long  = ("Temperature"  ,"Salinity","Sea Surface Height")
 cmip6_names          = ("ACCESS-ESM1-5","CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR","CESM2")
 cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"         ,"limegreen")
+cmip6_markers        = ("o"            ,"d"      ,"x"           ,"v"     ,"^"            ,"*")
 
-
+zos_units            = ("m"            ,"m"      ,"m"           ,"cm"    ,"m")
 #%% Data Regridding Settings
-
 
 # cmip6_dict={
 #     "regrid"   : None
@@ -101,8 +107,6 @@ cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"
 #     "ens"      : 
 #     "ens"
 #     }
-
-
 
 # # Data Settings
 # regrid         = None
@@ -114,8 +118,6 @@ cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"
 # bbox           = [-80,0,0,65]
 # thresholds     = [-1,1]
 # outsize        = len(thresholds) + 1
-
-
 
 #%% ML Model Parameters/Dictionary
 

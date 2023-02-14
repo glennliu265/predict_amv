@@ -16,7 +16,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import glob
-
 import sys
 
 # Load my own custom modules
@@ -39,8 +38,24 @@ class_colors    = pparams.class_colors
 
 # Import other information
 leads           = np.arange(0,26,1)#pparams.leads
+cmip6_names   = pparams.cmip6_names
+cmip6_colors  = pparams.cmip6_colors
+cmip6_markers = pparams.cmip6_markers
+
+# import Predictor information
+varnames            = pparams.varnames
+varnames_long       = pparams.varnames_long
+varcolors           = pparams.varcolors
+varmarker           = pparams.varmarker
+cmip6_varnames_long = pparams.cmip6_varnames_long
+cmip6_varcolors     = pparams.varcolors
 
 #%% User Edits
+
+# ----------
+# [TEMPLATE]
+# ----------
+
 
 """
 # Copy this template and enter the experiment information
@@ -79,8 +94,76 @@ exp1 = {"expdir"        : "FNN4_128_ALL_CESM1_Train" , # Directory of the experi
 inexps   = [exp0,exp1] # Put in experiments here...
 compname = "CESM1_res_1v3"# CHANGE THIS for each new comparison
 
+# -----------------------
+#%% SingleVar Comparison
+# -----------------------
 
-#%%
+"""
+expname     = "CESM2_Quant"
+expdir      = "CMIP6_LENS/models/FNN4_128_SingleVar_CESM2_Train_Quartile"
+cmipver     = 6
+quartile    = True
+leads       = np.arange(0,25,3)
+var_include = ["ssh","sst","sss"]
+"""
+
+
+"""
+expname     = "CESM1_Quant"
+expdir      = "FNN4_128_SingleVar_Quartile"
+cmipver     = 5
+quartile    = True
+leads       = np.arange(0,25,3)
+var_include  = ["SSH","SST","SSS"]
+"""
+
+expname     = "CESM1"
+expdir      = "FNN4_128_SingleVar"
+cmipver     = 5
+quartile    = False
+leads       = np.arange(0,25,3)
+var_include  = ["SSH","SST","SSS"]
+
+
+if cmipver == 5:
+    varnames         = pparams.varnames
+    varnames_long_in = varnames_long
+    varcolors_in     = varcolors
+
+elif cmipver == 6:
+    varnames         = pparams.cmip6_varnames_remap
+    varnames_long_in = cmip6_varnames_long
+    varcolors_in     = cmip6_varcolors
+
+inexps = []
+for v,varname in enumerate(varnames):
+    print(varname)
+    print(v)
+    if cmipver == 5:
+        if varname not in var_include:
+            print("Skipping %s" % varname)
+            continue
+
+    
+    exp = {"expdir"         : expdir                , # Directory of the experiment
+            "searchstr"     :  "*%s*" % varname     , # Search/Glob string used for pulling files
+            "expname"       : varname               , # Name of the experiment (Short)
+            "expname_long"  : varnames_long_in[v]      , # Long name of the experiment (for labeling on plots)
+            "c"             : varcolors_in[v]          , # Color for plotting
+            "marker"        : varmarker[v]          , # Marker for plotting
+            "ls"            : "solid"               , # Linestyle for plotting
+        }
+    inexps.append(exp)
+
+
+compname = "%s_SingleVar_comparison" % expname# CHANGE THIS for each new comparison
+
+
+
+
+# --------------------------
+#%% CMIP5 TS Intercomparison
+# --------------------------
 
 exp0 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_canesm2_lens_Train/"   , # Directory of the experiment
         "searchstr"     :  "*"               , # Search/Glob string used for pulling files
@@ -109,7 +192,6 @@ exp2 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_gfdl_esm2m_lens_Train/"   ,
         "ls"            : "solid"               , # Linestyle for plotting
         }
 
-
 exp3 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_mpi_lens_Train/"   , # Directory of the experiment
         "searchstr"     :  "*"               , # Search/Glob string used for pulling files
         "expname"       : "mpi_lens"       , # Name of the experiment (Short)
@@ -118,7 +200,6 @@ exp3 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_mpi_lens_Train/"   , # Dire
         "marker"        : "o"                    , # Marker for plotting
         "ls"            : "solid"               , # Linestyle for plotting
         }
-
 
 exp4 = {"expdir"        : "LENS_30_1950/FNN4_128_ALL_CESM1_Train/"   , # Directory of the experiment
         "searchstr"     :  "*"               , # Search/Glob string used for pulling files
@@ -133,12 +214,18 @@ inexps   = [exp0,exp1,exp2,exp3,exp4] # Put in experiments here...
 compname = "CMIP5_Lens_30_1950"# CHANGE THIS for each new comparison
 quartile = True
 
+# ----------------------------
+#%% CMIP6 SingleVar Comparison
+# ----------------------------
 
-
-#%% CMIP6_Singlevar
-
-dataset_name = "CanESM5"#"IPSL-CM6A-LR"
-
+dataset_name = "ACCESS-ESM1-5"
+"""
+"CESM2"
+"IPSL-CM6A-LR"
+"CanESM5"
+"MIROC6"
+"ACCESS-ESM1-5"
+"""
 exp0 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
         "searchstr"     :  "*sst*"               , # Search/Glob string used for pulling files
         "expname"       : "SST"       , # Name of the experiment (Short)
@@ -170,6 +257,89 @@ inexps   = [exp0,exp1,exp2,] # Put in experiments here...
 compname = "%s_SingleVar" % dataset_name# CHANGE THIS for each new comparison
 quartile = True
 
+# -----------------------
+#%% CMIP6 Intercomparison
+# -----------------------
+
+varname ="ssh"
+skipmodels = ["MPI-ESM1-2-LR",]
+
+inexps = []
+for d,dataset_name in enumerate(cmip6_names):
+    
+    if dataset_name in skipmodels : # Skip this model
+        continue
+    
+    exp = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
+            "searchstr"     :  "*%s*" % varname             , # Search/Glob string used for pulling files
+            "expname"       : dataset_name                  , # Name of the experiment (Short)
+            "expname_long"  : dataset_name                  , # Long name of the experiment (for labeling on plots)
+            "c"             : cmip6_colors[d]               , # Color for plotting
+            "marker"        : cmip6_markers[d]              , # Marker for plotting
+            "ls"            : "solid"                       , # Linestyle for plotting
+        }
+    inexps.append(exp)
+
+compname = "%s_CMIP6_Intercomparison" % varname# CHANGE THIS for each new comparison
+quartile = True
+leads    = np.arange(0,26,1)
+
+# --------------------------
+#%% CESM1 v CESM2 (Limit Time Period to 1920-2005) Effect + Quartile
+# --------------------------
+
+varname = "sst"
+
+# Limited CESM2 Traininng Period to 1920-2005
+exp0 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_CESM2_Train_Quartile", # Directory of the experiment
+        "searchstr"     :  "*%s*"  % varname        , # Search/Glob string used for pulling files
+        "expname"       : "CESM2_Quartile"          , # Name of the experiment (Short)
+        "expname_long"  : "CESM2 Quartile"          , # Long name of the experiment (for labeling on plots)
+        "c"             : "r"                       , # Color for plotting
+        "marker"        : "o"                       , # Marker for plotting
+        "ls"            : "solid"                   , # Linestyle for plotting
+        }
+
+exp1 = {"expdir"        : "FNN4_128_SingleVar_Quartile", # Directory of the experiment
+        "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
+        "expname"       : "CESM1_Quartile"          , # Name of the experiment (Short)
+        "expname_long"  : "CESM1 Quartile"          , # Long name of the experiment (for labeling on plots)
+        "c"             : "limegreen"               , # Color for plotting
+        "marker"        : "x"                       , # Marker for plotting
+        "ls"            : "solid"                   , # Linestyle for plotting
+        }
+
+
+exp2 = {"expdir"        : "FNN4_128_SingleVar", # Directory of the experiment
+        "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
+        "expname"       : "CESM1"          , # Name of the experiment (Short)
+        "expname_long"  : "CESM1"          , # Long name of the experiment (for labeling on plots)
+        "c"             : "darkgreen"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        }
+
+
+# exp2 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
+#         "searchstr"     :  "*ssh*"               , # Search/Glob string used for pulling files
+#         "expname"       : "SSH"       , # Name of the experiment (Short)
+#         "expname_long"  : "SSH"   , # Long name of the experiment (for labeling on plots)
+#         "c"             : "darkblue"                    , # Color for plotting
+#         "marker"        : "d"                    , # Marker for plotting
+#         "ls"            : "solid"               , # Linestyle for plotting
+#         }
+
+
+inexps    = [exp0,exp1,exp2]                        # Put in experiments here...
+compname  = "CESM1_2_Comparison_%s" % varname # CHANGE THIS for each new comparison
+quartile  = [True,True,False]
+leads     = np.arange(0,25,3)
+
+#%% [X] --------------- E N D    U S E R    I N P U T-------------------------------
+
+
+
+
 #%% Locate the files
 
 nexps = len(inexps)
@@ -196,16 +366,28 @@ for ex in range(nexps):
 expdict = am.make_expdict(flists,leads)
 
 # Gather some dimension information for plotting
-if quartile is True:
-    nruns    = expdict['classacc'].shape[1]
-    nleads   = expdict['classacc'][0][0].shape[0]
-    nclasses = expdict['classacc'][0][0].shape[1]
-else:
-    _,nruns,nleads,nclasses      = expdict['classacc'].shape
+# if isinstance(quartile,list): #Different Threshold Types
+#     quartile_first = quartile.index(True) # Get first non-quartile index
+# else:
+#     if quartile is True: # Nested Array [exp][run][lead][____]
+#         nruns    = expdict['classacc'].shape[1]
+#         nleads   = expdict['classacc'][0][0].shape[0]
+#         nclasses = expdict['classacc'][0][0].shape[1]
+#     else:
+#         _,nruns,nleads,nclasses      = expdict['classacc'].shape
+
+
+# Get Dimensions: classacc = [experiment][runs][lead x class]
+nruns     = len(expdict['classacc'][0])      # Number of runs
+nleads    = len(leads)                       # This will differ by experiment, so best to use leads above
+nclasses  = len(expdict['classacc'][0][0][0]) # Thresholds of classification
+
+# Convert classacc to np.array as it should now be uniform due to same leadtimes
+if isinstance(expdict['classacc'],list):
+    expdict['classacc'] = np.array(expdict['classacc'])
 
 # Unpack Dictionary
 totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict)
-
 #%% Load the persistence baseline
 
 fpath = "../Data/Metrics/"
@@ -222,6 +404,7 @@ persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
 # General plotting options
 lwall      = 2.5
 darkmode   = False
+
 if darkmode:
     plt.style.use('dark_background')
     dfcol = "w"
@@ -293,6 +476,7 @@ for c in range(3):
         ax.legend(ncol=2,fontsize=10)
         ax.set_xlabel("Prediction Lead (Years)")
     
+#plt.suptitle(expname)
 savename = "%sExperiment_Intercomparison_byclass_plotmax%i_%s.png"% (figpath,plotmax,compname)
 plt.savefig(savename,dpi=200,bbox_inches="tight",transparent=True)
 

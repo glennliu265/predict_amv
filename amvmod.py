@@ -106,7 +106,7 @@ def make_expdict(flists,leads):
     
     # Preallocate
     totalacc = [] # Accuracy for all classes combined [exp x run x leadtime]
-    classacc = [] # Accuracy by class                 [exp x run x leadtime x class]
+    classacc = [] # Accuracy by class                 [exp] [run x leadtime x class]
     ypred    = [] # Predictions                       [exp x run x leadtime x sample] # Last array (tercile based) is not an even sample size...
     ylabs    = [] # Labels                            [exp x run x leadtime x sample]
     shuffids = [] # Indices                           [exp x run x leadtime x sample]
@@ -127,8 +127,9 @@ def make_expdict(flists,leads):
     outputs = [totalacc,classacc,ypred,ylabs,shuffids]
     expdict = {}
     dictkeys = ("totalacc","classacc","ypred","ylabs","shuffids")
+    
     for k,key in enumerate(dictkeys):
-        expdict[key] = np.array(outputs[k])
+        expdict[key] = outputs[k] # Removed np.array(output[k])
     return expdict
 
 def retrieve_lead(shuffidx,lead,nens,tstep):
