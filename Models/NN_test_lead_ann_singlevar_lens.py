@@ -61,7 +61,6 @@ elif cmipver == 6:
 limit_time = [1920,2005]
 ens        = 40
 
-
 # -------------
 #%% User Edits
 # -------------
@@ -709,6 +708,10 @@ for d in range(len(dataset_names)):
             iend     = np.argwhere(yrvalues==limit_time[1])[0][0]
             target   = target[:,istart:iend+1]
         
+        # Get standard deviation for threshold
+        std1       = target.std(1).mean() * thresholds[1] # Multiple stdev by threshold value 
+        thresholds = [-std1,std1]
+        
         testvalues=[True]
         testname='unfreeze_all'
         
@@ -783,7 +786,8 @@ for d in range(len(dataset_names)):
                     nchannels,nens,ntime,nlat,nlon=data.shape
                     y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
                     X = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
-                    y_class = make_classes(y,thresholds,reverse=True,quantiles=quantile)
+                    #y_class = make_classes(y,thresholds,reverse=True,quantiles=quantile)
+                    y_class = make_classes(y,thresholds,exact=True,reverse=True,quantiles=quantile)
                     
                     if quantile == True:
                         thresholds = y_class[1].T[0]
