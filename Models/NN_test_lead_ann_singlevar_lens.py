@@ -787,7 +787,7 @@ for d in range(len(dataset_names)):
                     y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
                     X = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
                     #y_class = make_classes(y,thresholds,reverse=True,quantiles=quantile)
-                    y_class = make_classes(y,thresholds,exact=True,reverse=True,quantiles=quantile)
+                    y_class = make_classes(y,thresholds,exact_value=True,reverse=True,quantiles=quantile)
                     
                     if quantile == True:
                         thresholds = y_class[1].T[0]
