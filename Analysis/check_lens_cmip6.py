@@ -5,6 +5,7 @@
 Check CMIP6 LENS
 
 - copied from check_lens_data.py, but for cmip6 rather than cmip5 mmle
+- copied preprocessing steps from prep_data_lens.py (Part 1, prior to deseason & detrend)
 
 Created on Tue Feb  7 13:52:22 2023
 
@@ -20,26 +21,18 @@ import matplotlib.pyplot as plt
 import sys
 import cartopy.crs as ccrs
 
-
 #%% User Edits
 
 # I/O, dataset, paths
-regrid         = 3
-# dataset_names  = ("canesm2_lens" ,"csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens"  ,"CESM1")
-# dataset_long   = ("CCCma-CanESM2","CSIRO-MK3.6"    ,"GFDL-ESM2M"     ,"MPI-ESM-LR","NCAR-CESM1")
-# dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"limegreen")
-# dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
-varname        = "sst"
-
+varname        = "zos" # (tos, sos, zos)
+cesm_varname   = "SSH"
+varunits       = "$\degree C$"
+bbox           = [-90,10,0,65]
+outpath        = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CMIP6_LENS/analysis/"
 # Preprocessing and Cropping Options
-detrend        = False
-bbox           = [-90,20,0,90] # Crop Selection
-bbox_fn        = "lon%ito%i_lat%ito%i" % (bbox[0],bbox[1],bbox[2],bbox[3])
-amvbbox        = [-80,0,0,65]  # AMV Index Calculation
-apply_limasks  = False
 
 # Paths
-machine = "gliu_mbp"
+machine = "Astraeus"
 if machine == "stormtrack":
     lenspath       = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/"
     datpath        = "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/processed/"
@@ -47,6 +40,13 @@ elif machine == "gliu_mbp":
     datpath        = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/LENS_other/processed/"
     sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
     import viz,proc
+elif machine == "Astraeus":
+    datpath        = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CMIP6_LENS/regridded/"
+    sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
+    cesm2path     = "/Users/gliu/Globus_File_Transfer/CESM2_LE/1x1/"
+    
+    import viz,proc
+
 
 ## Load some global information (lat.lon) <Note, I need to customize this better..
 #%% Import packages and universal variables
@@ -67,15 +67,198 @@ classes         = pparams.classes
 class_colors    = pparams.class_colors
 
 # Import dataset inforation
-dataset_names = pparams.dataset_names
-dataset_long  = pparams.dataset_long
-dataset_colors= pparams.dataset_colors
-dataset_starts= pparams.dataset_starts
+dataset_names   = pparams.cmip6_names
+dataset_long    = pparams.cmip6_names
+dataset_colors  = pparams.cmip6_colors
+dataset_starts  = (1850,) * len(dataset_names)
+
+#
+proj            = pparams.proj
+
+bbox_plot       = pparams.amvbbox
+#
+
+#%% Some functions
+def drop_time_bnds(ds):
+    return ds.drop('time_bnds')
+#%% Get dataset lists
+
+ndata  = len(dataset_names)
+nclists = []
+for d in range(ndata):
+    if dataset_names[d] == "CESM2":
+        ncsearch = "%s/%s/%s_%s*.nc" % (cesm2path,cesm_varname,cesm_varname,"LE2")
+    else:
+        ncsearch = "%s%s_%s*.nc" % (datpath,varname,dataset_names[d])
+    nclist   = glob.glob(ncsearch)
+    nclist.sort()
+    print("Found %02i files for %s!" % (len(nclist),dataset_names[d]))
+    nclists.append(nclist)
+nens = [len(lst) for lst in nclists] # Get # of ensemble members based on list length
+
+
+#%% Load out the data (copying prep_data_lens preprocessing step 1)
+st_ld = time.time()
+ds_all = []
+for d in tqdm(range(ndata)):
+    
+    # <1> Concatenate Ensemble Members
+    if dataset_names[d] == "CESM2":
+        varname_in = cesm_varname
+    else:
+        varname_in = varname
+    
+    # Read in data [ens x time x lat x lon]
+    dsall   = xr.open_mfdataset(nclists[d],concat_dim="ensemble",combine="nested",preprocess=drop_time_bnds)
+    
+    if not np.any((dsall.lon.values)<0): # Longitude not flipped
+        print("Correcting longitude values for %s because no negative one was found..." % (dataset_names[d]))
+        dsall.coords['lon'] = (dsall.coords['lon'] + 180) % 360 - 180
+        dsall = dsall.sortby(dsall['lon'])
+    dsall = dsall.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+    
+    ds_all.append(dsall.load())
+    
+    
+lon = ds_all[-1].lon.values
+lat = ds_all[-1].lat.values
+print("Loaded all data in %.2fs" % (time.time()-st_ld))
+
+#%% Take mean over ensemble and save
+
+close_ds_all = False
+
+bbfn,bbtitle = proc.make_locstring_bbox(bbox,)
+ds_ensmean_all = []
+for d in tqdm(range(ndata)):
+    
+    # Take ensemble mean
+    ds_ensmean  = ds_all[d].mean("ensemble")
+    
+    # Edit variable name
+    if dataset_names[d] == "CESM2":
+        varname_in = cesm_varname
+    else:
+        varname_in = varname
+    varname_out = cesm_varname.upper()
+    rename_dict = {varname_in:varname_out}
+    ds_ensmean = ds_ensmean.rename(rename_dict)
+    
+    # Change the name
+    encoding_dict = {varname_out : {'zlib': True}}
+    savename    = "%s%s_%s_%s_EnsAvg.nc" % (outpath,dataset_names[d],varname_out,bbfn)
+    ds_ensmean.to_netcdf(savename,encoding=encoding_dict)
+    ds_ensmean_all.append(ds_ensmean)
+    
+    # Close the larger netCDF (might need to undo this part if I want to do more calculations)
+    if close_ds_all:
+        ds_all[d].close()
+    
+
+#%% Make a plot of ensemble and time mean variables over the North Atlantic
+
+
+fig,axs = plt.subplots(2,3,constrained_layout=True,
+                       subplot_kw={"projection":proj},
+                       figsize=(16,8.5))
+for d in tqdm(range(ndata)):
+    
+    ax = axs.flatten()[d]
+    ax = viz.add_coast_grid(ax,bbox=bbox,fill_color="k")
+    
+    plotvar = ds_ensmean_all[d][varname_out].mean('time')
+    
+    if varname_out == "SSH": # SSH Plot Options
+        if dataset_names[d] == "CESM2": # Conver to m
+            plotvar  = plotvar / 100
+        if dataset_names[d] =="ACCESS-ESM1-5":
+            cints = np.arange(-4.4,-2.8,0.2)
+        else:
+            cints = np.arange(-1.8,1.6,0.2)
+    if varname_out == "SST": # SST Plot Options
+        plotvar = plotvar.squeeze()
+        cints = np.arange(0,34,2)
+    
+    cf = ax.contourf(lon,lat,plotvar,levels=cints,cmap="jet")
+    cl = ax.contour(lon,lat,plotvar,levels=cints,colors="k")
+    ax.clabel(cl)
+    
+    ax.set_title("%s (n=%i)" % (dataset_names[d],nens[d]))
+    fig.colorbar(cf,ax=ax,orientation='horizontal',fraction=0.055)
+
+plt.suptitle("Ensemble and Time Mean %s (%s)" % (varname_out,varunits))
+
+plt.savefig("%sCMIP6_LENS_%s_Ensmean_TimeMean.png" % (figpath,varname_out,),dpi=150,bbox_inches="tight")
+
+
+
+#%%
+
+# maybe investigate what is going on with ACCESS-1
+d             = 0
+all_colorbars = False # Set to True to have colorbars for all subplots
+set_cints     = True  # Set to True to set cints manually
+
+
+if d == 0:
+    # Figure size for 30 ens ACCESS-ESM5-1
+    nrows   = 5
+    ncols   = 6
+    figsizes = ((25,20),(24,18)) # [all_colorbar,shared_colorbar]
+    if varname_out == "SSH":
+        cints = np.arange(-4.4,-2.8,0.2)
+    
+
+# Adjust figure size depending on the colorbar setting
+if all_colorbars:
+    figsize = figsizes[0]
+else:
+    figsize = figsizes[1]
+        
+        
+fig,axs = plt.subplots(nrows,ncols,constrained_layout=True,
+                       subplot_kw={"projection":proj},
+                       figsize=figsize)
+
+for e in range(nens[d]):
+    ax = axs.flatten()[e]
+    ax.set_extent(bbox_plot)
+    ax.coastlines()
+    
+    plotvar = ds_all[d].zos.isel(ensemble=e).mean('time')
+    
+    # Do plotting
+    if set_cints:
+        cf = ax.contourf(lon,lat,plotvar,levels=cints,cmap="jet")
+        cl = ax.contour(lon,lat,plotvar,levels=cints,colors="k",linewidths=0.75)
+    else:
+        cf = ax.contourf(lon,lat,plotvar,cmap="jet")
+        cl = ax.contour(lon,lat,plotvar,colors="k",linewidths=0.75)
+    
+    ax.clabel(cl)
+    viz.label_sp("%02i" % (e+1),ax=ax,usenumber=True,fontsize=16,alpha=0.7,labelstyle="Ens%s")
+    
+    if all_colorbars:
+        fig.colorbar(cf,ax=axs.flatten(),orientation='horizontal',fraction=0.055)
+if all_colorbars is False:
+    fig.colorbar(cf,ax=axs.flatten(),orientation='horizontal',fraction=0.02,pad=0.01)
+plt.suptitle("Time Mean %s (%s)" % (varname_out,varunits),fontsize=20)
+plt.savefig("%sCMIP6_LENS_%s_AllEns_TimeMean.png" % (figpath,varname_out,),dpi=150,bbox_inches="tight")
+
+
+
+#%% Check what is going on...
+
+
+
+
+#%% Below is just copied pasted.... nothing actuall yworks
+
 
 #%% Load datasets in to dataarrays
 
 # Load datasets for each
-ndata  = len(dataset_names)
+
 ds_all = []
 ds_all_nomask = []
 ds_landmask = []
