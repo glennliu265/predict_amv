@@ -1593,8 +1593,34 @@ def load_model_weights(modpath,expdir,leads,varname):
         modweights_lead.append(modweights)
     return modweights_lead,modlist_lead
 
-
-
+def compute_LRP_composites(topN,in_acc,correct_id,relevances,absval=False,normalize_sample=0):
+    """
+    topN        [INT]           : Top N models to composite
+    in_acc      [ARRAY]         : Accuracies of each model [models]
+    correct_id  [LIST]          : Indices of correct predictions for a given class [model][correct_samples]
+    relevances  [ARRAY]         : Relevances to composite [model x sample x channels x lat x lon]
+    absval      [BOOL]          : Set to True to take absolute value of relevances prior to compositing
+    normalize_sample [BOOL]     : Set to True to normalize relevances in each sample to [0,1]
+    Output
+    ------
+    composite_rel [ARRAY]       : Composited relevances [lat x lon]
+    """
+    # Get indices
+    idtopN  = get_topN(in_acc,topN,sort=True)
+    id_plot = np.array(correct_id)[idtopN]
+    # Preallocate
+    nlat    = relevances.shape[3]
+    nlon    = relevances.shape[4]
+    composite_rel = np.zeros((nlat,nlon))
+    for NN in range(topN): # Select correct samples for each model
+        relevances_sel = relevances[idtopN[NN],id_plot[NN],:,:,:].squeeze() # [Correct_Samples x Channel x Lat x Lon]
+        if normalize_sample:
+            relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...] # Divide by max relevance
+        if absval:
+            relevances_sel = np.abs(relevances_sel)
+        composite_rel        += relevances_sel.mean(0) # Add Composite for each model
+    composite_rel /= topN
+    return composite_rel
 
 
 
