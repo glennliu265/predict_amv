@@ -709,7 +709,8 @@ for d in range(len(dataset_names)):
         
         # Get standard deviation for threshold
         std1       = target.std(1).mean() * thresholds[1] # Multiple stdev by threshold value 
-        thresholds = [-std1,std1]
+        if quantile is False:
+            thresholds = [-std1,std1]
         
         testvalues=[True]
         testname='unfreeze_all'

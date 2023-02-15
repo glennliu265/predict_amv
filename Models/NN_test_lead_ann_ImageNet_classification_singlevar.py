@@ -660,7 +660,8 @@ for varname in ("SST","SSH","SSS"):
     
     # Set exact threshold value
     std1       = target.std(1).mean() * thresholds[1] # Multiple stdev by threshold value 
-    thresholds = [-std1,std1]
+    if quantile is False:
+        thresholds = [-std1,std1]
     
     #testvalues = [1e-3,1e-2,1e-1,1,2]
     #testname = "LR"
