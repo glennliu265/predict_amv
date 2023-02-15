@@ -36,17 +36,17 @@ import xarray as xr
 
 #for region in ["TRO","STG","SPG"]:
 #expdir         = "CNN2_singlevar"
-    
+
 # # Create Experiment Directory
-expdir             = "FNN4_128_SingleVar_Quartile"
+expdir             = "FNN4_128_SingleVar_Exact_Thres"
 
 # Data preparation settings
 for varname in ("SST","SSH","SSS"):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
-    thresholds     = [1/3,2/3]#[-1,1]#    # Thresholds (standard deviations, or quantile values) 
-    quantile       = True               # Set to True to use quantiles
+    thresholds     = [-1,1]#  [1/3,2/3]#  # Thresholds (standard deviations, or quantile values) 
+    quantile       = False               # Set to True to use quantiles
     nsamples       = 300                 # Number of samples for each class. Set to None to use all
     usefakedata    = None# Set to None, or name of fake dataset.
     region         = None               # Set region of analysis (None for basinwide)
@@ -658,6 +658,10 @@ for varname in ("SST","SSH","SSS"):
     # Limit target to ensemble member
     target     = target[0:ens,:]
     
+    # Set exact threshold value
+    std1       = target.std(1).mean() * thresholds[1] # Multiple stdev by threshold value 
+    thresholds = [-std1,std1]
+    
     #testvalues = [1e-3,1e-2,1e-1,1,2]
     #testname = "LR"
     
@@ -738,7 +742,7 @@ for varname in ("SST","SSH","SSS"):
                 nchannels,nens,ntime,nlat,nlon=data.shape
                 y = target[:ens,lead:].reshape(ens*(tstep-lead),1)
                 X = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
-                y_class = make_classes(y,thresholds,reverse=True,quantiles=quantile)
+                y_class = make_classes(y,thresholds,exact_value=True,reverse=True,quantiles=quantile)
                 
                 if quantile == True:
                     thresholds = y_class[1].T[0]
@@ -756,7 +760,6 @@ for varname in ("SST","SSH","SSS"):
                 lead_nsamples      = y_class.shape[0]
                 sampled_idx.append(shuffidx) # Save the sample indices
                 
-    
                 
                 # Visualize plot of variables that were selected
                 
@@ -836,29 +839,41 @@ for varname in ("SST","SSH","SSS"):
                     # -----------------
                     y_pred_val = np.asarray([])
                     y_valdt    = np.asarray([])
-                    
+                
                     for i,vdata in enumerate(val_loader):
-                    
-                        #print(i)
+                        
                         # Get mini batch
-                        batch_x, batch_y = vdata
-                        batch_x = batch_x.to(device)
-                        batch_y = batch_y.to(device)
+                        batch_x, batch_y = vdata     # For debugging: vdata = next(iter(val_loader))
+                        batch_x = batch_x.to(device) # [batch x input_size]
+                        batch_y = batch_y.to(device) # [batch x 1]
                         
                         # Make prediction and concatenate
-                        batch_pred = model(batch_x)
+                        batch_pred = model(batch_x)  # [batch x class activation]
                         
                         # Convert predicted values
-                        y_batch_pred = np.argmax(batch_pred.detach().cpu().numpy(),axis=1)
-                        y_batch_lab  = batch_y.detach().cpu().numpy().squeeze()
+                        y_batch_pred = np.argmax(batch_pred.detach().cpu().numpy(),axis=1) # [batch,]
+                        y_batch_lab  = batch_y.detach().cpu().numpy()            # Removed .squeeze() as it fails when batch size is 1
+                        y_batch_size = batch_y.detach().cpu().numpy().shape[0]
+                        if y_batch_size == 1:
+                            y_batch_lab = y_batch_lab[0,:] # Index to keep as array [1,] instead of collapsing to 0-dim value
+                        else:
+                            y_batch_lab = y_batch_lab.squeeze()
+                        if debug:
+                            print("Batch Shape on iter %i is %s" % (i,y_batch_size))
+                            print("\t the shape wihout squeeze is %s" % (batch_y.detach().cpu().numpy().shape[0]))
                         batch_acc    = np.sum(y_batch_pred==y_batch_lab)/y_batch_lab.shape[0]
                         #print("Acc. for batch %i is %.2f" % (i,batch_acc))
                         #print(y_batch_pred==y_batch_lab)
                         
                         # Store Predictions
                         y_pred_val = np.concatenate([y_pred_val,y_batch_pred])
-                        y_valdt = np.concatenate([y_valdt,y_batch_lab])
-                        
+                        if debug:
+                            print("\ty_valdt size is %s" % (y_valdt.shape))
+                            print("\ty_batch_lab size is %s" % (y_batch_lab.shape))
+                        y_valdt = np.concatenate([y_valdt,y_batch_lab],axis=0)
+                        if debug:
+                            print("\tFinal shape is %s" % y_valdt.shape)
+                            
                 # --------------
                 # Save the model
                 # --------------

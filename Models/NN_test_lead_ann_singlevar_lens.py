@@ -665,7 +665,7 @@ for d in range(len(dataset_names)):
             
             ds     = xr.open_dataset(fname)
             allflag = False
-                
+        
         if allflag is False:
             ds     = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
             # Crop to a time period if the option is set
@@ -805,9 +805,9 @@ for d in range(len(dataset_names)):
                     lead_nsamples      = y_class.shape[0]
                     sampled_idx.append(shuffidx) # Save the sample indices
                     
-        
                     
                     # Visualize plot of variables that were selected
+                    
                     
                     ## Save shuffled data
                     # np.save("y_class_lead0_nsample500.npy",y_class)
