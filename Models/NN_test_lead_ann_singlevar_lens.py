@@ -34,7 +34,7 @@ import sys
 #%% Import some parameters (add more here eventually)
 
 cmipver = 6
-do_only = ["CESM2",]
+do_only = ["MIROC6",]
 
 sys.path.append("../")
 import predict_amv_params as pparams
