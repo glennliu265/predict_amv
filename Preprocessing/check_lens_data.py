@@ -16,9 +16,10 @@ import glob
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import sys
-
 import cartopy.crs as ccrs
-from mpl_toolkits.axes_grid.inset_locator import inset_axes
+
+#from mpl_toolkits.axes_grid.inset_locator import inset_axes
+
 #%% User Edits
 
 # I/O, dataset, paths
@@ -34,7 +35,7 @@ detrend        = False
 bbox           = [-90,20,0,90] # Crop Selection
 bbox_fn        = "lon%ito%i_lat%ito%i" % (bbox[0],bbox[1],bbox[2],bbox[3])
 amvbbox        = [-80,0,0,65]  # AMV Index Calculation
-apply_limasks  = True
+apply_limasks  = False
 
 # Paths
 machine = "gliu_mbp"
@@ -48,8 +49,12 @@ elif machine == "gliu_mbp":
 
 ## Load some global information (lat.lon) <Note, I need to customize this better..
 #%% Import packages and universal variables
-sys.path.append("../")
 
+# Note; Need to set script into current working directory (need to think of a better way)
+import os
+cwd = os.getcwd()
+
+sys.path.append(cwd+"/../")
 import predict_amv_params as pparams
 
 # Import paths
@@ -107,7 +112,6 @@ for d in range(ndata):
                                                                                    )
         
         msk = np.load(savename)
-        
         # Load global lat/lon for selection
         if "CESM1" in dataset_names[d]:
             ds = xr.open_dataset("%s../ensAVG/%s_htr_ts_regrid%ideg_ensAVG_nomask.nc" % (datpath,dataset_names[d],regrid))
@@ -116,7 +120,6 @@ for d in range(ndata):
         longlob = ds.lon.values
         latglob = ds.lat.values
         # Quickly select the target region
-        
         mskreg,lonr,latr = proc.sel_region(msk.transpose(2,1,0),longlob,latglob,bbox)
         mmds[mm].append(mskreg.transpose(2,1,0))
         
@@ -156,18 +159,9 @@ for d in range(ndata):
         #     ax.text(-0.05, 0.55, ylabelnames[ii], va='bottom', ha='center',rotation='vertical',
         #             rotation_mode='anchor',transform=ax.transAxes)
 fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=.045)
-            
-            
-#savename = "%sAMV_NASST_Patterns_EnsAvg_LENS.png" % (figpath)
-#plt.savefig(savename,dpi=150,bbox_inches="tight")
-
-
-
 #%% Decide whether or not to use land ice masks
 
-
 ds_masked = ds_all.copy()
-
 if apply_limasks:
     ds_in = ds_all.copy()
 else:
