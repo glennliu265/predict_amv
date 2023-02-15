@@ -2,18 +2,22 @@
 # -*- coding: utf-8 -*-
 """
 
-Perform LRP for LENS data...
+Copied from LRP_LENS.py
 
-(1) Load in predictors and labels for the given model
+Load model weights for networks trained on a given CMIP6 LENS.
+Copied sections from LRP_LENS.py
 
+Test on another large ensemble and:
+    - Compute Accuracy by Class
+    - Get indices of correct predictions
+    - Compute Composite LRP for correct predictions by class
+    - Compute Variance of LRP for correct predictions by class
 
-Copied sections from viz_regional_predictability
-Currently runs on [Astraeus] data paths
-
-Created on Fri Feb  3 09:05:15 2023
+Created on Wed Feb 15 14:56:08 2023
 
 @author: gliu
 """
+
 
 import numpy as np
 import sys
@@ -780,8 +784,4 @@ np.savez(savename,**{
 # 3.   >> Reproject and save indices of correct predictions for test set <<
 
 # 4.   >> Perform LRP on this subset <<
-
-
-
-
 
