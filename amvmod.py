@@ -21,7 +21,7 @@ Working on updating documentation...
     
     --- 
     retrieve_lead      : Get prediction leadtime/index from shuffled indices
-    
+
 @author: gliu
 """
 from scipy.signal import butter,filtfilt
@@ -924,7 +924,7 @@ def make_classes(y,thresholds,exact_value=False,reverse=False,
     """
     
     if quantiles is False:
-        if ~exact_value: # Scale thresholds by standard deviation
+        if exact_value is False: # Scale thresholds by standard deviation
             y_std = np.std(y) # Get standard deviation
             thresholds = np.array(thresholds) * y_std
     else: # Determine Thresholds from quantiles
@@ -1333,6 +1333,28 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
 
         fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
     return int(fcsizes[-1])
+
+def count_samples(nsamples,y_class):
+    """
+    Simplified version of select_samples that only counts the classes
+    and returns the indices/counts
+    """
+    classes    = np.unique(y_class)
+    nclasses   = len(classes)
+    idx_by_class    = [] 
+    count_by_class  = []
+    for i in range(nclasses):
+        
+        # Sort by Class
+        inclass   = classes[i]
+        idx       = (y_class==inclass).squeeze()
+        sel_idx   = np.where(idx)[0]
+        
+        idx_by_class.append(sel_idx)
+        classcount = sel_idx.shape[0]
+        count_by_class.append(classcount)
+        print("%i samples found for class %i" % (classcount,inclass))
+    return idx_by_class,count_by_class
 
 #%% Convenience Functions
 
