@@ -6,6 +6,7 @@ amvmod
 Module containing functions for predict_amv
 Working on updating documentation...
 
+
 ------------------------
   Metrics and Analysis  
 ------------------------
@@ -32,6 +33,7 @@ import cartopy.feature as cfeature
 from cartopy.util import add_cyclic_point
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from torch import nn
+import xarray as xr
 #%% Metrics and Analysis ----
 
 def load_result(fn,debug=False):
@@ -1501,3 +1503,37 @@ def recreate_model(modelname,nn_param_dict,inputsize,outsize,nlat=180,nlon=360):
                                  num_inchannels=param_dict["num_inchannels"])
     return pmodel
     
+def load_cmip6_data(dataset_name,varname,bbox,datpath=None,detrend=0,regrid=None,
+                    ystart=1850,yend=2014,lp=0,return_latlon=False):
+    # Load data that has been processed by prep_data_lens.py
+    if datpath is None:
+        datpath = "../../CESM_data/CMIP6_LENS/processed/"
+    
+    # Load and crop data to region
+    ncname  = "%s/%s_%s_NAtl_%ito%i_detrend%i_regrid%sdeg.nc" % (datpath,dataset_name,
+                                                                           varname,
+                                                                           ystart,yend,
+                                                                           detrend,regrid)
+    ds      = xr.open_dataset(ncname) # [channel x ensemble x year x lat x lon]
+    ds      = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3])) 
+    data    = ds[varname].values[None,...]  # [channel x ensemble x year x lat x lon]
+    
+    # Load labels
+    lblname = "%s/%s_sst_label_%ito%i_detrend%i_regrid%sdeg_lp%i.npy" % (datpath,dataset_name, #Mostly compied from NN_traiing script
+                                                                         ystart,yend,
+                                                                         detrend,regrid,lp)
+    target  = np.load(lblname) # [ensemble x year]
+    if return_latlon:
+        lat = ds.lat.values
+        lon = ds.lon.values
+        return data,target,lat,lon
+    return data,target
+    
+    
+    
+
+
+
+
+
+

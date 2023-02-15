@@ -21,17 +21,14 @@ import glob
 import importlib
 import copy
 import xarray as xr
-
 import torch
 from torch import nn
 
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
-
 from tqdm import tqdm
 import time
 import os
-
 
 #%%
 
@@ -39,8 +36,15 @@ cmipver        = 6
 varname        = "SSH"
 modelname      = "FNN4_128"
 leads          = np.arange(0,26,1)
-dataset_name   = "IPSL-CM6A-LR"#"CanESM5"
+dataset_name   = "MIROC6"
 
+"""
+"CESM2"
+"IPSL-CM6A-LR"
+"CanESM5"
+"MIROC6"
+"ACCESS-ESM1-5"
+"""
 # LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
 gamma          = 0.1
 epsilon        = 0.1
@@ -83,6 +87,9 @@ proc.makedir(figpath)
 bbox          = pparams.bbox
 nn_param_dict = pparams.nn_param_dict
 
+leadticks25 = pparams.leadticks25
+leadticks24 = pparams.leadticks24
+
 #%% Load some other things
 
 # Set Paths based on CMIP version
@@ -113,7 +120,6 @@ elif cmipver == 6:
     limit_time    = [1850,2014] # Set Dates here to limit the range of the variable
     ens           = 25
     regrid        = None
-    
 
 quantile      = True
 thresholds    = [1/3,2/3]
@@ -125,34 +131,18 @@ lp            = 0
 
 #%% Load Predictors (works just for CMIP6 for now)
 
-# Load predictor
-ncname  = "%s/%s_%s_NAtl_%ito%i_detrend%i_regrid%sdeg.nc" % (datpath,dataset_name,
-                                                                       varname,
-                                                                       1850,2014,
-                                                                       detrend,regrid)
-ds      = xr.open_dataset(ncname)
-ds      = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3])) 
-data    = ds[varname].values[None,...] # [echannel x ensemble x year x lat x lon]
 
-# Load labels
-lblname = "%s/%s_sst_label_%ito%i_detrend%i_regrid%sdeg_lp%i.npy" % (datpath,dataset_name, #Mostly compied from NN_traiing script
-                                                                     1850,2014,
-                                                                     detrend,regrid,lp)
-target  = np.load(lblname) # [ensemble x year]
-
-
+# Load predictor and labels,lat,lon
+data,target,lat,lon = am.load_cmip6_data(dataset_name,varname,bbox,datpath=datpath,
+                                 detrend=detrend,regrid=regrid,
+                                 ystart=1850,yend=2014,lp=lp,
+                                 return_latlon=True)
 
 # Limit to input to ensemble member
-data = data[:,0:ens,...] 
-data[np.isnan(data)] = 0
-nchannels,nens,ntime,nlat,nlon = data.shape # Ignore year and ens for now...
-inputsize               = nchannels*nlat*nlon # Compute inputsize to remake FNN
-
-# Load Lat/Lon
-lat = ds.lat.values
-lon = ds.lon.values
-print(nlon),print(nlat)
-
+data                           = data[:,0:ens,...]      # Limit to Ens
+data[np.isnan(data)]           = 0                      # NaN Points to Zero
+nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
+inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
 
 #%% Get list of Model Weights
 
@@ -189,8 +179,8 @@ for lead in leads:
 
 #%% Calculate the Relevance by leadtime
 
-nmodels          = 50 # Specify manually how much to do in the analysis
-st               = time.time()
+nmodels           = 50 # Specify manually how much to do in the analysis
+st                = time.time()
 
 # List for each leadtime
 relevances_lead   = []
@@ -268,16 +258,16 @@ for l,lead in enumerate(leads): # Training data does chain with leadtime
     idcorrect_lead.append(idcorrect)
     modelacc_lead.append(modelacc)
     labels_lead.append(y_val)
-print("Computed relevances in %.2fs" % (time.time()-st))
+print("\nComputed relevances in %.2fs" % (time.time()-st))
 
 #%% Plot composites for some of the relevances
 
 plotleads        = [0,6,12,18,24]
-c                = 1
+c                = 2
 topN             = 25
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
-cmax             = 1.0
+cmax             = 1
 pcount           = 0
 
 fig,axs   = plt.subplots(1,len(plotleads),figsize=(16,4.25),
@@ -325,6 +315,32 @@ savename = "%sLRP_%s_%s_%s_top%02i_normalize%i_abs%i_%s.png" % (figpath,varname,
 plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
 
 #%% Select particular events
+
+
+#%% Some additional analysis to investigate what is going on with ACCESS...
+
+# Visualize the accuracy 
+fig,axs = plt.subplots(3,1,figsize=(12,8),constrained_layout=True)
+for c in range(3):
+    
+    ax = axs[c]
+    leadacc = np.array([modelacc_lead[l][:,c] for l in range(nleads)]) # [lead x model]
+    
+    for nm in range(nmodels):
+        ax.plot(leads,leadacc[:,nm],alpha=0.10,color="k",lw=0.75)
+        
+    mu,sigma,mu_line,shade_region=viz.plot_mean_stdev(leadacc,1,ax=ax,x_vals=leads,color="k",
+                                                      return_lines=True)
+    #ax.plot(leads,leadacc.mean(1),color="k")
+    
+    ax.grid(True,ls="dotted")
+    ax.set_title("%s" % (classes[c]))
+    viz.set_xlim_auto(ax,leadticks25)
+    
+    ax.axhline([0.33],ls="dotted",color="r",lw=1.5)
+ 
+plt.suptitle("Accuracy by Class (%s, %s Predictor)" % (dataset_name,varname.upper()))
+plt.savefig("%sAccuracyByClass_%s_%s.png" % (figpath,dataset_name,varname),bbox_inches="tight",dpi=150)
 
 # ======================
 #%% Event Based Analysis
@@ -481,6 +497,8 @@ event_dict = calc_acc_byevent(labels_lead,leads,
                      relevances_lead,
                      target,
                      ens,tstep)
+
+#$$
 
 #%% Scatterplot selected leads (leadtime vs. AMV Index value)
 
