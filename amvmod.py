@@ -34,6 +34,8 @@ from cartopy.util import add_cyclic_point
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from torch import nn
 import xarray as xr
+import glob
+import torch
 #%% Metrics and Analysis ----
 
 def load_result(fn,debug=False):
@@ -1504,7 +1506,28 @@ def recreate_model(modelname,nn_param_dict,inputsize,outsize,nlat=180,nlon=360):
     return pmodel
     
 def load_cmip6_data(dataset_name,varname,bbox,datpath=None,detrend=0,regrid=None,
-                    ystart=1850,yend=2014,lp=0,return_latlon=False):
+                    ystart=1850,yend=2014,lowpass=0,return_latlon=False):
+    """
+    Load predictor and target that has been processed with prep_data_lens.py
+    
+    Inputs
+    ------
+        dataset_name    [STR]   : Name of CMIP6 MMLE
+        varname         [STR]   : Name of predictor variable
+        bbox            [LIST]  : Bounding Box for cropping (West,East,South,North)
+        datpath         [STR]   : Path to processed data. Default: ../../CESM_data/CMIP6_LENS/processed/
+        detrend         [BOOL]  : True if the target was detrended. Default: False.
+        regrid          [STR]   : Regridding setting for the data. Default: None.
+        ystart          [INT]   : Start year of processed dataset. Default: 1850.
+        yend            [INT]   : End year of processed dataset. Default: 2014.
+        lowpass         [BOOL]  : True if the target was low-pass filtered. Default: True.
+        return_latlon   [BOOL]  : True to return lat/lon. Default: False.
+    
+    Output
+    ------
+        data            [ARRAY] : Predictor [channel x ens x year x lat x lon]
+        target          [ARRAY] : Target    [ens x year]
+    """
     # Load data that has been processed by prep_data_lens.py
     if datpath is None:
         datpath = "../../CESM_data/CMIP6_LENS/processed/"
@@ -1521,7 +1544,7 @@ def load_cmip6_data(dataset_name,varname,bbox,datpath=None,detrend=0,regrid=None
     # Load labels
     lblname = "%s/%s_sst_label_%ito%i_detrend%i_regrid%sdeg_lp%i.npy" % (datpath,dataset_name, #Mostly compied from NN_traiing script
                                                                          ystart,yend,
-                                                                         detrend,regrid,lp)
+                                                                         detrend,regrid,lowpass)
     target  = np.load(lblname) # [ensemble x year]
     if return_latlon:
         lat = ds.lat.values
@@ -1529,8 +1552,46 @@ def load_cmip6_data(dataset_name,varname,bbox,datpath=None,detrend=0,regrid=None
         return data,target,lat,lon
     return data,target
     
+
+def load_model_weights(modpath,expdir,leads,varname):
+    """
+    Get list of model weights using the glob string: [modpath + expdir + *varname*.pt]
+    Inputs
+    ------
+    modpath [STR]       : Path to where the directory model weights are saved
+    expdir  [STR]       : Name of the directory where the model wheres are saved
+    leads   [ARRAY]     : List of leadtimes to search for
+    varname [STR]       : Name of predictor the model was trained on (used for globbing *%s*.pt)
     
-    
+    Outputs
+    -------
+    modweights_lead [LIST] : List of model weights by leadtime [lead][model#]
+    modlist         [LIST] : List of paths to the model [lead][model#]
+    """
+    # Pull model list
+    modlist_lead = []
+    modweights_lead = []
+    for lead in leads:
+        # Get Model Names
+        modlist = glob.glob("%s%s/Models/*%s*.pt" % (modpath,expdir,varname))
+        modlist.sort()
+        print("Found %i models in %s, Lead %i" % (len(modlist),expdir,lead))
+        # Cull the list (only keep files with the specified leadtime)
+        str1 = "_lead%i_" % (lead)   # ex. "..._lead2_..."
+        str2 = "_lead%02i_" % (lead) # ex. "..._lead02_..."
+        if np.any([str2 in f for f in modlist]):
+            modlist = [fname for fname in modlist if str2 in fname]
+        else:
+            modlist = [fname for fname in modlist if str1 in fname]
+        nmodels = len(modlist)
+        print("\t %i models remain for lead %i" % (len(modlist),lead))
+        modlist_lead.append(modlist)
+        modweights = []
+        for m in range(nmodels):
+            mod    = torch.load(modlist[m])
+            modweights.append(mod)
+        modweights_lead.append(modweights)
+    return modweights_lead,modlist_lead
 
 
 

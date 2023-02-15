@@ -127,18 +127,20 @@ tstep         = limit_time[1] - limit_time[0] + 1
 percent_train = 0.8
 detrend       = 0
 outsize       = 3
-lp            = 0
+lowpass       = 0
+ystart        = 1850
+yend          = 2014
+
 
 #%% Load Predictors (works just for CMIP6 for now)
 
-
-# Load predictor and labels,lat,lon
+# Load predictor and labels,lat,lon, cut region
 data,target,lat,lon = am.load_cmip6_data(dataset_name,varname,bbox,datpath=datpath,
                                  detrend=detrend,regrid=regrid,
-                                 ystart=1850,yend=2014,lp=lp,
+                                 ystart=ystart,yend=yend,lowpass=lowpass,
                                  return_latlon=True)
 
-# Limit to input to ensemble member
+# Subset predictor by ensemble, remove NaNs, and get sizes
 data                           = data[:,0:ens,...]      # Limit to Ens
 data[np.isnan(data)]           = 0                      # NaN Points to Zero
 nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
@@ -146,36 +148,9 @@ inputsize                      = nchannels*nlat*nlon    # Compute inputsize to r
 
 #%% Get list of Model Weights
 
-# Make the experiment directory
+# Set experiment directory and load model weights
 expdir = "%s_SingleVar_%s_Train" % (modelname,dataset_name)
-
-# Pull model list
-modlist_lead = []
-modweights_lead = []
-for lead in leads:
-    # Get Model Names
-    modlist = glob.glob("%s%s/Models/*%s*.pt" % (modpath,expdir,varname))
-    modlist.sort()
-    print("Found %i models for %s, Lead %i" % (len(modlist),dataset_name,lead))
-    
-    # Cull the list (only keep files with the specified leadtime)
-    str1 = "_lead%i_" % (lead)   # ex. "..._lead2_..."
-    str2 = "_lead%02i_" % (lead) # ex. "..._lead02_..."
-    if np.any([str2 in f for f in modlist]):
-        modlist = [fname for fname in modlist if str2 in fname]
-    else:
-        modlist = [fname for fname in modlist if str1 in fname]
-    nmodels = len(modlist)
-    print("\t %i models remain for lead %i" % (len(modlist),lead))
-    
-    modlist_lead.append(modlist)
-    
-    modweights = []
-    for m in range(nmodels):
-        mod    = torch.load(modlist[m])
-        modweights.append(mod)
-    
-    modweights_lead.append(modweights)
+modweights_lead,modlist_lead=am.load_model_weights(modpath,expdir,leads,varname)
 
 #%% Calculate the Relevance by leadtime
 
@@ -711,7 +686,6 @@ intermodel_std = np.zeros((nleads,nlat,nlon)) * np.nan
 intermodel_avg = intermodel_std.copy()
 intermodel_acc = np.zeros((nleads)) * np.nan
 intermodel_cnt = intermodel_acc.copy()
-
 
 for moment in range(2):
     fig,axs = plt.subplots(1,nleads,subplot_kw={'projection':proj},figsize=(27,6),
