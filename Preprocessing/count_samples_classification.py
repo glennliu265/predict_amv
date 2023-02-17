@@ -5,14 +5,16 @@
 Count Samples for Classification. Eventually make this into a
 function to set samples.
 
+Use this to evaluate the characteristics of each sample.
+
 
 - Copied from NN_test_lead_ann_singlevar_lens.py
+
 
 Created on Tue Feb 14 13:49:58 2023
 
 @author: gliu
 """
-
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -27,7 +29,6 @@ import copy
 import xarray as xr
 import sys
 
-
 #%% Import some parameters (add more here eventually)
 
 cmipver = 6
@@ -36,6 +37,11 @@ do_only = ["CESM2",]
 sys.path.append("../")
 import predict_amv_params as pparams
 import amvmod as am
+
+# Added for purposes of plotting
+classes      = pparams.classes
+class_colors = pparams.class_colors
+
 
 if cmipver == 5:
     dataset_names = pparams.dataset_names
@@ -253,11 +259,10 @@ def count_samples(nsamples,y_class):
     """
     Simplified version of select_samples that only counts the classes
     and returns the indices/counts
-    
     """
     classes    = np.unique(y_class)
     nclasses   = len(classes)
-    idx_by_class    = []
+    idx_by_class    = [] 
     count_by_class  = []
     for i in range(nclasses):
         
@@ -292,7 +297,7 @@ fname = "%s/%s_%s_NAtl_%ito%i_detrend%i_regrid%sdeg.nc" % (datdir,
                                                            detrend,
                                                            regrid)
 
-ds     = xr.open_dataset(fname)
+ds      = xr.open_dataset(fname)
 allflag = False
         
 if allflag is False:
@@ -331,8 +336,6 @@ nlead    = len(leads)
 channels = data.shape[0]
 start    = time.time()
 
-
-
 # -------------
 # Print Message
 # -------------
@@ -343,17 +346,22 @@ print("\tDetrend        : "+ str(detrend))
 print("\tUse Noise      :" + str(usenoise))
 
 #%%
-thresholds_all    = [] # Thresholds
-sampled_idx       = [] # Sample Indices
-lead_nsamples_all = [] # Number of samples for that leadtime
 
 
-inputs_all = []
-labels_all = []
+thresholds_all     = [] # Thresholds
+sampled_idx        = [] # Sample Indices
+lead_nsamples_all  = [] # Number of samples for that leadtime
+
+count_by_class_all = [] # [lead][class]
+idx_by_class_all   = [] # [lead][class][sample]
+
+inputs_all         = []
+labels_all         = []
+
 
 nr = 0
 i  = 0
-    
+
 # Looping for each leadtime
 for l,lead in enumerate(leads):
     print("Lead %i" % lead)
@@ -368,9 +376,13 @@ for l,lead in enumerate(leads):
     X = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
     
     # Test current and old make_classes function
-    y_class      = make_classes(y,thresholds,reverse=True,quantiles=quantile)
-    y_class_func = am.make_classes(y,thresholds,reverse=True,quantiles=quantile)
-    assert np.all(y_class == y_class_func)
+    #y_class      = make_classes(y,thresholds,reverse=True,quantiles=quantile)
+    #y_class_func = am.make_classes(y,thresholds,reverse=True,quantiles=quantile)
+    #assert np.all(y_class == y_class_func)
+    
+    std1    = target.std(1).mean() # Take stdev in time, mean across ensembles
+    print(std1)
+    y_class = am.make_classes(y,[-std1,std1],exact_value=True,reverse=True,quantiles=quantile)
     
     if quantile == True:
         thresholds = y_class[1].T[0]
@@ -386,18 +398,14 @@ for l,lead in enumerate(leads):
             threscount[t] = len(np.where(y_class==t)[0])
         nsamples = int(np.min(threscount))
     
-    
+    idx_by_class,count_by_class=count_samples(nsamples,y_class) 
+    idx_by_class_all.append(idx_by_class)
+    count_by_class_all.append(count_by_class)
     
     y_class,X,shuffidx = select_samples(nsamples,y_class,X)
     lead_nsamples      = y_class.shape[0]
     lead_nsamples_all.append(lead_nsamples)
     sampled_idx.append(shuffidx) # Save the sample indices
-    
-    # Visualize plot of variables that were selected
-    ## Save shuffled data
-    # np.save("y_class_lead0_nsample500.npy",y_class)
-    # np.save("X_lead0_nsample500.npy",X)
-    # np.save("shuffidx_lead0_nsample500.npy",shuffidx)
     
     # ---------------------------------
     # Split into training and test sets
@@ -406,14 +414,42 @@ for l,lead in enumerate(leads):
     X_val   = torch.from_numpy( X[int(np.floor(percent_train*lead_nsamples)):,...].astype(np.float32) )
     y_train = torch.from_numpy( y_class[0:int(np.floor(percent_train*lead_nsamples)),:].astype(np.compat.long)  )
     y_val   = torch.from_numpy( y_class[int(np.floor(percent_train*lead_nsamples)):,:].astype(np.compat.long)  )
+    inputs_all.append((X_train,X_val))
+    labels_all.append((y_train,y_val))
     
     # Put into pytorch DataLoader
     #train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
     #val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
-
-    inputs_all.append((X_train,X_val))
-    labels_all.append((y_train,y_val))
     
-   # print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
-#print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+#%% Make some visualizations
+
+counts_bylead = np.array(count_by_class_all)
+fig,ax        = plt.subplots(1,1,constrained_layout=True)
+for c in range(3):
+    if c == 1:
+        continue
+    else:
+        ax.plot(leads,counts_bylead[:,c],
+                label=classes[c],color=class_colors[c],
+                lw=2.5,marker="o")
+ax.legend(fontsize=12)
+ax.grid(True,ls="dotted")
+ax.set_xlim([leads[0],leads[-1]])
+ax.set_xticks(leads)
+ax.set_xlabel("Leadtime (Years)")
+ax.set_ylabel("# Samples")
+ax.set_title("%s Class Samples by Leadtime\n(n=%i, percent train=%.2f)" % (datasetname,ens,percent_train))
+
+#%%
+
+
+#%%
+
+#%% Examine characteristics of the selected indices
+
+
+
+    
+    
+
 
