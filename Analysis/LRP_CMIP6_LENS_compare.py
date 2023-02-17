@@ -37,10 +37,10 @@ import os
 
 # Model Information
 cmipver              = 6
-varname              = "ssh"
+varname              = "sst"
 modelname            = "FNN4_128"
 leads                = np.arange(0,26,1)
-model_dataset_name   = "CESM2"
+model_dataset_name   = "ACCESS-ESM1-5"
 expdir               = "%s_SingleVar_%s_Train" % (modelname,model_dataset_name)
 nmodels              = 50 # Specify manually how much to do in the analysis
 
@@ -48,7 +48,7 @@ print("Loading Models from %s" % (expdir))
 
 # Dataset Test Information
 use_train     = True # Set to True to use training data for testing for other LENs
-skip_dataset  = (None,)
+skip_dataset  = ('MPI-ESM1-2-LR',)
 limit_time    = [1850,2014] # Set Dates here to limit the range of the variable
 restrict_ens  = 25 # Set to None to use all ensemble members
 
@@ -56,7 +56,6 @@ restrict_ens  = 25 # Set to None to use all ensemble members
 composite_topNs  = (1,5,10,25,50)
 absval           = False
 normalize_sample = False
-
 
 # LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
 gamma                = 0.1
@@ -103,6 +102,7 @@ leadticks25     = pparams.leadticks25
 leadticks24     = pparams.leadticks24
 
 dataset_names   = pparams.cmip6_names
+cmip6_dict      = pparams.cmip6_dict
 
 #%% Load some other things
 
@@ -115,8 +115,7 @@ elif cmipver == 6:
     modpath        = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CMIP6_LENS/models/"
 
 # Set Outpath
-
-outpath              = "%s../LRP/" % datpath
+outpath            = "%s../LRP/" % datpath
 
 # Compute some dimensions
 nleads         = len(leads)
@@ -132,7 +131,7 @@ if cmipver == 5:
     
 elif cmipver == 6:
     varname       = varname.lower()
-    dataset_names = pparams.cmip6_names[1:-1]
+    #dataset_names = pparams.cmip6_names[1:-1]
     ystarts       = (1850,)*len(dataset_names)
     varnames      = ("sst","ssh","sss")
     regrid        = None
@@ -146,18 +145,20 @@ outsize       = 3
 lowpass       = 0
 ystart        = 1850
 yend          = 2014
+save_latlon   = False # Set to True to save latlon for plotting
 #%% Load Model Weights
 
 modweights_lead,modlist_lead=am.load_model_weights(modpath,expdir,leads,varname)
-
 
 #%% Looping for each dataset...
 
 for d in range(len(dataset_names)):
     st_dataset=time.time()
-    dataset_name = dataset_names[d]
     
+    dataset_name = dataset_names[d]
+    print("Now Doing %s" % dataset_name)
     if dataset_name in skip_dataset: # Skip this dataset
+        print("Skipping %s" % dataset_name)
         continue
     
     #%Load Predictors (works just for CMIP6 for now)
@@ -274,9 +275,6 @@ for d in range(len(dataset_names)):
                 composites[NC,c,0,:,:] = composite_rel.copy()
                 # End Composite Loop
             #End Class Loop
-            
-                
-            
         
         # Append for each leadtime
         composites_lead.append(composites)
@@ -287,7 +285,7 @@ for d in range(len(dataset_names)):
         #labels_lead.append(y_val)
         del relevances
         del factivations
-        del labels_lead
+        del y_val
     print("\nComputed relevances in %.2fs" % (time.time()-st))
     
     savename = "%sLRP_Output_%s_TEST_%s_ens%03i.npz" % (outpath,expdir,dataset_name,nens)
@@ -300,7 +298,8 @@ for d in range(len(dataset_names)):
     # End Dataset Loop
     print("Finished %s in %.2fs" % (model_dataset_name,time.time()-st_dataset))
 
-    
 
-
-
+#%%
+if save_latlon:
+    savename="%sLRP_Output_LATLON.npz" % (outpath)
+    np.savez(savename,**{"lat":lat,"lon":lon},allow_pickle=True)

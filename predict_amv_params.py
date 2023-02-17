@@ -94,11 +94,76 @@ cmip6_varnames       = ("tos","sos","zos")
 cmip6_varnames_remap = ("sst","sss","ssh") # Also the CESM2 variable names...
 cmip6_varcolors      = ("r"  ,"violet","dodgerblue")
 cmip6_varnames_long  = ("Temperature"  ,"Salinity","Sea Surface Height")
+
+
 cmip6_names          = ("ACCESS-ESM1-5","CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR","CESM2")
-cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"         ,"limegreen")
 cmip6_markers        = ("o"            ,"d"      ,"x"           ,"v"     ,"^"            ,"*")
+cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"         ,"limegreen")
+
 
 zos_units            = ("m"            ,"m"      ,"m"           ,"cm"    ,"m")
+
+
+
+# Zip everything above into a dictionary
+
+cm6_vars = {}
+cm6_keys = {}
+
+cmip6_dict = {}
+
+
+
+#%% Same as above, but organize into a dictionary
+
+
+access_dict = {
+    "dataset_name" : "ACCESS-ESM1-5",
+    "mrk"          : "o",
+    "col"          : "orange",
+    "zos_units"    : "m",
+    }
+
+canesm_dict = {
+    "dataset_name" : "CanESM5",
+    "mrk"          : "d",
+    "col"          : "r",
+    "zos_units"    : "m",
+    }
+
+ispl_dict = {
+    "dataset_name" : "IPSL-CM6A-LR",
+    "mrk"          : "x",
+    "col"          : "magenta",
+    "zos_units"    : "m",
+    }
+
+miroc_dict = {
+    "dataset_name" : "MIROC6",
+    "mrk"          : "v",
+    "col"          : "b",
+    "zos_units"    : "cm",
+    }
+
+mpi_dict = {
+    "dataset_name" : "MPI-ESM1-2-LR",
+    "mrk"          : "^",
+    "col"          : "gold",
+    "zos_units"    : "m",
+    }
+
+cesm_dict = {
+    "dataset_name" : "CESM2",
+    "mrk"          : "*",
+    "col"          : "limegreen",
+    "zos_units"    : "cm",
+    }
+
+
+indicts_cmip6      = [access_dict    ,canesm_dict,ispl_dict     ,miroc_dict, mpi_dict       ,cesm_dict]
+indicts_cmip6_keys = [d["dataset_name"] for d in indicts_cmip6]
+cmip6_dict         = dict(zip(indicts_cmip6_keys,indicts_cmip6))
+
 #%% Data Regridding Settings
 
 # cmip6_dict={
