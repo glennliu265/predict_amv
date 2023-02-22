@@ -35,11 +35,12 @@ import time
 # Indicate settings (Network Name)
 
 # Data and variable settings
-#expdir    = "FNN4_128_SingleVar"
+expdir    = "FNN4_128_detrend"
 modelname  = "FNN4_128"
 varname    = "SSH" 
 leads      = np.arange(0,27,3)
 nleads     = len(leads)
+detrend    = True
 
 #datpath    = "../../CESM_data/"
 #figpath    = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221209/"
@@ -52,7 +53,6 @@ from innvestigator import InnvestigateModel
 # Load modules (LRPutils by Peidong)
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/scrap/")
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/predict_amv/")
-
 import LRPutils as utils
 import amvmod as am
 
@@ -78,7 +78,7 @@ quantile       = False
 ens            = 40
 tstep          = 86
 percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-detrend        = 0
+#detrend        = 0
 bbox           = [-80,0,0,65]
 thresholds     = [-1,1]
 outsize        = len(thresholds) + 1
@@ -117,7 +117,6 @@ elif modelname == "simplecnn":
 if "nodropout" in modelname:
     dropout = 0
     
-    
 # Plotting Settings
 #classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
 #proj      = ccrs.PlateCarree()
@@ -139,10 +138,21 @@ def get_prediction(factivations):
 
 #%% Load parameters to workspace
 
+# Note; Need to set script into current working directory (need to think of a better way)
+import os
+cwd = os.getcwd()
+
+sys.path.append(cwd+"/../")
 import predict_amv_params as pparams
 
-regions = pparams.regions
+
 bboxes  = pparams.bboxes
+if detrend:
+    regions = ("NAT",)
+else:
+    regions = pparams.regions
+    bboxes  = [bboxes[0],]
+
 classes = pparams.classes
 proj    = pparams.proj
 
@@ -152,9 +162,9 @@ datpath = pparams.datpath
 figpath = pparams.figpath
 proc.makedir(figpath)
 
-
-
-    
+# Load model_dict
+nn_param_dict = pparams.nn_param_dict
+        
 # ----------------------
 #%% Load Data and Labels
 # ----------------------
@@ -216,7 +226,10 @@ for region in regions:
     
     # Get experiment Directory
     if region == "NAT":
-        expdir = "%s_SingleVar" % modelname
+        if detrend:
+            expdir = "%s_detrend" % modelname
+        else:
+            expdir = "%s_SingleVar" % modelname
     else:
         expdir = "FNN4_128_singlevar_regional/%s_%s" % (modelname,region)
     
@@ -406,7 +419,7 @@ plt.savefig(savename,dpi=150,bbox_inches='tight')
 # -----------------------------------------------------------
 
 c                = 0  # Class
-topN             = 50 # Top 10 models
+topN             = 25 # Top 10 models
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
 cmax             = 1
@@ -650,7 +663,7 @@ plt.suptitle("Mean LRP Maps for Predicting %s using %s, \n Composite of Top %02i
 savename = "%sRegional_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_AGU%02i_smaller.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn,pcount)
 plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
 
-#%% Plot COlorbar
+#%% Plot Colorbar
 
 fig,axs = plt.subplots(4,5,figsize=(8,6.5),
                        subplot_kw={'projection':proj},constrained_layout=True)
@@ -688,11 +701,11 @@ plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
 #%% For a given region, do composites by lead for positive and negative AMV
 
 
-topN             = 50 # Top 10 models
+topN             = 25 # Top 10 models
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
-cmax             = 0.75
-region           = "TRO"
+cmax             = 1
+region           = "NAT"
 r = regions.index(region)
 clvl             = np.arange(-2,2.4,0.4)
 

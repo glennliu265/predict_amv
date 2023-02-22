@@ -19,8 +19,13 @@ import glob
 import sys
 
 # Load my own custom modules
+import os
+cwd = os.getcwd()
+sys.path.append(cwd+"/../")
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 sys.path.append("../")
+
+
 import viz,proc
 import amvmod as am # Import amv module for predict amv
 #%% Import common parameters from file
@@ -69,19 +74,34 @@ exp1 = {"expdir"        :  , # Directory of the experiment
         
         }
 """
+
 # -----------------------
 #%% SingleVar Comparison (version agnostic)
 # -----------------------
 
 
 # MIROC6, Exact Thresholds, Limit 1920 - 2005
-expname     = "CESM2_1920to2005"
-expdir      = "CMIP6_LENS/models/Limit_1920to2005/FNN4_128_SingleVar_CESM2_Train"
-cmipver     = 6
-quartile    = True
-leads       = np.arange(0,26,3)
-var_include = ["ssh","sst","sss"]
+# expname     = "CESM2_1920to2005"
+# expdir      = "CMIP6_LENS/models/Limit_1920to2005/FNN4_128_SingleVar_CESM2_Train"
+# cmipver     = 6
+# quartile    = True
+# leads       = np.arange(0,26,3)
+# var_include = ["ssh","sst","sss"]
 
+# expname     = "MIROC6_ExactThres"
+# expdir      = "CMIP6_LENS/models/Limit_1920to2005/FNN4_128_SingleVar_MIROC6_Train"
+# cmipver     = 6
+# quartile    = True
+# leads       = np.arange(0,26,3)
+# var_include = ["ssh","sst","sss"]
+
+
+expname     = "CESM1_Detrend"
+expdir      = "FNN4_128_detrend"
+cmipver     = 5
+quartile    = False
+leads       = np.arange(0,25,3)
+var_include = ["SSH","SST","SSS"]
 
 if cmipver == 5:
     varnames         = pparams.varnames
@@ -113,78 +133,26 @@ for v,varname in enumerate(varnames):
         }
     inexps.append(exp)
 
-
 compname = "%s_SingleVar_comparison" % expname# CHANGE THIS for each new comparison
+#%%
+
+# MIROC6, Exact Thresholds, Limit 1920 - 2005
 
 
-# --------------------------
-#%% CESM1 v CESM2 (Limit Time Period to 1920-2005) Effect + Quartile
-# --------------------------
-
-varname = "ssh"
-
-# Limited CESM2 Traininng Period to 1920-2005
-exp0 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_CESM2_Train_Quartile", # Directory of the experiment
-        "searchstr"     :  "*%s*"  % varname        , # Search/Glob string used for pulling files
-        "expname"       : "CESM2_Tercile"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM2 (Tercile)"          , # Long name of the experiment (for labeling on plots)
-        "c"             : "r"                       , # Color for plotting
-        "marker"        : "o"                       , # Marker for plotting
-        "ls"            : "dashed"                    , # Linestyle for plotting
-        }
-
-exp1 = {"expdir"        : "CMIP6_LENS/models/Limit_1920to2005/FNN4_128_SingleVar_CESM2_Train", # Directory of the experiment
-        "searchstr"     :  "*%s*"  % varname        , # Search/Glob string used for pulling files
-        "expname"       : "CESM2_Exact"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM2 (Stdev)"          , # Long name of the experiment (for labeling on plots)
-        "c"             : "darkred"                       , # Color for plotting
-        "marker"        : "o"                       , # Marker for plotting
-        "ls"            : "solid"                   , # Linestyle for plotting
-        }
 
 
-exp2 = {"expdir"        : "FNN4_128_SingleVar_Quartile", # Directory of the experiment
-        "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
-        "expname"       : "CESM1_Tercile"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM1 (Tercile)"          , # Long name of the experiment (for labeling on plots)
-        "c"             : "cornflowerblue"               , # Color for plotting
-        "marker"        : "x"                       , # Marker for plotting
-        "ls"            : "dashed"                    , # Linestyle for plotting
-        }
 
-exp3 = {"expdir"        : "FNN4_128_SingleVar_Exact_Thres", # Directory of the experiment
-        "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
-        "expname"       : "CESM1_Exact_Thres"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM1 (Stdev)"          , # Long name of the experiment (for labeling on plots)
-        "c"             : "darkblue"                   , # Color for plotting
-        "marker"        : "x"                          , # Marker for plotting
-        "ls"            : "solid"                     , # Linestyle for plotting
-        }
-
-# exp4 = {"expdir"        : "FNN4_128_SingleVar",               # Directory of the experiment
-#         "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
-#         "expname"       : "CESM1"          , # Name of the experiment (Short)
-#         "expname_long"  : "CESM1"          , # Long name of the experiment (for labeling on plots)
-#         "c"             : "darkblue"                    , # Color for plotting
-#         "marker"        : "d"                    , # Marker for plotting
-#         "ls"            : "solid"               , # Linestyle for plotting
-#         }
-
-inexps    = [exp0,exp1,exp2,exp3]                        # Put in experiments here...
-compname  = "CESM1_2_Comparison_%s" % varname # CHANGE THIS for each new comparison
-quartile  = [True,True,False]
-leads     = np.arange(0,25,3)
 
 #%% [X] --------------- E N D    U S E R    I N P U T-------------------------------
 
 #%% Locate the files
-
 nexps = len(inexps)
 flists = []
 for ex in range(nexps):
     
     search = "%s%s/Metrics/%s" % (datpath,inexps[ex]["expdir"],inexps[ex]["searchstr"])
     flist  = glob.glob(search)
+    flist  = [f for f in flist if "of" not in f]
     flist.sort()
     
     print("Found %i files for %s using searchstring: %s" % (len(flist),inexps[ex]["expname"],search))
@@ -241,7 +209,7 @@ persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
 
 # General plotting options
 lwall      = 2.5
-darkmode   = False
+darkmode   = True
 
 if darkmode:
     plt.style.use('dark_background')
@@ -304,7 +272,7 @@ for c in range(3):
             else:
                 ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=col,zorder=1)
         
-    #ax.plot(leads,persacctotal,color=dfcol,label="Persistence",ls="dashed")
+    ax.plot(leads,persacctotal,color=dfcol,label="Persistence",ls="dashed")
     ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
     
     ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color='k')

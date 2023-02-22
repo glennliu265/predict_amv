@@ -24,7 +24,7 @@ from torch import nn
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
-from tqdm import tqdm_notebook as tqdm
+from tqdm import tqdm
 import time
 
 #%% # User Edits
@@ -33,8 +33,8 @@ import time
 #expdir    = "FNN4_128_SingleVar"
 #modelname = "FNN4_128"
 
-expdir     = "CNN2_singlevar"
-modelname  = "simplecnn"
+expdir     = "FNN4_128_detrend"
+modelname  = "FNN4_128"
 
 datpath    = "../../CESM_data/"
 figpath    = datpath + expdir + "/Figures/"
