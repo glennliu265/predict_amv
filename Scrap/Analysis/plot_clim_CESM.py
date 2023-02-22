@@ -512,18 +512,24 @@ amvid = amvid.squeeze()
 amvidraw= calc_AMV_index('NAT',ssta[None,:,:,:],lath,lonh,lp=False,dtr=dtr)
 amvidraw = amvidraw.squeeze()
 
+# Calculate undetrended version
+amvid_undtr     = calc_AMV_index('NAT',ssta[None,:,:,:],lath,lonh,lp=True,dtr=False)
+amvidraw_undtr  = calc_AMV_index('NAT',ssta[None,:,:,:],lath,lonh,lp=False,dtr=False)
+
 # Regress back to sstanomalies to obtain AMV pattern
 #ssta   = ssta.transpose(1,0,2,3) # [time x ens x lon x lat]
 sstar  = ssta.reshape(nmon,nlat*nlon) 
 beta,_=regress_2d(amvidstd.squeeze(),sstar)
+beta_undtr,_ = regress_2d((amvid_undtr/amvid_undtr.std(1)[:,None]).squeeze(),sstar)
 amvpath = beta
 amvpath = amvpath.reshape(nlat,nlon)
 
 #%%
 
-plotdark=True
+plotdark   = True
+plot_undtr = True
+pdark      = True
 
-pdark = True
 if pdark:
     plt.style.use('dark_background')
     basecol = "w"
@@ -532,32 +538,46 @@ else:
     basecol = "k"
 
 # Plot the AMV Index
-maskneg = amvidraw<0
-maskpos = amvidraw>=0
+
 timeplot = np.arange(0,len(amvid),1)
 fig,ax = plt.subplots(1,1,figsize=(8,3))
 ax.grid(True,ls='dotted')
 ax.set_xticks(timeplot[::120])
 ax.set_xticklabels(timesyr[::120])
 #ax.plot(timeplot,amvid,label="AMV Index",color='gray',lw=.75,ls='dashdot')
-ax.bar(timeplot[maskneg],amvidraw[maskneg],label="AMV-",color='cornflowerblue',width=1,alpha=1)
-ax.bar(timeplot[maskpos],amvidraw[maskpos],label="AMV+",color='tomato',width=1,alpha=1)
-ax.plot(timeplot,np.convolve(amvid,np.ones(20)/20,mode='same'),label="10-yr Low-Pass Filter",color=basecol,lw=1.2)
+
+if plot_undtr:
+    ax.set_title("Undetrended AMV Index (HadISST)")
+    maskneg = amvidraw_undtr.squeeze()<0
+    maskpos = amvidraw_undtr.squeeze()>=0
+    ax.bar(timeplot[maskneg],amvidraw_undtr.squeeze()[maskneg],label="AMV-",color='cornflowerblue',width=1,alpha=1)
+    ax.bar(timeplot[maskpos],amvidraw_undtr.squeeze()[maskpos],label="AMV+",color='tomato',width=1,alpha=1)
+    # ax.plot(timeplot,amvidraw_undtr.squeeze(),label="Undetrended NASST Index",
+    #         color="lightgray",lw=.75,ls='solid')
+    ax.plot(timeplot,amvid_undtr.squeeze(),label="10-yr Low-Pass Filter",
+            color=basecol,lw=1.2,ls='solid')
+else:
+    ax.set_title("AMV Index (HadISST)")
+    maskneg = amvidraw<0
+    maskpos = amvidraw>=0
+    ax.bar(timeplot[maskneg],amvidraw[maskneg],label="AMV-",color='cornflowerblue',width=1,alpha=1)
+    ax.bar(timeplot[maskpos],amvidraw[maskpos],label="AMV+",color='tomato',width=1,alpha=1)
+    ax.plot(timeplot,np.convolve(amvid,np.ones(20)/20,mode='same'),label="10-yr Low-Pass Filter",color=basecol,lw=1.2)
 ax.axhline([0],color=basecol,ls='dashed',lw=0.9)
 ax.set_ylabel("AMV Index ($^{\circ}C$)")
 ax.set_ylim([-1,1])
 ax.set_xlim([0,len(amvid)])
 ax.set_xlabel("Years")
-ax.set_title("AMV Index, Distribution by Year (HadISST)")
-ax.legend(fontsize=10,ncol=3)
+
+ax.legend(fontsize=10,ncol=4)
 plt.tight_layout()
 if plotdark:
-    plt.savefig("%sHadISST_AMV_Index_intime_ECML_detrend%i_dark.png"% (outpath,dtr),dpi=200,transparent=True)
+    plt.savefig("%sHadISST_AMV_Index_intime_ECML_detrend%i_dark.png"% (outpath,not plot_undtr),dpi=200,transparent=True)
 else:
-    plt.savefig("%sHadISST_AMV_Index_intime_ECML_detrend%i.png"% (outpath,dtr),dpi=200)
+    plt.savefig("%sHadISST_AMV_Index_intime_ECML_detrend%i.png"% (outpath,not plot_undtr),dpi=200)
 
 
-# Plot Spatial Pattern
+#%% Plot Spatial Pattern
 bbox2 = [lon[0],5,-5,65]
 # Plot Ense
 cints=np.arange(-0.60,0.65,0.05)
