@@ -34,8 +34,8 @@ resolution     = '224pix'             # Resolution of dataset ('2deg','224pix')
 detrend        = False                # Set to true to use detrended data
 limitsamples   = True                 # Set to true to only evaluate first [nsamples] for each class
 usenoise       = False                # Set to true to train the model with pure noise
-ens           = 40                   # Ensemble members to use
-tstep         = 86    # Size of time dimension (in years)
+ens            = 40                   # Ensemble members to use
+tstep          = 86    # Size of time dimension (in years)
 
 # -----------
 #%% Functions
@@ -256,7 +256,7 @@ for l,lead in enumerate(leads):
         if actual == y_pred:
             correct[actual] += 1
         total[actual] += 1
-    x`
+    
     # ----------------------------------
     # Calculate and save overall results
     # ----------------------------------
