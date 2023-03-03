@@ -606,7 +606,7 @@ for varname in ("SST","SSH","SSS"):
         data[dataori==0] = 0 # change all ocean points to zero
         
         if region is None:
-            target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i.npy'%detrend)
+            target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
         else:
             target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
         
