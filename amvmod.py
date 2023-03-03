@@ -1360,14 +1360,167 @@ def count_samples(nsamples,y_class):
         print("%i samples found for class %i" % (classcount,inclass))
     return idx_by_class,count_by_class
 
+def select_samples(nsamples,y_class,X):
+    """
+    Sample even amounts from each class
+
+    Parameters
+    ----------
+    nsample : INT
+        Number of samples to get from each class
+    y_class : ARRAY [samples x 1]
+        Labels for each sample
+    X : ARRAY [samples x channels x height x width]
+        Input data for each sample
+    
+    Returns
+    -------
+    
+    y_class_sel : ARRAY [samples x 1]
+        Subsample of labels with equal amounts for each class
+    X_sel : ARRAY [samples x channels x height x width]
+        Subsample of inputs with equal amounts for each class
+    idx_sel : ARRAY [samples x 1]
+        Indices of selected arrays
+    
+    """
+    
+    allsamples,nchannels,H,W = X.shape
+    classes    = np.unique(y_class)
+    nclasses   = len(classes)
+    
+
+    # Sort input by classes
+    label_by_class  = []
+    input_by_class  = []
+    idx_by_class    = []
+    
+    y_class_sel = np.zeros([nsamples*nclasses,1])#[]
+    X_sel       = np.zeros([nsamples*nclasses,nchannels,H,W])#[]
+    idx_sel     = np.zeros([nsamples*nclasses]) 
+    for i in range(nclasses):
+        
+        # Sort by Class
+        inclass = classes[i]
+        idx = (y_class==inclass).squeeze()
+        sel_label = y_class[idx,:]
+        sel_input = X[idx,:,:,:]
+        sel_idx = np.where(idx)[0]
+        
+        label_by_class.append(sel_label)
+        input_by_class.append(sel_input)
+        idx_by_class.append(sel_idx)
+        classcount = sel_input.shape[0]
+        print("%i samples found for class %i" % (classcount,inclass))
+        
+        # Shuffle and select first nsamples
+        shuffidx = np.arange(0,classcount,1)
+        np.random.shuffle(shuffidx)
+        shuffidx = shuffidx[0:nsamples]
+        
+        # Select Shuffled Indices
+        y_class_sel[i*nsamples:(i+1)*nsamples,:] = sel_label[shuffidx,:]
+        X_sel[i*nsamples:(i+1)*nsamples,...]     = sel_input[shuffidx,...]
+        idx_sel[i*nsamples:(i+1)*nsamples]       = sel_idx[shuffidx]
+    
+    # Shuffle samples again before output (so they arent organized by class)
+    shuffidx = np.arange(0,nsamples*nclasses,1)
+    np.random.shuffle(shuffidx)
+    
+    return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
 #%% Convenience Functions
+
+def apply_lead(data,target,lead,reshape=True,ens=None,tstep=None):
+    """
+    data : ARRAY [channel x ens x yr x lat x lon ]
+        Network Inputs
+    target : ARRAY [ens x yr]
+        Network Outputs
+    lead : INT
+        Leadtime (in years)
+    reshape : BOOL
+        Reshape the output to combine ens x year
+    Returns
+        if reshape is False:
+        y : [ens x lead]
+        X : [channel x ens x yr x lat x lon]
+    elif reshape is True:
+        y : [samples x 1]
+        X : [sample  x channel x lat x lon]
+    """
+    
+    # Get dimensions
+    if ens is None:
+        ens = data.shape[1]
+    if tstep is None:
+        tstep = data.shape[2]
+    nchannels,_,_,nlat,nlon = data.shape
+    
+    # Apply Lead
+    y                            = target[:ens,lead:]
+    X                            = (data[:,:ens,:tstep-lead,:,:])
+    if reshape:
+        y = y.reshape(ens*(tstep-lead),1)
+        X = X.reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
+    return X,y
+
+def train_test_split(X,y,percent_train,percent_val=0,debug=False):
+    
+    """
+    Perform train/test/val split on predictor [X: samples ,...] and label [y: samples x 1].
+    Data is split into 3 blocks (in order)
+    [percent_train] -- [percent_test] -- [percent_val]
+    
+    Inputs:
+        X [ARRAY: Samples x ...] : Predictors
+        y [ARRAY: Samples x 1]   : Labels
+        percent_train [FLOAT]    : Percentage for training
+        percent_val   [FLOAT]    : Percentage for validation
+        debug         [BOOL]     : Set to True to print Debuggin Messages
+        
+    Returns:
+        X_subset [LIST: X_train,X_test,X_val] : List of subsetted arrays (predictors)
+        y_subset [LIST: y_train,y_test,y_val] : List of subsetted arrays (labels)
+        
+    """
+    nsamples        = y.shape[0]
+    percent_splits  = [percent_train,1-percent_train-percent_val,percent_val]
+    segments        = ("Train","Test","Validation")
+    cumulative_pct  = 0
+    segment_indices = []
+    for p,pct in enumerate(percent_splits):
+        pct_rng = np.array([cumulative_pct,cumulative_pct+pct])
+        if pct_rng[0] == pct_rng[1]:
+            print("Exceeded max percentage on segment [%s], Skipping..."%segments[p])
+            continue
+        idx_rng = np.floor(nsamples*pct_rng).astype(int)
+        segment_indices.append(np.arange(idx_rng[0],idx_rng[1]))
+        if debug:
+            print("Range of percent for %s segment is %.2f to %.2f, idx %i:%i" % (segments[p],
+                                                                                  pct_rng[0],pct_rng[1],
+                                                                                  segment_indices[p][0],segment_indices[p][-1]
+                                                                                               ))
+        cumulative_pct += pct
+        # End pct Loop
+    # Subset the data
+    y_subsets = []
+    X_subsets = []
+    for pp in range(len(segment_indices)):
+        if percent_splits == 0:
+            continue
+        y_subsets.append(y[segment_indices[pp],...])
+        X_subsets.append(X[segment_indices[pp],...])
+    if debug:
+        pct_check = [y.shape[0]/nsamples for y in y_subsets]
+        print("Subset percentages are %s" % pct_check)
+    return X_subsets,y_subsets
+    
+    
 
 def prep_traintest_classification(data,target,lead,thresholds,percent_train,
                                   ens=None,tstep=None,
                                   quantile=False,return_ic=False):
     """
-    
-
     Parameters
     ----------
     data : ARRAY [variable x ens x yr x lat x lon ]
@@ -1399,11 +1552,9 @@ def prep_traintest_classification(data,target,lead,thresholds,percent_train,
         ens = data.shape[1]
     if tstep is None:
         tstep = data.shape[2]
-    nchannels,_,_,nlat,nlon = data.shape
     
-    # Apply Lead
-    y                            = target[:ens,lead:].reshape(ens*(tstep-lead),1)
-    X                            = (data[:,:ens,:tstep-lead,:,:]).reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
+    # Apply the lead
+    X,y            = apply_lead(data,target,lead,reshape=True,ens=ens,tstep=tstep)
     nsamples,_,_,_ = X.shape
     
     # Make the labels
@@ -1426,14 +1577,12 @@ def prep_traintest_classification(data,target,lead,thresholds,percent_train,
         
         y_train_ic = y_class_ic[0:int(np.floor(percent_train*nsamples)),:]
         y_val_ic   = y_class_ic[int(np.floor(percent_train*nsamples)):,:]
-        
     
     # Test/Train Split
-    X_train = X[0:int(np.floor(percent_train*nsamples)),...]
-    X_val   = X[int(np.floor(percent_train*nsamples)):,...]
-    y_train = y_class[0:int(np.floor(percent_train*nsamples)),:]
-    y_val   = y_class[int(np.floor(percent_train*nsamples)):,:]
-        
+    X_subsets,y_subsets = train_test_split(X,y_class,percent_train,percent_val=0,debug=False)
+    X_train,X_val = X_subsets
+    y_train,y_val = y_subsets
+    
     if return_ic:
         return X_train,X_val,y_train,y_val,y_train_ic,y_val_ic
     return X_train,X_val,y_train,y_val
