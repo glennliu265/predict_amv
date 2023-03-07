@@ -16,6 +16,7 @@ Created on Wed Feb 15 12:25:37 2023
 
 @author: gliu
 """
+import numpy as np
 
 expdict_master = {}
 
@@ -118,7 +119,7 @@ quartile = True
 expdict_master["CMIP5_Lens_30_1950"] = inexps
 
 # --------------------------
-#%% CESM1 v CESM2 (Limit Time Period to 1920-2005) Effect + Quartile
+#%% CESM1 v CESM2 (Tercile Thresholding vs. Stdev. Thresholding, with Limit Time Period to 1920-2005)
 # --------------------------
 
 varname = "ssh"
@@ -126,17 +127,17 @@ varname = "ssh"
 # Limited CESM2 Traininng Period to 1920-2005
 exp0 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_CESM2_Train_Quartile", # Directory of the experiment
         "searchstr"     :  "*%s*"  % varname        , # Search/Glob string used for pulling files
-        "expname"       : "CESM2_Quartile"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM2 Quartile"          , # Long name of the experiment (for labeling on plots)
+        "expname"       : "CESM2_Tercile"          , # Name of the experiment (Short)
+        "expname_long"  : "CESM2 (Tercile)"          , # Long name of the experiment (for labeling on plots)
         "c"             : "r"                       , # Color for plotting
         "marker"        : "o"                       , # Marker for plotting
-        "ls"            : "solid"                   , # Linestyle for plotting
+        "ls"            : "dashed"                    , # Linestyle for plotting
         }
 
 exp1 = {"expdir"        : "CMIP6_LENS/models/Limit_1920to2005/FNN4_128_SingleVar_CESM2_Train", # Directory of the experiment
         "searchstr"     :  "*%s*"  % varname        , # Search/Glob string used for pulling files
         "expname"       : "CESM2_Exact"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM2_Exact"          , # Long name of the experiment (for labeling on plots)
+        "expname_long"  : "CESM2 (Stdev)"          , # Long name of the experiment (for labeling on plots)
         "c"             : "darkred"                       , # Color for plotting
         "marker"        : "o"                       , # Marker for plotting
         "ls"            : "solid"                   , # Linestyle for plotting
@@ -145,43 +146,23 @@ exp1 = {"expdir"        : "CMIP6_LENS/models/Limit_1920to2005/FNN4_128_SingleVar
 
 exp2 = {"expdir"        : "FNN4_128_SingleVar_Quartile", # Directory of the experiment
         "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
-        "expname"       : "CESM1_Quartile"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM1 Quartile"          , # Long name of the experiment (for labeling on plots)
+        "expname"       : "CESM1_Tercile"          , # Name of the experiment (Short)
+        "expname_long"  : "CESM1 (Tercile)"          , # Long name of the experiment (for labeling on plots)
         "c"             : "cornflowerblue"               , # Color for plotting
         "marker"        : "x"                       , # Marker for plotting
-        "ls"            : "solid"                   , # Linestyle for plotting
+        "ls"            : "dashed"                    , # Linestyle for plotting
         }
 
 exp3 = {"expdir"        : "FNN4_128_SingleVar_Exact_Thres", # Directory of the experiment
         "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
         "expname"       : "CESM1_Exact_Thres"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM1_Exact_Thres"          , # Long name of the experiment (for labeling on plots)
+        "expname_long"  : "CESM1 (Stdev)"          , # Long name of the experiment (for labeling on plots)
         "c"             : "darkblue"                   , # Color for plotting
         "marker"        : "x"                          , # Marker for plotting
-        "ls"            : "dashed"                     , # Linestyle for plotting
+        "ls"            : "solid"                     , # Linestyle for plotting
         }
 
-exp4 = {"expdir"        : "FNN4_128_SingleVar", # Directory of the experiment
-        "searchstr"     :  "*%s*"  % varname.upper()        , # Search/Glob string used for pulling files
-        "expname"       : "CESM1"          , # Name of the experiment (Short)
-        "expname_long"  : "CESM1"          , # Long name of the experiment (for labeling on plots)
-        "c"             : "darkblue"                    , # Color for plotting
-        "marker"        : "d"                    , # Marker for plotting
-        "ls"            : "solid"               , # Linestyle for plotting
-        }
-
-
-# exp2 = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
-#         "searchstr"     :  "*ssh*"               , # Search/Glob string used for pulling files
-#         "expname"       : "SSH"       , # Name of the experiment (Short)
-#         "expname_long"  : "SSH"   , # Long name of the experiment (for labeling on plots)
-#         "c"             : "darkblue"                    , # Color for plotting
-#         "marker"        : "d"                    , # Marker for plotting
-#         "ls"            : "solid"               , # Linestyle for plotting
-#         }
-
-
-inexps    = [exp0,exp1,exp2,exp3,exp4]                        # Put in experiments here...
+inexps    = [exp0,exp1,exp2,exp3]                        # Put in experiments here...
 compname  = "CESM1_2_Comparison_%s" % varname # CHANGE THIS for each new comparison
 quartile  = [True,True,False]
 leads     = np.arange(0,25,3)
@@ -243,7 +224,6 @@ var_include = ["ssh","sst","sss"]
 """
 
 # -----------------------
-
 #%% CMIP6 Intercomparison
 # -----------------------
 
@@ -252,10 +232,8 @@ skipmodels = ["MPI-ESM1-2-LR",]
 
 inexps = []
 for d,dataset_name in enumerate(cmip6_names):
-    
     if dataset_name in skipmodels : # Skip this model
         continue
-    
     exp = {"expdir"        : "CMIP6_LENS/models/FNN4_128_SingleVar_%s_Train" % dataset_name , # Directory of the experiment
             "searchstr"     :  "*%s*" % varname             , # Search/Glob string used for pulling files
             "expname"       : dataset_name                  , # Name of the experiment (Short)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-
 Check AMV LENS
 
 Examine AMV Patterns for CMIP6 MMLE
@@ -39,7 +38,6 @@ yend           = 2014
 regrid         = None
 debug          = True # Set to true to do some debugging
 
-# Preprocessing and Cropping Options
 
 # Paths
 machine = "Astraeus"
@@ -55,7 +53,6 @@ elif machine == "Astraeus":
     sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
     ice_nc         = "%s../other/siconc_mon_clim_ensavg_CMIP6_10ice_re1x1.nc" % (datpath) # Full path and file of ice mask
     import viz,proc
-
 
 plt.style.use('default')
 ## Load some global information (lat.lon) <Note, I need to customize this better..
@@ -132,36 +129,45 @@ ice_shape          = ice_mask.shape
 ice_free           = ~np.isnan(ice_mask)
 ice_mask[ice_free] = 1 # [month x lat x lon]
 
-
 #%% Set some computation options
 
 apply_nfactor   = True
 normalize_idx   = True
-detrend_idx     = False
-detrend_var     = False
-maskice         = False
-
+detrend_idx     = True
+detrend_var     = True
+maskice         = True
 
 # Set bounding box options
 print(amvbbox) # Print the default
 amvbbox = [-80, 0, 0, 65]
 bbstr_fn,bbstr_title=proc.make_locstring_bbox(amvbbox)
 
+# Set time crop option
+cropstart = 1920
+cropend   = 2005
+cropstr   = "%ito%i" % (cropstart,cropend)
+
 # Expstr
-expstr = "%s_nfactor%i_normidx%i_icemask%i_dtidx%i_dtvar%i" % (bbstr_fn,apply_nfactor,
+expstr = "%s_%s_nfactor%i_normidx%i_icemask%i_dtidx%i_dtvar%i" % (bbstr_fn,cropstr,
+                                                                  apply_nfactor,
                                                                normalize_idx,maskice,
                                                                detrend_idx,detrend_var)
+
 #%% Compute indices
 
 
+# Crop time for each ds
+ds_all = [ds.sel(year=slice(cropstart,cropend)) for ds in ds_all]
 
 nasst_all     = []
 amvid_all     = []
 for d in range(ndata):
     # Compute the mean over the area
     ds        = ds_all[d]
+    
     if maskice:
         ds = ds * ice_mask.sum(0) # Apply Ice Mask, only including entirely ice free points in the index calculation
+    
     ds        = ds.sel(lon=slice(amvbbox[0],amvbbox[1]),lat=slice(amvbbox[2],amvbbox[3]))
     dsidx     = (np.cos(np.pi*ds.lat/180) * ds).mean(dim=('lat','lon'))
     nasst     = dsidx.sst.values #[ensemble x time]
@@ -223,7 +229,7 @@ for d in tqdm(range(ndata)):
 
 
 plot_allens = False
-yrs         = np.arange(ystart,yend+1,1)
+yrs         = np.arange(cropstart,cropend+1,1)
 
     
 fig,axs = plt.subplots(2,1,figsize=(12,6),
@@ -242,7 +248,7 @@ for d in range(ndata):
             plotidx = amvid_all[d]
             idx_name = "AMV"
             ax.set_xlabel("Years")
-            
+        
         nens = plotidx.shape[0]
         
         # Compute mean and stdv
@@ -309,7 +315,6 @@ plotnums = np.arange(1,11)
 idxmode  = "AMV"
 
 #cints   = np.arange(-4.0,4.4,0.4)
-
 
 fig,axs  = plt.subplots(len(plotdatasets),10,figsize=(20,12),subplot_kw={'projection':ccrs.PlateCarree()},
                            constrained_layout=True)

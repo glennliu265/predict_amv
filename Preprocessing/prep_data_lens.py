@@ -91,9 +91,9 @@ elif cmipver == 6:
     # I/O, dataset Info
     regrid        = None # Data already regridded. See "auto_regrid_cdo.sh"
     dataset_names = pparams.cmip6_names
-    varnames      = ('zos',)*6#("sos",) * 6
+    varnames      = ('sos',)*6#("sos",) * 6
     
-    varname_out   = 'ssh'#"sss"
+    varname_out   = 'sss'#"sss"
     cesm_varname = varname_out.upper()
     
     # Set Paths

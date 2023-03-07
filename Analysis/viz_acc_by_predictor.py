@@ -15,7 +15,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import os
 import glob
-
 import sys
 # Load my own custom modules
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
