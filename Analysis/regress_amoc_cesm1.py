@@ -45,6 +45,8 @@ ntime   = (endyr-startyr+1)*12
 icomp        = 0 # 0=Eulerian Mean; 1=Eddy-Induced (Bolus); 2=Submeso
 iregion      = 1 # 0=Global Mean - Marginal Seas; 1= Altantic Ocean + Mediterranean Sea + Labrador Sea + GIN Sea + Arctic Ocean + Hudson Bay
 savename_moc = "%sCESM1_LENS_AMO_%sto%s_comp%i_region%i.npz" % (mocpath,startyr,endyr,icomp,iregion)
+leads        = np.arange(0,26,6)
+
 
 
 # Set predictor options
@@ -72,38 +74,90 @@ data,lat,lon   = dl.load_data_cesm(varnames,bbox,detrend=detrend,return_latlon=T
 #%% Make the regression maps
 
 nvars,nens,nyrs,nlat,nlon = data.shape
-regr_maps = np.zeros([nvars,nens,nlat,nlon])
+nleads                    = len(leads)
+regr_maps                 = np.zeros([nleads,nvars,nens,nlat,nlon])
+amoc_lead                 = False
 
-for v in range(nvars):
-    for e in range(nens):
-        in_predictor = data[v,e,:,:,:]
-        in_moc       = max_moc_annavg[e,:] #- max_moc_annavg.mean(0)
-        
-        
-        regr_maps[v,e,:,:] = proc.regress2ts(in_predictor.transpose(2,1,0),in_moc,).T
+for l in range(nleads):
+    lead = leads[l]
+    for v in range(nvars):
+        for e in range(nens):
+            
+            if amoc_lead:
+                in_predictor = data[v,e,lead:,:,:]
+                in_moc       = max_moc_annavg[e,:(nyrs-lead)] #- max_moc_annavg.mean(0)
+            else:
+                in_predictor = data[v,e,:(nyrs-lead),:,:]
+                in_moc       = max_moc_annavg[e,lead:] #- max_moc_annavg.mean(0)
+            
+            
+            regr_maps[l,v,e,:,:] = proc.regress2ts(in_predictor.transpose(2,1,0),in_moc,).T
         
 
 #%% Examine the AMOC regression patterns (ensemble mean)
 
+proj  = ccrs.PlateCarree()
 
-
+l = 4
+mesh=True
+clvl=np.arange(-2.1,2.1,0.3)
 fig,axs = plt.subplots(1,nvars,figsize=(10,4),
-                       subplot_kw={'projection':ccrs.PlateCarree()},constrained_layout=True,)
+                       subplot_kw={'projection':proj},constrained_layout=True,)
 
 
 
 for v in range(nvars):
     ax      = axs.flatten()[v]
-    plotvar = regr_maps[v,...].mean(0)
+    plotvar = regr_maps[l,v,...].mean(0)
     ax      = viz.add_coast_grid(ax,bbox=bbox,proj=ccrs.PlateCarree(),fill_color="k")
+    if mesh:
+        pcm = ax.pcolormesh(lon,lat,plotvar,cmap="RdBu_r",vmin=clvl[0],vmax=clvl[-1])
+    else:
+        pcm = ax.contourf(lon,lat,plotvar,cmap="RdBu_r",levels=clvl)
     
-    pcm = ax.pcolormesh(lon,lat,plotvar,cmap="RdBu_r",vmin=-2.5,vmax=2.5)
     cb=fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.05,pad=0.01)
     ax.set_title(varnames[v])
     cb.set_label("AMOC Regression ([Fluctuation per Sv of iAMOC])")
 
-plt.savefig("%sAMOC_Regression_2var.png" % (figpath),dpi=200,bbox_inches="tight")
+plt.savefig("%sAMOC_Regression_2var_amoclead%i_Lead%02i.png" % (figpath,amoc_lead,leads[l]),dpi=200,bbox_inches="tight")
+#%% Copied from viz_regional_predictability
+
+cmax    = 1
+fig,axs = plt.subplots(2,5,figsize=(14,6.5),
+                       subplot_kw={'projection':proj},constrained_layout=True)
+for v in range(2):
+    for i in range(len(leads)):
+        
+        lead = leads[i]
+        print(lead)
+        l    = list(leads).index(lead)
+        print(l)
+        
+        ### Leads are all wrong need to fix it
+        ax = axs[v,i]
+        
+        plotvar = regr_maps[l,v,...].mean(0)
+        pcm     = ax.pcolormesh(lon,lat,plotvar,vmin=-cmax,vmax=cmax,cmap="RdBu_r")
+        
+        # Do Plotting Business and labeling
+        if v == 0:
+            if amoc_lead:
+                ax.set_title("AMOC Lead %i yrs" % (lead))
+            else:
+                ax.set_title("Predictor Lead %i yrs" % (lead))
+        if i == 0:
+            ax.text(-0.05, 0.55, varnames[v], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        ax.set_extent(bbox)
+        ax.coastlines()
     
+cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.05)
+cb.set_label("AMOC Regression Coefficient ([Fluctuation per Sv of iAMOC])")
+
+plt.suptitle("Ensemble Average Predictor Maps regressed to AMOC Index (iAMOC), %i to %i" % (startyr, endyr))
+figname  = "%siAMOC_Predictor_LeadRegression_%ito%i_amooclead%i_detrend%i.png" % (figpath,startyr,endyr,amoc_lead,detrend,)
+# savename = "%s.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn,pcount)
+plt.savefig(figname,dpi=150,bbox_inches="tight",transparent=True)
     
     
 
