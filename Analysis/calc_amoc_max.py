@@ -25,25 +25,39 @@ from tqdm import tqdm
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import proc
 
-# Set path to the data 
-datpath = "/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/01_Data/CESM1_LE/"
-outpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
-figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230308/"
+
 
 # Time_Period
-startyr = 1920
-endyr   = 2005
-ntime   = (endyr-startyr+1)*12
+startyr         = 1920                  # Starting year
+endyr           = 2005                  # Ending year
+ntime           = (endyr-startyr+1)*12  # Number of months
+coordinate      = "depth"             # "depth" or "density"
+
+# Set path to the data 
+outpath         = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
+figpath         = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230308/"
+if coordinate == "depth":
+    datpath     = "/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/01_Data/CESM1_LE/"
+    moc_name = "MOC"
+elif coordinate == "density":
+    datpath     = "/Users/gliu/Globus_File_Transfer/CESM1_LE/AMOCrho/"
+    moc_name = "AMOCsigsum"
+else:
+    print("coordinate must be [depth] or [density]")
 
 # Select MOC component and region
-icomp   = 0 # 0=Eulerian Mean; 1=Eddy-Induced (Bolus); 2=Submeso
-iregion = 1 # 0=Global Mean - Marginal Seas; 1= Altantic Ocean + Mediterranean Sea + Labrador Sea + GIN Sea + Arctic Ocean + Hudson Bay
+icomp           = 0 # 0=Eulerian Mean; 1=Eddy-Induced (Bolus); 2=Submeso
+iregion         = 1 # 0=Global Mean - Marginal Seas; 1= Altantic Ocean + Mediterranean Sea + Labrador Sea + GIN Sea + Arctic Ocean + Hudson Bay
 
-debug=True
+debug           = True
+save_output     = False 
+
+savename        = "%sCESM1_LENS_AMO_%sto%s_comp%i_region%i_%s.npz" % (outpath,startyr,endyr,icomp,iregion,coordinate)
+print("%s-coordinate AMOC calculation output will will saved to:\n\t%s" % (coordinate,savename))
 #%% Make the function
 
 
-def plot_moc(moc,lat,z,idz,idlat):
+def plot_moc(moc,lat,z,idz,idlat,coordinate):
     fig,ax      = plt.subplots(1,1)
     plotmoc     = moc.mean(0)
     
@@ -55,9 +69,15 @@ def plot_moc(moc,lat,z,idz,idlat):
     ax.legend()
     ax.invert_yaxis()
     plt.colorbar(cf)
-    ax.set_title("Mean AMOC Streamfunction\n$z_{max}$: %.2fm, Latitude$_{max}$: %.2f$\degree$" % (z[idz],lat[idlat]))
+    if coordinate == "depth":
+        ax.set_title("Mean AMOC Streamfunction\n$z_{max}$: %.2fm, Latitude$_{max}$: %.2f$\degree$" % (z[idz],lat[idlat]))
+        ax.set_ylabel("Depth (m)")
+    else:
+        ax.set_title("Mean AMOC Streamfunction\n"+r"$\rho_{max}$: %.2f kg $m^{-3}$, Latitude$_{max}$: %.2f$\degree$" % (z[idz],lat[idlat]))
+        ax.set_ylabel("Depth (kg/m$^3$)")
+    
     ax.set_xlabel("Latitude")
-    ax.set_ylabel("Depth (m)")
+    
     return fig,ax
 
 #%% Get File Names
@@ -80,12 +100,16 @@ for e in tqdm(range(nens)):
     
     # Restrict to time period
     ds = ds.sel(time=slice(str(startyr)+'-02-01',str(endyr+1)+'-01-01'))
-    ds = ds.isel(transport_reg=iregion,moc_comp=icomp)
+    if coordinate == "depth":
+        ds = ds.isel(transport_reg=iregion,moc_comp=icomp)
     
     # Load data
-    moc = ds.MOC.values # [time x z x lat]
+    moc = ds[moc_name].values # [time x z x lat]
     lat = ds.lat_aux_grid.values
-    z   = ds.moc_z.values/100
+    if coordinate == "depth":
+        z   = ds.moc_z.values/100
+    else:
+        z   = ds.moc_s.values
     
     if e == 0:
         moc_means    = np.zeros((nens,)+moc.shape[1:]) * np.nan
@@ -99,19 +123,30 @@ for e in tqdm(range(nens)):
     moc_means[e,:,:] = moc.mean(0)
     
     if debug:
-        fig,ax = plot_moc(moc,lat,z,idz,idlat)
+        fig,ax = plot_moc(moc,lat,z,idz,idlat,coordinate)
         plt.savefig("%sAMOC_Maximum_ens%02i.png" % (figpath,e),dpi=150)
         
-#%%
-savename = "%sCESM1_LENS_AMO_%sto%s_comp%i_region%i.npz" % (outpath,startyr,endyr,icomp,iregion)
-np.savez(savename,**{
-    'max_moc'   : max_moc,
-    'max_zs'    : max_zs,
-    'max_lats'  : max_lats,
-    'moc_means' : moc_means,
-    'lat'       : lat,
-    'z'         : z,
-    },allow_pickle=True)
+
+#%% Save File
+if save_output:
+    np.savez(savename,**{
+        'max_moc'   : max_moc,
+        'max_zs'    : max_zs,
+        'max_lats'  : max_lats,
+        'moc_means' : moc_means,
+        'lat'       : lat,
+        'z'         : z,
+        },allow_pickle=True)
+#%% Load File
+
+ld = np.load(savename,allow_pickle=True)
+max_moc     = ld['max_moc']
+max_zs      = ld['max_zs']
+max_lats    = ld['max_lats']
+moc_means   = ld['moc_means']
+lat         = ld['lat']
+z           = ld['z']
+
 #%% Compute the AMV Index, which I will then use to regress to something
 
 fig,ax = plt.subplots(1,1,constrained_layout=True,figsize=(8,4))
@@ -133,15 +168,23 @@ times   = [str(t) for t in times]
 yrs     = [t[:4] for t in times]
 xtks        = np.arange(0,len(times)+1,120)
 xtk_labels  = np.array(yrs)[xtks]
-ax.set_title("AMOC Strength (%i-month LP-Filter) \n$z_{max}$: %.2fm, Latitude$_{max}$: %.2f$\degree$" % (cutoff_mon,z[idz],lat[idlat]))
-ax.set_xlabel("Time (months)")
+if coordinate == "depth":
+    ax.set_title("AMOC Strength (%i-month LP-Filter) \n$z_{max}$: %.2fm, Latitude$_{max}$: %.2f$\degree$" % (cutoff_mon,z[idz],lat[idlat]))
+else:
+    ax.set_title("AMOC Strength (%i-month LP-Filter) \n" % (cutoff_mon) + r"$\rho_{max}$: %.2f kg m$^{-3}$, Latitude$_{max}$: %.2f$\degree$" % (z[idz],lat[idlat]))
+
 ax.set_ylabel("AMOC Strength at Maximum Streamfunction (Sv)")
 ax.grid(True,ls='dotted')
 
 ax.set_xticks(xtks)
 ax.set_xticklabels(xtk_labels)
 ax.set_xlim([0,1032])
+
 plt.savefig("%sAMOC_Strength_LPFilter%03i.png" % (figpath,cutoff_mon),dpi =150)
+
+
+
+#%% 
 
 
 
