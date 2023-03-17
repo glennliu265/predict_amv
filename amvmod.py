@@ -25,6 +25,7 @@ Working on updating documentation...
 
 @author: gliu
 """
+
 from scipy.signal import butter,filtfilt
 import numpy as np
 import matplotlib.pyplot as plt
@@ -36,6 +37,7 @@ from torch import nn
 import xarray as xr
 import glob
 import torch
+
 #%% Metrics and Analysis ----
 
 def load_result(fn,debug=False):
@@ -1464,11 +1466,11 @@ def apply_lead(data,target,lead,reshape=True,ens=None,tstep=None):
         X = X.reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
     return X,y
 
-def train_test_split(X,y,percent_train,percent_val=0,debug=False):
+def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0):
     
     """
     Perform train/test/val split on predictor [X: samples ,...] and label [y: samples x 1].
-    Data is split into 3 blocks (in order)
+    Data is split into 3 blocks (in order), with an optional added offset
     [percent_train] -- [percent_test] -- [percent_val]
     
     Inputs:
@@ -1477,31 +1479,56 @@ def train_test_split(X,y,percent_train,percent_val=0,debug=False):
         percent_train [FLOAT]    : Percentage for training
         percent_val   [FLOAT]    : Percentage for validation
         debug         [BOOL]     : Set to True to print Debuggin Messages
+        offset        [FLOAT]    : Percentage to offset values for sampling (ex, offset=0.3, train set will start at 0.3 rather than 0.0)
         
     Returns:
         X_subset [LIST: X_train,X_test,X_val] : List of subsetted arrays (predictors)
         y_subset [LIST: y_train,y_test,y_val] : List of subsetted arrays (labels)
         
     """
+    # Get indices
     nsamples        = y.shape[0]
     percent_splits  = [percent_train,1-percent_train-percent_val,percent_val]
+    assert np.array(percent_splits).sum() == 1, "percent train/test/split must add up to 1.0. Currently %.2f" % np.array(percent_splits).sum()
+        
     segments        = ("Train","Test","Validation")
     cumulative_pct  = 0
     segment_indices = []
     for p,pct in enumerate(percent_splits):
-        pct_rng = np.array([cumulative_pct,cumulative_pct+pct])
+        # Add modulo accounting for offset
+        pct_rng = np.array([cumulative_pct+offset,cumulative_pct+pct+offset])%1
         if pct_rng[0] == pct_rng[1]:
             print("Exceeded max percentage on segment [%s], Skipping..."%segments[p])
             continue
+        # Add ranges to account for endpoints
+        shift_flag=False # True: Offset shifts the chunk beyond 100%, 4 points required
+        if pct_rng[0] > pct_rng[1]: # Shift to beginning of dataset
+            pct_rng = np.array([pct_rng[0],1,0,pct_rng[1]]) # [larger idx, end, beginning, smaller idx]
+            shift_flag=True
+        
+        # Get range of indices
         idx_rng = np.floor(nsamples*pct_rng).astype(int)
-        segment_indices.append(np.arange(idx_rng[0],idx_rng[1]))
-        if debug:
-            print("Range of percent for %s segment is %.2f to %.2f, idx %i:%i" % (segments[p],
-                                                                                  pct_rng[0],pct_rng[1],
-                                                                                  segment_indices[p][0],segment_indices[p][-1]
-                                                                                               ))
+        
+        if shift_flag:
+            seg_idx = np.concatenate([np.arange(idx_rng[0],idx_rng[1]),np.arange(idx_rng[2],idx_rng[3])])
+            segment_indices.append(seg_idx)
+            if debug:
+                print("Range of percent for %s segment is [%.2f to 1] and [0 to %.2f], idx [%i:%i] and [%i:%i]" % (segments[p],
+                                                                                      pct_rng[0],pct_rng[3],
+                                                                                      idx_rng[0],idx_rng[1],
+                                                                                      idx_rng[2],idx_rng[3]
+                                                                                                   ))
+        else:
+            idx_rng = np.floor(nsamples*pct_rng).astype(int)
+            segment_indices.append(np.arange(idx_rng[0],idx_rng[1]))
+            if debug:
+                print("Range of percent for %s segment is %.2f to %.2f, idx %i:%i" % (segments[p],
+                                                                                      pct_rng[0],pct_rng[1],
+                                                                                      segment_indices[p][0],segment_indices[p][-1]
+                                                                                                   ))
         cumulative_pct += pct
-        # End pct Loop
+        # end pct Loop
+    
     # Subset the data
     y_subsets = []
     X_subsets = []
