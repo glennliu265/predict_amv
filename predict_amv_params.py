@@ -16,7 +16,7 @@ from torch import nn
 #%% Project paths
 
 datpath       = "../../CESM_data/"
-figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230224/"
+figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230324/"
 
 #%% Regions (Bounding Boxes and Names)
 regions       = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")

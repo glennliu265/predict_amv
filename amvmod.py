@@ -1541,8 +1541,6 @@ def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0):
         pct_check = [y.shape[0]/nsamples for y in y_subsets]
         print("Subset percentages are %s" % pct_check)
     return X_subsets,y_subsets
-    
-    
 
 def prep_traintest_classification(data,target,lead,thresholds,percent_train,
                                   ens=None,tstep=None,
