@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Attempts to Re-write NN Training Script, Starting from the Bare Bones
 
-Created on Wed Feb 15 13:50:14 2023
+Train Neural Networks (NN) for CESM1 Large Ensemble Simulations
 
+ - Copied introductory section from NN_Training_Rewrite.py on 2023.03.20
+ - Based on NN_test_lead_ann_ImageNet_classification_singlevar.py
+
+Created on Mon Mar 20 21:34:32 2023
 @author: gliu
+
+
 """
 
 import sys
@@ -132,6 +137,7 @@ inputsize                      = nchannels*nlat*nlon    # Compute inputsize to r
     labels     :: [ens x year]
 """
 #%%
+
 
 
 
