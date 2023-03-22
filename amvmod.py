@@ -40,7 +40,7 @@ import cartopy.feature as cfeature
 
 import glob
 import torch
-import tqdm
+from tqdm import tqdm
 import copy
 
 
