@@ -129,11 +129,9 @@ expdir             = "FNN4_128_SingleVar_Rewrite"
 # (1) Data Preprocessing Parameters
 # ---------------------------------
 detrend         = 0        # True if the target was detrended
-varnames        = ["SST",]
-
+varnames        = ["SST",] # Names of predictor variables
 region          = None     # Region of AMV Index (not yet implemented)
 season          = None     # Season of AMV Index (not yet implemented)
-
 lowpass         = False    # True if the target was low-pass filtered
 regrid          = None     # Regrid option of data
 mask            = True     # True for land-ice masking
@@ -141,38 +139,52 @@ mask            = True     # True for land-ice masking
 # ---------------------------------
 # (2) Subsetting Parameters
 # ---------------------------------
+# Data subsetting
 ens             = 42      # Number of ensemble members to limit to
 ystart          = 1850    # Start year of processed dataset
 yend            = 2014    # End year of processed dataset
-nsamples        = 300     # Number of samples from each class to train with
+bbox            = pparams.bbox
+
+# Label Determination
 quantile        = False   # Set to True to use quantiles
 thresholds      = [-1,1]  # Thresholds (standard deviations, or quantile values) 
-bbox            = pparams.bbox
+
+# Test/Train/Validate and Sampling
+nsamples        = 300     # Number of samples from each class to train with
 percent_train   = 0.60    # Training percentage
 percent_val     = 0.10    # Validation Percentage
+
+# Cross Validation Options
 cv_loop         = True    # Repeat for cross-validation
 cv_offset       = 0       # Set cv option. Default is test size chunk
 
 # ---------------------------------
 # (2) ML Parameters
 # ---------------------------------
+
+# Network Hyperparameters
 netname       = "FNN4_128"           # Key for Architecture Hyperparameters
-early_stop    = 3                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 20       # Maximum # of Epochs to train for
-batch_size    = 16                   # Pairs of predictions
 loss_fn       = nn.CrossEntropyLoss()# Loss Function (nn.CrossEntropyLoss())
 opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight Decay]
-cnndropout    = True                 # Set to 1 to test simple CNN with dropout layer
-fnndropout    = 0.5                  # 0.5
-checkgpu      = True                 # Set to true to check if GPU is available
+use_softmax   = False                # Set to true to change final layer to softmax
+reduceLR      = False                # Set to true to use LR scheduler
+LRpatience    = False                # Set patience for LR scheduler
+
+# Regularization and Training
+early_stop    = 3                    # Number of epochs where validation loss increases before stopping
+max_epochs    = 20                   # Maximum # of Epochs to train for
+batch_size    = 16                   # Pairs of predictions
+unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
+
 
 # ---------------------------------
 # (3) Other Parameters
 # ---------------------------------
-runids         = np.arange(0,11,1) # Which runs to do
-leads          = np.arange(0,26,1) # Prediction Leadtimes
-debug          = True              # Set to true for debugging/verbose outputs
-
+runids         = np.arange(0,11,1)    # Which runs to do
+leads          = np.arange(0,26,1)    # Prediction Leadtimes
+debug          = True                 # Set to true for debugging/verbose outputs
+checkgpu       = True                 # Set to true to check if GPU is available
+savemodel      = True                 # Set to true to save model weights
 #% # Think about moving the section above this into another setup script ^^^
 # -----------------------------------------------------------------------------
 
@@ -231,155 +243,154 @@ nlead        = len(leads)
 for v,varname in varnames: #...
     
     
-for nr,runid in enumerate(runids):
-    rt = time.time()
-    
-    # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-    expname = ("AMVClass%i_%s_nepoch%02i_" \
-               "nens%02i_maxlead%02i_"\
-               "detrend%i_run%02i_"\
-               "quant%i_res%s" % (nclasses,netname,max_epochs,
-                                     ens,leads[-1],detrend,runid,
-                                     quantile,regrid))
-    
-    # Preallocate Evaluation Metrics...
-    corr_grid_train = np.zeros((nlead))
-    corr_grid_test  = np.zeros((nlead))
-    
-    train_loss_grid = []#np.zeros((max_epochs,nlead))
-    test_loss_grid  = []#np.zeros((max_epochs,nlead))
-    val_loss_grid   = []
-    
-    
-    train_acc_grid  = []
-    test_acc_grid   = []
-    val_acc_grid    = []
-    
-    acc_by_class    = []
-    total_acc       = []
-    yvalpred        = []
-    yvallabels      = []
-    sampled_idx     = []
-    thresholds_all  = []
-    
-    if checkgpu:
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    else:
-        device = torch.device('cpu')
-    
-    # -------------
-    # Print Message
-    # -------------
-    print("Running [train_NN_CESM1.py] with the following settings:")
-    print("\tNetwork Type   : "+netname)
-    print("\tPredictor(s)   : "+str(varnames))
-    print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
-    print("\tRunids         : " +str(runids))
-    print("\tMax Epochs     : " + str(max_epochs))
-    print("\tEarly Stop     : " + str(early_stop))
-    print("\t# Ens. Members : "+ str(ens))
-    print("\tDetrend        : "+ str(detrend))
-    
-    for l,lead in enumerate(leads):
+    for nr,runid in enumerate(runids):
+        rt = time.time()
         
-        # ---------------------------------
-        # Set names for intermediate saving
-        # ---------------------------------
-        if (lead == leads[-1]) and (len(leads)>1): # Output all files together
-            outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
-        else: # Output individual lead times while training
-            outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+        # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+        expname = ("AMVClass%i_%s_nepoch%02i_" \
+                   "nens%02i_maxlead%02i_"\
+                   "detrend%i_run%02i_"\
+                   "quant%i_res%s" % (nclasses,netname,max_epochs,
+                                         ens,leads[-1],detrend,runid,
+                                         quantile,regrid))
         
-        # ----------------------
-        # Apply lead/lag to data
-        # ----------------------
-        # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-        X,y_class = am.apply_lead(data,target_class,lead,reshape=True,ens=ens,tstep=ntime)
+        # Preallocate Evaluation Metrics...
+        corr_grid_train = np.zeros((nlead))
+        corr_grid_test  = np.zeros((nlead))
         
-        # ----------------------
-        # Select samples
-        # ----------------------
-        if nsamples is None: # Default: nsamples = smallest class
-            threscount = np.zeros(nthres)
-            for t in range(nclasses):
-                threscount[t] = len(np.where(y_class==t)[0])
-            nsamples = int(np.min(threscount))
-        y_class,X,shuffidx = am.select_samples(nsamples,y_class,X,verbose=debug)
-        lead_nsamples      = y_class.shape[0]
-        sampled_idx.append(shuffidx) # Save the sample indices
+        train_loss_grid = []#np.zeros((max_epochs,nlead))
+        test_loss_grid  = []#np.zeros((max_epochs,nlead))
+        val_loss_grid   = []
         
-        # --------------------------
-        # Flatten input data for FNN
-        # --------------------------
-        if "FNN" in netname:
-            ndat,nchan,nlat,nlon = X.shape
-            inputsize            = nchan*nlat*nlon
-            outsize              = num_classes
-            X                    = X.reshape(ndat,inputsize)
+        train_acc_grid  = []
+        #test_acc_grid   = []
+        val_acc_grid    = []
         
-        # --------------------------
-        # Train Test Split
-        # --------------------------
-        X_subsets,y_subsets      = am.train_test_split(X,y_class,percent_train,
-                                                       percent_val=percent_val,
-                                                       debug=debug,offset=cv_offset)
-        # Convert to Tensors
-        X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
-        y_subsets = [torch.from_numpy(y.astype(np.float32)) for y in y_subsets]
+        acc_by_class    = []
+        total_acc       = []
+        yvalpred        = []
+        yvallabels      = []
+        sampled_idx     = []
+        thresholds_all  = []
         
-        
-        # # Put into pytorch dataloaders
-        # data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=batch_size) for iset in range(len(X_subsets))]
-        # train_loader,test_loader,val_loader = data_loaders
-        
-        # Read out segments
-        X_train,X_test,X_val = X_subsets
-        y_train,y_test,y_val = y_subsets
-        
-        # ---------------------------
-        # Put into pytorch DataLoader
-        # ---------------------------
-        train_loader = DataLoader(TensorDataset(X_train, y_train), batch_size=batch_size)
-        test_loader  = DataLoader(TensorDataset(X_test, y_test), batch_size=batch_size)
-        val_loader   = DataLoader(TensorDataset(X_val, y_val), batch_size=batch_size)
-        
-        # ---------------
-        # Train the model
-        # ---------------
-        if "FNN" in netname:
-            layers = am.build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,
-                                      dropout=fnndropout,use_softmax=use_softmax)
-            pmodel = nn.Sequential(*layers)
-            
+        if checkgpu:
+            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
-            # Note: Currently not supported due to issues with timm model. Need to rewrite later...
-            pmodel = am.transfer_model(netname,num_classes,cnndropout=cnndropout,unfreeze_all=unfreeze_all,
-                                    nlat=nlat,nlon=nlon,nchannels=nchannels)
-        model,trainloss,testloss,trainacc,testacc = am.train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
-                                                                 early_stop=early_stop,verbose=verbose,
-                                                                 reduceLR=reduceLR,LRpatience=LRpatience,checkgpu=checkgpu)
+            device = torch.device('cpu')
         
-        # Save train/test loss
-        train_loss_grid.append(trainloss)
-        val_loss_grid.append(valloss)
-        train_acc_grid.append(trainacc)
-        val_acc_grid.append(valacc)
-
+        # -------------
+        # Print Message
+        # -------------
+        print("Running [train_NN_CESM1.py] with the following settings:")
+        print("\tNetwork Type   : "+netname)
+        print("\tPredictor(s)   : "+str(varnames))
+        print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
+        print("\tRunids         : %i to %i" % (runids[0],runids[-1]))
+        print("\tMax Epochs     : " + str(max_epochs))
+        print("\tEarly Stop     : " + str(early_stop))
+        print("\t# Ens. Members : "+ str(ens))
+        print("\tDetrend        : "+ str(detrend))
         
-        #
-        # Test the model
-        #
+        for l,lead in enumerate(leads):
+            
+            # ---------------------------------
+            # Set names for intermediate saving
+            # ---------------------------------
+            if (lead == leads[-1]) and (len(leads)>1): # Output all files together
+                outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
+            else: # Output individual lead times while training
+                outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
+            
+            # ----------------------
+            # Apply lead/lag to data
+            # ----------------------
+            # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+            X,y_class = am.apply_lead(data,target_class,lead,reshape=True,ens=ens,tstep=ntime)
+            
+            # ----------------------
+            # Select samples
+            # ----------------------
+            if nsamples is None: # Default: nsamples = smallest class
+                threscount = np.zeros(nclasses)
+                for t in range(nclasses):
+                    threscount[t] = len(np.where(y_class==t)[0])
+                nsamples = int(np.min(threscount))
+            y_class,X,shuffidx = am.select_samples(nsamples,y_class,X,verbose=debug)
+            lead_nsamples      = y_class.shape[0]
+            sampled_idx.append(shuffidx) # Save the sample indices
+            
+            # --------------------------
+            # Flatten input data for FNN
+            # --------------------------
+            if "FNN" in netname:
+                ndat,nchan,nlat,nlon = X.shape
+                inputsize            = nchan*nlat*nlon
+                outsize              = nclasses
+                X                    = X.reshape(ndat,inputsize)
+            
+            # --------------------------
+            # Train Test Split
+            # --------------------------
+            X_subsets,y_subsets      = am.train_test_split(X,y_class,percent_train,
+                                                           percent_val=percent_val,
+                                                           debug=debug,offset=cv_offset)
+            # Convert to Tensors
+            X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
+            y_subsets = [torch.from_numpy(y.astype(np.compat.long)) for y in y_subsets]
+            
+            
+            # # Put into pytorch dataloaders
+            data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=batch_size) for iset in range(len(X_subsets))]
+            train_loader,test_loader,val_loader = data_loaders
+            
+            # ---------------
+            # Train the model
+            # ---------------
+            nn_params = pparams.nn_param_dict[netname] # Get corresponding param dict for network
+            
+            # Initialize model
+            if "FNN" in netname:
+                layers = am.build_FNN_simple(inputsize,outsize,nn_params['nlayers'],nn_params['nunits'],nn_params['activations'],
+                                          dropout=nn_params['dropout'],use_softmax=use_softmax)
+                pmodel = nn.Sequential(*layers)
+                
+            else:
+                # Note: Currently not supported due to issues with timm model. Need to rewrite later...
+                pmodel = am.transfer_model(netname,nclasses,cnndropout=nn_params['cnndropout'],unfreeze_all=unfreeze_all,
+                                        nlat=nlat,nlon=nlon,nchannels=nchannels)
+            # Train/Validate Model
+            model,trainloss,valloss,trainacc,valacc = am.train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
+                                                                     early_stop=early_stop,verbose=debug,
+                                                                     reduceLR=reduceLR,LRpatience=LRpatience,checkgpu=checkgpu)
+            
+            # Save train/validation loss
+            train_loss_grid.append(trainloss)
+            val_loss_grid.append(valloss)
+            train_acc_grid.append(trainacc)
+            val_acc_grid.append(valacc)
+            
+            # --------------
+            # Test the model
+            # --------------
+            y_predicted,y_actual,test_loss = am.test_model(model,test_loader,loss_fn,
+                                                           checkgpu=checkgpu,debug=False)
+            lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
+            
+            yvalpred.append(y_predicted)
+            yvallabels.append(y_actual)
+            test_loss_grid.append(test_loss)
+            acc_by_class.append(class_acc)
+            total_acc.append(lead_acc)
+            
+            
+            
+            # --------------
+            # Save the model
+            # --------------
+            if savemodel:
+                modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
+                torch.save(model.state_dict(),modout)
+            
              
-        # --------------
-        # Save the model
-        # --------------
-        if savemodel:
-            modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
-            torch.save(model.state_dict(),modout)
-        
-         
-        # Save the actual and predicted values
-        yvalpred.append(y_pred_val)
-        yvallabels.append(y_valdt)
-        
+
 
