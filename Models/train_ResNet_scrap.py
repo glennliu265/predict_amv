@@ -207,17 +207,13 @@ def test_model(model,test_loader,loss_fn,checkgpu=True,debug=False):
             if debug:
                 print("Batch Shape on iter %i is %s" % (i,y_batch_size))
                 print("\t the shape wihout squeeze is %s" % (batch_y.detach().cpu().numpy().shape[0]))
-            batch_acc    = np.sum(y_batch_pred==y_batch_lab)/y_batch_lab.shape[0]
-            if debug:
-                print("Acc. for batch %i is %.2f" % (i,batch_acc))
-                #print(y_batch_pred==y_batch_lab)
-            
+
             # Store Predictions
             y_predicted = np.concatenate([y_predicted,y_batch_pred])
             if debug:
                 print("\ty_actual size is %s" % (y_actual.shape))
                 print("\ty_batch_lab size is %s" % (y_batch_lab.shape))
-            y_actual = np.concatenate([y_actual,y_batch_lab],axis=0)
+            y_actual    = np.concatenate([y_actual,y_batch_lab],axis=0)
             if debug:
                 print("\tFinal shape is %s" % y_actual.shape)
     
@@ -228,8 +224,7 @@ def test_model(model,test_loader,loss_fn,checkgpu=True,debug=False):
 
 
 
-def compute_test_acc_classification(y_predicted,y_actual,nclasses,
-                                        debug=True,verbose=False):
+def compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False):
     # -------------------------
     # Calculate Success Metrics
     # -------------------------
@@ -258,7 +253,4 @@ def compute_test_acc_classification(y_predicted,y_actual,nclasses,
         print("****************************************")
     return total_acc,class_acc
     
-
-total_acc.append(lead_acc)
-acc_by_class.append(class_acc)
 

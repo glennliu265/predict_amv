@@ -1956,3 +1956,93 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
 
     #bestmodel.load_state_dict(best_model_wts)
     return bestmodel,train_loss,test_loss,train_acc,test_acc
+
+
+def test_model(model,test_loader,loss_fn,checkgpu=True,debug=False):
+    
+    # Check if there is GPU
+    if checkgpu:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    else:
+        device = torch.device('cpu')
+    model = model.to(device)
+    
+    # Get Predictions
+    with torch.no_grad():
+        model.eval()
+        # -----------------------
+        # Test/Evaluate the model
+        # -----------------------
+        y_predicted  = np.asarray([])
+        y_actual     = np.asarray([])
+        total_loss   =  0 # track the loss for the prediction
+        for i,vdata in enumerate(test_loader):
+            
+            # Get mini batch
+            batch_x, batch_y = vdata     # For debugging: vdata = next(iter(val_loader))
+            batch_x = batch_x.to(device) # [batch x input_size]
+            batch_y = batch_y.to(device) # [batch x 1]
+        
+            # Make prediction and concatenate
+            batch_pred = model(batch_x)  # [batch x class activation]
+            
+            # Compute Loss
+            loss       = loss_fn(batch_pred,batch_y[:,0])
+            total_loss += float(loss.item())
+            
+            # Convert predicted values
+            y_batch_pred = np.argmax(batch_pred.detach().cpu().numpy(),axis=1) # [batch,]
+            y_batch_lab  = batch_y.detach().cpu().numpy()            # Removed .squeeze() as it fails when batch size is 1
+            y_batch_size = batch_y.detach().cpu().numpy().shape[0]
+            if y_batch_size == 1:
+                y_batch_lab = y_batch_lab[0,:] # Index to keep as array [1,] instead of collapsing to 0-dim value
+            else:
+                y_batch_lab = y_batch_lab.squeeze()
+            if debug:
+                print("Batch Shape on iter %i is %s" % (i,y_batch_size))
+                print("\t the shape wihout squeeze is %s" % (batch_y.detach().cpu().numpy().shape[0]))
+
+            # Store Predictions
+            y_predicted = np.concatenate([y_predicted,y_batch_pred])
+            if debug:
+                print("\ty_actual size is %s" % (y_actual.shape))
+                print("\ty_batch_lab size is %s" % (y_batch_lab.shape))
+            y_actual    = np.concatenate([y_actual,y_batch_lab],axis=0)
+            if debug:
+                print("\tFinal shape is %s" % y_actual.shape)
+    
+    # Compute Metrics
+    out_loss = total_loss / len(test_loader)
+    return y_predicted,y_actual,out_loss
+
+
+
+
+def compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False):
+    # -------------------------
+    # Calculate Success Metrics
+    # -------------------------
+    # Calculate the total accuracy
+    nsamples      = y_predicted.shape[0]
+    total_acc     = (y_predicted==y_actual).sum()/ nsamples
+    
+    # Calculate Accuracy for each class
+    class_total   = np.zeros([nclasses])
+    class_correct = np.zeros([nclasses])
+    for i in range(nsamples):
+        class_idx                = int(y_actual[i])
+        check_pred               = y_actual[i] == y_predicted[i]
+        class_total[class_idx]   += 1
+        class_correct[class_idx] += check_pred 
+        if verbose:
+            print("At element %i, Predicted result for class %i was %s" % (i,class_idx,check_pred))
+    class_acc = class_correct/class_total
+    
+    if debug:
+        print("********Success rate********************")
+        print("\t" +str(total_acc*100) + r"%")
+        print("********Accuracy by Class***************")
+        for  i in range(nclasses):
+            print("\tClass %i : %03.3f" % (i,class_acc[i]*100) + "%\t" + "(%i/%i)"%(class_correct[i],class_total[i]))
+        print("****************************************")
+    return total_acc,class_acc
