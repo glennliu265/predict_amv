@@ -4,7 +4,8 @@
 
 Training Params
 
-File containing input training parameters for the training script
+File containing input training parameters for the training script..
+Imports into train_NN_CESM1.py, such that the data is loaded there.
 
 Created on Thu Mar 23 09:21:09 2023
 
@@ -44,9 +45,55 @@ FNN4_128_SingleVar_Rewrite
 
 Single Variable Training for 4 Layer Fully-Connected NN
 
+Thinking of 3 major categories
+
+---------------------------------
+(1) Data Preprocessing Parameters
+---------------------------------
+
+Decisions made in the data preprocessing step
+
+    - detrend
+    - regrid
+    - region of index
+    - ice masking
+    - predictor (varnames)
+    - dataset
+    - season
+    - lowpass
+    - dataset/cmipver
+
+---------------------------------
+(2) Subsetting
+---------------------------------
+
+Determining how the data is subsetting for training
+
+    - Thresholding Type (quantile, stdev)
+    - Test/Train/Val Split Percentage
+    - Crossfold Offset
+    - # of Ensemble Members to Use
+    - Time Period of Trainining (ystart, yend)
+    - Bounding Box
+    - Training Sample Size (nsamples)
+    
+    
+---------------------------------
+(3) Machine Learning Parameters
+---------------------------------
+
+Specific Machine Learning Parameters (regularization, training options, etc)
+
+    - epochs
+    - assorted hyperparameters
+    - early stop
+    - architecture
+    - batch size
+    - 
+
 """
 
-# # Create Experiment Directory
+# # Create Experiment Directory (note that expname = expdir in the original script)
 expname                    = "FNN4_128_SingleVar_Rewrite"
 expdict                    = {}
 
@@ -68,7 +115,7 @@ expdict['mask']            = True     # True for land-ice masking
 expdict['ens']             = 42      # Number of ensemble members to limit to
 expdict['ystart']          = 1920    # Start year of processed dataset
 expdict['yend']            = 2005    # End year of processed dataset
-expdict['bbox']            = pparams.bbox
+expdict['bbox']            = pparams.bbox #  Bounding box for data
 
 # Label Determination
 expdict['quantile']        = False   # Set to True to use quantiles

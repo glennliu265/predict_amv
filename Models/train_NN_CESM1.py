@@ -7,39 +7,26 @@ Train Neural Networks (NN) for CESM1 Large Ensemble Simulations
  - Copied introductory section from NN_Training_Rewrite.py on 2023.03.20
  - Based on NN_test_lead_ann_ImageNet_classification_singlevar.py
 
-
 Current Structure:
-    - Indicate CESM1 training parameters in [train_cesm_parameters]
+    - Indicate CESM1 training parameters in [train_cesm_parameters.py]
     - Functions are mostly contained in [amvmod.py]
     - Universal Variables + Architectures are in [predict_amv_params.py]
     - Additional helper function from [amv] module [proc] and [viz]
 
-Updated Procedure
-    1) Create Experiment Directory
-    2) Load Data
-    3) Determine (and make) AMV Classes
-
-
-
-General Procedure (Old)
-    1) Load Data
-    2) Create Experiment Directory
-    3) Determine AMV Class Threshold (for exact threshold)
-    4) Loop for runid/weight initialization...
-        5) Set output name, preallocate arrays
-        6) Looping by leadtime...
-
-             7) Apply lead/lag to data
-             8) Make AMV classes
-
-             9) Select samples
-             10) Test/Train Split, Set up Dataloader
-             11) Initialize model
-             12) Train Model
-             13) Test the model again?
-             14) Convert and store predicted values
-             15) Save the model
-             16) Compute & Save success metrics
+Updated Procedure:
+    01) Create Experiment Directory
+    02) Load Data
+    03) Determine (and make) AMV Classes based on selected thresholds
+    04) Loop by Predictor...
+        05) Loop by runid (train [nr] networks)...
+            06) Preallocate variables and set experiment output name
+            07) Loop by Leadtime...
+                08) Apply Lead/Lag to predictors+target
+                09) Select N samples from each class
+                10) Perform Train/Test Split, place into dataloaders
+                11) Initialize and train the model
+                12) Test the model, compute accuracy by class
+                13) Save the model and output
 
 Created on Mon Mar 20 21:34:32 2023
 @author: gliu
@@ -57,10 +44,7 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 
-# -----------------------------------------------------------------------------
-# Think about moving the section between this into another setup script VVV
-#%% Load packages and parameter spaces
-
+#% Load custom packages and setup parameters
 # Import general utilities from amv module
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import proc
@@ -76,85 +60,50 @@ import amvmod as am
 # Load Predictor Information
 bbox          = pparams.bbox
 
-#%%
+# ============================================================
+#%% User Edits vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+# ============================================================
 
-"""
-Thinking of 3 major categories
-
----------------------------------
-(1) Data Preprocessing Parameters
----------------------------------
-
-Decisions made in the data preprocessing step
-
-    - detrend
-    - regrid
-    - region of index
-    - ice masking
-    - predictor (varnames)
-    - dataset
-    - season
-    - lowpass
-    - dataset/cmipver
-
----------------------------------
-(2) Subsetting
----------------------------------
-
-Determining how the data is subsetting for training
-
-    - Thresholding Type (quantile, stdev)
-    - Test/Train/Val Split Percentage
-    - Crossfold Offset
-    - # of Ensemble Members to Use
-    - Time Period of Trainining (ystart, yend)
-    - Bounding Box
-    - Training Sample Size (nsamples)
-    
-    
----------------------------------
-(3) Machine Learning Parameters
----------------------------------
-
-Specific Machine Learning Parameters (regularization, training options, etc)
-
-    - epochs
-    - assorted hyperparameters
-    - early stop
-    - architecture
-    - batch size
-    - 
-
-
-"""
-# # Create Experiment Directory
+# Set experiment directory/key used to retrieve params from [train_cesm_params.py]
 expdir             = "FNN4_128_SingleVar_Rewrite"
-
-# Load experiment parameters
-eparams            = train_cesm_params.train_params_all[expdir]
+eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
 varnames           = ["SST","SSH",]       # Names of predictor variables
 leads              = np.arange(0,26,3)    # Prediction Leadtimes
 runids             = np.arange(0,21,1)    # Which runs to do
+
+# Other toggles
 checkgpu           = True                 # Set to true to check if GPU is availabl
 debug              = True                 # Set verbose outputs
 savemodel          = True                 # Set to true to save model weights
-#
-# -----------------------------------------------------------------------------
 
-# >> Add Loop by Predictor >> >>
+# Save looping parameters into parameter dictionary
+eparams['varnames'] = varnames
+eparams['leads']    = leads
+eparams['runids']   = runids
+
+# ============================================================
+# End User Edits ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+# ============================================================
+# ------------------------------------------------------------
+# %% 01. Check for existence of experiment directory and create it
+# ------------------------------------------------------------
 allstart = time.time()
 
-# ------------------------------------------------------------
-# %% Check for existence of experiment directory and create it
-# ------------------------------------------------------------
 proc.makedir("../../CESM_data/"+expdir)
 for fn in ("Metrics","Models","Figures"):
     proc.makedir("../../CESM_data/"+expdir+"/"+fn)
+    
+    
+# Check if there is gpu
+if checkgpu:
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+else:
+    device = torch.device('cpu')
 
 # ----------------------------------------------
-#%% Data Loading...
+#%% 02. Data Loading...
 # ----------------------------------------------
 
 # Load some variables for ease
@@ -173,7 +122,7 @@ nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens fo
 inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
 
 # ------------------------------------------------------------
-# %% Determine the AMV Classes
+# %% 03. Determine the AMV Classes
 # ------------------------------------------------------------
 
 # Set exact threshold value
@@ -211,14 +160,23 @@ print("\tEarly Stop     : " + str(eparams['early_stop']))
 print("\t# Ens. Members : "+ str(ens))
 print("\tDetrend        : "+ str(eparams['detrend']))
 
+# ------------------------
+# 04. Loop by predictor...
+# ------------------------
 for v,varname in enumerate(varnames): 
+    vt = time.time()
+    predictors = data[[v],...] # Get selected predictor
     
-    predictors = data[[v],...]
-    
+    # --------------------
+    # 05. Loop by runid...
+    # --------------------
     for nr,runid in enumerate(runids):
         rt = time.time()
         
-        # Save data (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
+        # ---------------------------------------
+        # 06. Set experiment name and preallocate
+        # ---------------------------------------
+        # Set experiment save name (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
         expname = ("AMVClass%i_%s_nepoch%02i_" \
                    "nens%02i_maxlead%02i_"\
                    "detrend%i_run%02i_"\
@@ -226,6 +184,7 @@ for v,varname in enumerate(varnames):
                                          ens,leads[-1],eparams['detrend'],runid,
                                          eparams['quantile'],eparams['regrid']))
         
+
         # Preallocate Evaluation Metrics...
         train_loss_grid = [] #np.zeros((max_epochs,nlead))
         test_loss_grid  = [] #np.zeros((max_epochs,nlead))
@@ -242,32 +201,27 @@ for v,varname in enumerate(varnames):
         sampled_idx     = []
         thresholds_all  = []
         
-        if checkgpu:
-            device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        else:
-            device = torch.device('cpu')
-        
+        # -----------------------
+        # 07. Loop by Leadtime...
+        # -----------------------
         for l,lead in enumerate(leads):
             
-            # ---------------------------------
-            # Set names for intermediate saving
-            # ---------------------------------
+            # Set names for intermediate saving, based on leadtime
             if (lead == leads[-1]) and (len(leads)>1): # Output all files together
                 outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
             else: # Output individual lead times while training
                 outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
             
-            # ----------------------
-            # Apply lead/lag to data
-            # ----------------------
+            # --------------------------
+            # 08. Apply lead/lag to data
+            # --------------------------
             # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
             X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=ens,tstep=ntime)
             
             # ----------------------
-            # Select samples
+            # 09. Select samples
             # ----------------------
             if eparams['nsamples'] is None: # Default: nsamples = smallest class
-                
                 threscount = np.zeros(nclasses)
                 for t in range(nclasses):
                     threscount[t] = len(np.where(y_class==t)[0])
@@ -277,9 +231,7 @@ for v,varname in enumerate(varnames):
             lead_nsamples      = y_class.shape[0]
             sampled_idx.append(shuffidx) # Save the sample indices
             
-            # --------------------------
             # Flatten input data for FNN
-            # --------------------------
             if "FNN" in eparams['netname']:
                 ndat,nchan,nlat,nlon = X.shape
                 inputsize            = nchan*nlat*nlon
@@ -287,7 +239,7 @@ for v,varname in enumerate(varnames):
                 X                    = X.reshape(ndat,inputsize)
             
             # --------------------------
-            # Train Test Split
+            # 10. Train Test Split
             # --------------------------
             X_subsets,y_subsets      = am.train_test_split(X,y_class,eparams['percent_train'],
                                                            percent_val=eparams['percent_val'],
@@ -301,9 +253,9 @@ for v,varname in enumerate(varnames):
             data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=eparams['batch_size']) for iset in range(len(X_subsets))]
             train_loader,test_loader,val_loader = data_loaders
             
-            # ---------------
-            # Train the model
-            # ---------------
+            # -------------------
+            # 11. Train the model
+            # -------------------
             nn_params = pparams.nn_param_dict[eparams['netname']] # Get corresponding param dict for network
             
             # Initialize model
@@ -323,7 +275,7 @@ for v,varname in enumerate(varnames):
                                                                                        verbose=debug,reduceLR=eparams['reduceLR'],
                                                                                        LRpatience=eparams['LRpatience'],checkgpu=checkgpu)
             
-            # Save train/validation loss
+            # Save train/test/validation loss
             train_loss_grid.append(trainloss)
             val_loss_grid.append(valloss)
             test_loss_grid.append(testloss)
@@ -331,35 +283,26 @@ for v,varname in enumerate(varnames):
             val_acc_grid.append(valacc)
             test_acc_grid.append(testacc)
             
-            # --------------------------------------------------
-            # Test the model separately to get accuracy by class
-            # --------------------------------------------------
+            # ------------------------------------------------------
+            # 12. Test the model separately to get accuracy by class
+            # ------------------------------------------------------
             y_predicted,y_actual,test_loss = am.test_model(model,test_loader,eparams['loss_fn'],
                                                            checkgpu=checkgpu,debug=False)
             lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
-            
             
             yvalpred.append(y_predicted)
             yvallabels.append(y_actual)
             acc_by_class.append(class_acc)
             total_acc.append(lead_acc)
             
-            # --------------
-            # Save the model
-            # --------------
+            # ------------------------------
+            # 13. Save the model and metrics
+            # ------------------------------
             if savemodel:
                 modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
                 torch.save(model.state_dict(),modout)
             
-            print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
-            
-            # Clear some memory
-            del model
-            torch.cuda.empty_cache()  # Save some memory
-            
-            # -----------------
-            # Save Eval Metrics
-            # -----------------
+            # Save Metrics
             savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
             np.savez(savename,**{
                      'train_loss'     : train_loss_grid,
@@ -371,11 +314,20 @@ for v,varname in enumerate(varnames):
                      'yvalpred'       : yvalpred,
                      'yvallabels'     : yvallabels,
                      'sampled_idx'    : sampled_idx,
-                     'thresholds_all' : thresholds_all
+                     'thresholds_all' : thresholds_all,
+                     'exp_params'     : eparams
                      }
                      )
-            #print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
-        #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+            
+            # Clear some memory
+            del model
+            torch.cuda.empty_cache()  # Save some memory
+            print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
+            # End Lead Loop >>>
+        print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+        # End Runid Loop >>>
+    print("\nPredictor %s finished in %.2fs" % (varname,time.time()-vt))
+    # End Predictor Loop >>>
 print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
              
 
