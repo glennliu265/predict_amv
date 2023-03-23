@@ -30,6 +30,7 @@ from scipy.signal import butter,filtfilt
 from cartopy.util import add_cyclic_point
 from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
 from torch import nn
+from torch.utils.data import DataLoader, TensorDataset,Dataset
 
 import torch.optim as optim
 import xarray as xr
@@ -1169,97 +1170,101 @@ def get_topN(arr,N,bot=False,sort=False,absval=False):
 
 # %% ImageNet Scripts copied from NN_test_lead_classification_singlevar.py on 2022.12.05
 
-# def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False
-#                    ,nlat=224,nlon=224,nchannels=3):
-#     """
-#     Load pretrained weights and architectures based on [modelname]
+def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False
+                    ,nlat=224,nlon=224,nchannels=3):
+    """
+    Load pretrained weights and architectures based on [modelname]
     
-#     Parameters
-#     ----------
-#     modelname : STR
-#         Name of model (currently supports 'simplecnn',or any resnet/efficientnet from timms)
-#     num_classes : INT
-#         Dimensions of output (ex. number of classes)
-#     cnndropout : BOOL, optional
-#         Include dropout layer in simplecnn. The default is False.
-#     unfreeze_all : BOOL, optional
-#         Set to True to unfreeze all weights in the model. Otherwise, just
-#         the last layer is unfrozen. The default is False.
+    Parameters
+    ----------
+    modelname : STR
+        Name of model (currently supports 'simplecnn',or any resnet/efficientnet from timms)
+    num_classes : INT
+        Dimensions of output (ex. number of classes)
+    cnndropout : BOOL, optional
+        Include dropout layer in simplecnn. The default is False.
+    unfreeze_all : BOOL, optional
+        Set to True to unfreeze all weights in the model. Otherwise, just
+        the last layer is unfrozen. The default is False.
     
-#     Returns
-#     -------
-#     model : PyTorch Model
-#         Returns loaded Pytorch model
-#     """
-#     if 'resnet' in modelname: # Load ResNet
-#         model = timm.create_model(modelname,pretrained=True)
-#         if unfreeze_all is False: # Freeze all layers except the last
-#             for param in model.parameters():
-#                 param.requires_grad = False
-#         model.fc = nn.Linear(model.fc.in_features, num_classes) # Set last layer size
+    Returns
+    -------
+    model : PyTorch Model
+        Returns loaded Pytorch model
+    """
+    channels=nchannels
+    if 'resnet' in modelname: # Load ResNet
+        print("ResNet currently not supported... need to solve compatibility issues with timm. WIP.")
+        return None
+        # model = timm.create_model(modelname,pretrained=True)
+        # if unfreeze_all is False: # Freeze all layers except the last
+        #     for param in model.parameters():
+        #         param.requires_grad = False
+        # model.fc = nn.Linear(model.fc.in_features, num_classes) # Set last layer size
         
-#     elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
-#         # 2 layer CNN settings
-#         nchannels     = [32,64]
-#         filtersizes   = [[2,3],[3,3]]
-#         filterstrides = [[1,1],[1,1]]
-#         poolsizes     = [[2,3],[2,3]]
-#         poolstrides   = [[2,3],[2,3]]
-#         firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
-#         if cnndropout: # Include Dropout
-#             layers = [
-#                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-#                     nn.Tanh(),
-#                     #nn.ReLU(),
-#                     #nn.Sigmoid(),
-#                     nn.MaxPool2d(kernel_size=poolsizes[0]),
+    elif modelname == 'simplecnn': # Use Simple CNN from previous testing framework
+        # 2 layer CNN settings
+        nchannels     = [32,64]
+        filtersizes   = [[2,3],[3,3]]
+        filterstrides = [[1,1],[1,1]]
+        poolsizes     = [[2,3],[2,3]]
+        poolstrides   = [[2,3],[2,3]]
+        firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+        if cnndropout: # Include Dropout
+            layers = [
+                    nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
+                    nn.MaxPool2d(kernel_size=poolsizes[0]),
     
-#                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-#                     nn.Tanh(),
-#                     #nn.ReLU(),
-#                     #nn.Sigmoid(),
-#                     nn.MaxPool2d(kernel_size=poolsizes[1]),
+                    nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
+                    nn.MaxPool2d(kernel_size=poolsizes[1]),
     
-#                     nn.Flatten(),
-#                     nn.Linear(in_features=firstlineardim,out_features=64),
-#                     nn.Tanh(),
-#                     #nn.ReLU(),
-#                     #nn.Sigmoid(),
+                    nn.Flatten(),
+                    nn.Linear(in_features=firstlineardim,out_features=64),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
     
-#                     nn.Dropout(p=0.5),
-#                     nn.Linear(in_features=64,out_features=num_classes)
-#                     ]
-#         else: # Do not include dropout
-#             layers = [
-#                     nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-#                     nn.Tanh(),
-#                     #nn.ReLU(),
-#                     #nn.Sigmoid(),
-#                     nn.MaxPool2d(kernel_size=poolsizes[0]),
+                    nn.Dropout(p=0.5),
+                    nn.Linear(in_features=64,out_features=num_classes)
+                    ]
+        else: # Do not include dropout
+            layers = [
+                    nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
+                    nn.MaxPool2d(kernel_size=poolsizes[0]),
     
-#                     nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-#                     nn.Tanh(),
-#                     #nn.ReLU(),
-#                     #nn.Sigmoid(),
-#                     nn.MaxPool2d(kernel_size=poolsizes[1]),
+                    nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
+                    nn.MaxPool2d(kernel_size=poolsizes[1]),
     
-#                     nn.Flatten(),
-#                     nn.Linear(in_features=firstlineardim,out_features=64),
-#                     nn.Tanh(),
-#                     #nn.ReLU(),
-#                     #nn.Sigmoid(),
+                    nn.Flatten(),
+                    nn.Linear(in_features=firstlineardim,out_features=64),
+                    nn.Tanh(),
+                    #nn.ReLU(),
+                    #nn.Sigmoid(),
 
-#                     nn.Linear(in_features=64,out_features=num_classes)
-#                     ]
-#         model = nn.Sequential(*layers) # Set up model
-#     else: # Load Efficientnet from Timmm
-#         model = timm.create_model(modelname,pretrained=True)
-#         if unfreeze_all is False: # Freeze all layers except the last
-#             for param in model.parameters():
-#                 param.requires_grad = False
-#         model.classifier=nn.Linear(model.classifier.in_features,num_classes)
-#     return model
-    
+                    nn.Linear(in_features=64,out_features=num_classes)
+                    ]
+        model = nn.Sequential(*layers) # Set up model
+    else: # Load Efficientnet from Timmm
+        print("timm currently not supported. Need to resolve compatability issues.")
+        return
+        # model = timm.create_model(modelname,pretrained=True)
+        # if unfreeze_all is False: # Freeze all layers except the last
+        #     for param in model.parameters():
+        #         param.requires_grad = False
+        # model.classifier=nn.Linear(model.classifier.in_features,num_classes)
+    return model
 
 def build_simplecnn(num_classes,cnndropout=False,unfreeze_all=False
                     ,nlat=224,nlon=224,num_inchannels=3):
@@ -1370,9 +1375,9 @@ def count_samples(nsamples,y_class):
         print("%i samples found for class %i" % (classcount,inclass))
     return idx_by_class,count_by_class
 
-def select_samples(nsamples,y_class,X,verbose=True):
+def select_samples(nsamples,y_class,X,shuffle=True,verbose=True):
     """
-    Sample even amounts from each class
+    Sample even amounts from each class. Shuffles data (unless shuffle=False)
 
     Parameters
     ----------
@@ -1382,6 +1387,8 @@ def select_samples(nsamples,y_class,X,verbose=True):
         Labels for each sample
     X : ARRAY [samples x channels x height x width]
         Input data for each sample
+    shuffle : BOOL
+        Set to True to shuffle the indices
     
     Returns
     -------
@@ -1426,7 +1433,8 @@ def select_samples(nsamples,y_class,X,verbose=True):
         
         # Shuffle and select first nsamples
         shuffidx = np.arange(0,classcount,1)
-        np.random.shuffle(shuffidx)
+        if shuffle:
+            np.random.shuffle(shuffidx)
         shuffidx = shuffidx[0:nsamples]
         
         # Select Shuffled Indices
@@ -2022,6 +2030,30 @@ def test_model(model,test_loader,loss_fn,checkgpu=True,debug=False):
 
 
 def compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False):
+    """
+    
+
+    Parameters
+    ----------
+    y_predicted : ARRAY [samples x 1]
+        Predicted target values (class)
+    y_actual : ARRAY [samples x 1]
+        Actual target values (class)
+    nclasses : INT
+        Number of clases.
+    debug : BOOL, optional
+        DESCRIPTION. The default is True.
+    verbose : TYPE, optional
+        DESCRIPTION. The default is False.
+
+    Returns
+    -------
+    total_acc : TYPE
+        DESCRIPTION.
+    class_acc : TYPE
+        DESCRIPTION.
+
+    """
     # -------------------------
     # Calculate Success Metrics
     # -------------------------
@@ -2049,3 +2081,91 @@ def compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False):
             print("\tClass %i : %03.3f" % (i,class_acc[i]*100) + "%\t" + "(%i/%i)"%(class_correct[i],class_total[i]))
         print("****************************************")
     return total_acc,class_acc
+
+
+def train_NN_lead(predictors,target,lead,eparams,pparams,debug=False,checkgpu=True):
+    
+    nchannels,nens,ntime,nlat,nlon = predictors.shape
+    nclasses = len(eparams['thresholds']+1)
+    
+    # --------------------------
+    # 08. Apply lead/lag to data
+    # --------------------------
+    # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+    X,y_class = apply_lead(predictors,target,lead,reshape=True,ens=nens,tstep=ntime)
+    
+    # ----------------------
+    # 09. Select samples
+    # ----------------------
+    if eparams['nsamples'] is None: # Default: nsamples = smallest class
+        threscount = np.zeros(nclasses)
+        for t in range(nclasses):
+            threscount[t] = len(np.where(y_class==t)[0])
+        nsamples = int(np.min(threscount))
+        print("Using %i samples, the size of the smallest class" % (nsamples))
+    y_class,X,shuffidx = select_samples(nsamples,y_class,X,shuffle=eparams['shuffle'],verbose=debug)
+    lead_nsamples      = y_class.shape[0]
+    
+    # Flatten input data for FNN
+    if "FNN" in eparams['netname']:
+        ndat,nchan,nlat,nlon = X.shape
+        inputsize            = nchan*nlat*nlon
+        outsize              = nclasses
+        X                    = X.reshape(ndat,inputsize)
+
+    # --------------------------
+    # 10. Train Test Split
+    # --------------------------
+    X_subsets,y_subsets      = train_test_split(X,y_class,eparams['percent_train'],
+                                                   percent_val=eparams['percent_val'],
+                                                   debug=debug,offset=eparams['cv_offset'])
+    # Convert to Tensors
+    X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
+    y_subsets = [torch.from_numpy(y.astype(np.compat.long)) for y in y_subsets]
+    
+    
+    # # Put into pytorch dataloaders
+    data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=eparams['batch_size']) for iset in range(len(X_subsets))]
+    train_loader,test_loader,val_loader = data_loaders
+    
+    # -------------------
+    # 11. Train the model
+    # -------------------
+    nn_params = pparams.nn_param_dict[eparams['netname']] # Get corresponding param dict for network
+    
+    # Initialize model
+    if "FNN" in eparams['netname']:
+        layers = build_FNN_simple(inputsize,outsize,nn_params['nlayers'],nn_params['nunits'],nn_params['activations'],
+                                  dropout=nn_params['dropout'],use_softmax=eparams['use_softmax'])
+        pmodel = nn.Sequential(*layers)
+        
+    else:
+        # Note: Currently not supported due to issues with timm model. Need to rewrite later...
+        pmodel = transfer_model(eparams['netname'],nclasses,cnndropout=nn_params['cnndropout'],unfreeze_all=eparams['unfreeze_all'],
+                                nlat=nlat,nlon=nlon,nchannels=nchannels)
+        
+        # Train/Validate Model
+        model,trainloss,testloss,valloss,trainacc,testacc,valacc = train_ResNet(pmodel,eparams['loss_fn'],eparams['opt'],
+                                                                                   train_loader,test_loader,val_loader,
+                                                                                   eparams['max_epochs'],early_stop=eparams['early_stop'],
+                                                                                   verbose=debug,reduceLR=eparams['reduceLR'],
+                                                                                   LRpatience=eparams['LRpatience'],checkgpu=checkgpu)
+        
+    # ------------------------------------------------------
+    # 12. Test the model separately to get accuracy by class
+    # ------------------------------------------------------
+    y_predicted,y_actual,test_loss = test_model(model,test_loader,eparams['loss_fn'],
+                                                   checkgpu=checkgpu,debug=False)
+    lead_acc,class_acc = compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
+    
+    func_output = [shuffidx,
+              trainloss,valloss,testloss,
+              trainacc,valacc,testacc,
+              y_predicted,y_actual,
+              class_acc,
+              lead_acc]
+    return func_output
+      
+    
+        
+        
