@@ -124,17 +124,16 @@ Specific Machine Learning Parameters (regularization, training options, etc)
 # # Create Experiment Directory
 expdir             = "FNN4_128_SingleVar_Rewrite"
 
-
 # ---------------------------------
 # (1) Data Preprocessing Parameters
 # ---------------------------------
 detrend         = 0        # True if the target was detrended
-varnames        = ["SST",] # Names of predictor variables
+varnames        = ["SST","SSH",] # Names of predictor variables
 region          = None     # Region of AMV Index (not yet implemented)
 season          = None     # Season of AMV Index (not yet implemented)
 lowpass         = False    # True if the target was low-pass filtered
 regrid          = None     # Regrid option of data
-mask            = True     # True for land-ice masking
+#mask            = True     # True for land-ice masking
 
 # ---------------------------------
 # (2) Subsetting Parameters
@@ -180,8 +179,8 @@ unfreeze_all  = True                 # Set to true to unfreeze all layers, false
 # ---------------------------------
 # (3) Other Parameters
 # ---------------------------------
-runids         = np.arange(0,11,1)    # Which runs to do
-leads          = np.arange(0,26,1)    # Prediction Leadtimes
+runids         = np.arange(0,21,1)    # Which runs to do
+leads          = np.arange(0,26,3)    # Prediction Leadtimes
 debug          = True                 # Set to true for debugging/verbose outputs
 checkgpu       = True                 # Set to true to check if GPU is available
 savemodel      = True                 # Set to true to save model weights
@@ -189,6 +188,7 @@ savemodel      = True                 # Set to true to save model weights
 # -----------------------------------------------------------------------------
 
 # >> Add Loop by Predictor >> >>
+allstart = time.time()
 
 # ------------------------------------------------------------
 # %% Check for existence of experiment directory and create it
@@ -196,6 +196,7 @@ savemodel      = True                 # Set to true to save model weights
 proc.makedir("../../CESM_data/"+expdir)
 for fn in ("Metrics","Models","Figures"):
     proc.makedir("../../CESM_data/"+expdir+"/"+fn)
+
 
 # ----------------------------------------------
 #%% Data Loading...
@@ -235,13 +236,25 @@ nlead        = len(leads)
 # Output: 
     predictors :: [channel x ens x year x lat x lon]
     labels     :: [ens x year]
-"""
+"""     
 # ------------------------------------------------------------
 # %% Looping for runid
 # ------------------------------------------------------------
 
-for v,varname in varnames: #...
+# Print Message
+print("Running [train_NN_CESM1.py] with the following settings:")
+print("\tNetwork Type   : "+netname)
+print("\tPredictor(s)   : "+str(varnames))
+print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
+print("\tRunids         : %i to %i" % (runids[0],runids[-1]))
+print("\tMax Epochs     : " + str(max_epochs))
+print("\tEarly Stop     : " + str(early_stop))
+print("\t# Ens. Members : "+ str(ens))
+print("\tDetrend        : "+ str(detrend))
+
+for v,varname in enumerate(varnames): 
     
+    predictors = data[[v],...]
     
     for nr,runid in enumerate(runids):
         rt = time.time()
@@ -255,15 +268,12 @@ for v,varname in varnames: #...
                                          quantile,regrid))
         
         # Preallocate Evaluation Metrics...
-        corr_grid_train = np.zeros((nlead))
-        corr_grid_test  = np.zeros((nlead))
-        
-        train_loss_grid = []#np.zeros((max_epochs,nlead))
-        test_loss_grid  = []#np.zeros((max_epochs,nlead))
-        val_loss_grid   = []
+        train_loss_grid = [] #np.zeros((max_epochs,nlead))
+        test_loss_grid  = [] #np.zeros((max_epochs,nlead))
+        val_loss_grid   = [] 
         
         train_acc_grid  = []
-        #test_acc_grid   = []
+        test_acc_grid   = [] # This is total_acc
         val_acc_grid    = []
         
         acc_by_class    = []
@@ -277,19 +287,6 @@ for v,varname in varnames: #...
             device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         else:
             device = torch.device('cpu')
-        
-        # -------------
-        # Print Message
-        # -------------
-        print("Running [train_NN_CESM1.py] with the following settings:")
-        print("\tNetwork Type   : "+netname)
-        print("\tPredictor(s)   : "+str(varnames))
-        print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
-        print("\tRunids         : %i to %i" % (runids[0],runids[-1]))
-        print("\tMax Epochs     : " + str(max_epochs))
-        print("\tEarly Stop     : " + str(early_stop))
-        print("\t# Ens. Members : "+ str(ens))
-        print("\tDetrend        : "+ str(detrend))
         
         for l,lead in enumerate(leads):
             
@@ -305,7 +302,7 @@ for v,varname in varnames: #...
             # Apply lead/lag to data
             # ----------------------
             # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-            X,y_class = am.apply_lead(data,target_class,lead,reshape=True,ens=ens,tstep=ntime)
+            X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=ens,tstep=ntime)
             
             # ----------------------
             # Select samples
@@ -359,19 +356,21 @@ for v,varname in varnames: #...
                 pmodel = am.transfer_model(netname,nclasses,cnndropout=nn_params['cnndropout'],unfreeze_all=unfreeze_all,
                                         nlat=nlat,nlon=nlon,nchannels=nchannels)
             # Train/Validate Model
-            model,trainloss,valloss,trainacc,valacc = am.train_ResNet(pmodel,loss_fn,opt,train_loader,val_loader,max_epochs,
+            model,trainloss,testloss,valloss,trainacc,testacc,valacc = am.train_ResNet(pmodel,loss_fn,opt,train_loader,test_loader,val_loader,max_epochs,
                                                                      early_stop=early_stop,verbose=debug,
                                                                      reduceLR=reduceLR,LRpatience=LRpatience,checkgpu=checkgpu)
             
             # Save train/validation loss
             train_loss_grid.append(trainloss)
             val_loss_grid.append(valloss)
+            test_loss_grid.append(testloss)
             train_acc_grid.append(trainacc)
             val_acc_grid.append(valacc)
+            test_acc_grid.append(testacc)
             
-            # --------------
-            # Test the model
-            # --------------
+            # --------------------------------------------------
+            # Test the model separately to get accuracy by class
+            # --------------------------------------------------
             y_predicted,y_actual,test_loss = am.test_model(model,test_loader,loss_fn,
                                                            checkgpu=checkgpu,debug=False)
             lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
@@ -382,8 +381,6 @@ for v,varname in varnames: #...
             acc_by_class.append(class_acc)
             total_acc.append(lead_acc)
             
-            
-            
             # --------------
             # Save the model
             # --------------
@@ -391,6 +388,32 @@ for v,varname in varnames: #...
                 modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
                 torch.save(model.state_dict(),modout)
             
+            print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
+            
+            # Clear some memory
+            del model
+            torch.cuda.empty_cache()  # Save some memory
+            
+            # -----------------
+            # Save Eval Metrics
+            # -----------------
+            savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
+            np.savez(savename,**{
+                     'train_loss'     : train_loss_grid,
+                     'test_loss'      : test_loss_grid,
+                     'train_acc'      : train_acc_grid,
+                     'test_acc'       : test_acc_grid,
+                     'total_acc'      : total_acc,
+                     'acc_by_class'   : acc_by_class,
+                     'yvalpred'       : yvalpred,
+                     'yvallabels'     : yvallabels,
+                     'sampled_idx'    : sampled_idx,
+                     'thresholds_all' : thresholds_all
+                     }
+                     )
+            #print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
+        #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
              
 
 
