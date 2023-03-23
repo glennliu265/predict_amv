@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 
-Train Neural Networks (NN) for CESM1 Large Ensemble Simulations
+Train Neural Networks (NN) for CESM1, testing cross validation
 
- - Copied introductory section from NN_Training_Rewrite.py on 2023.03.20
- - Based on NN_test_lead_ann_ImageNet_classification_singlevar.py
+ - Copied train_NN_CESM1.py.
 
 Current Structure:
     - Indicate CESM1 training parameters in [train_cesm_parameters.py]
