@@ -23,9 +23,11 @@ Updated Procedure:
             07) Loop by Leadtime...
                 08) Apply Lead/Lag to predictors+target
                 09) Select N samples from each class
+                ---- moved to function amvmod.train_NN_lead (10-12)
                 10) Perform Train/Test Split, place into dataloaders
                 11) Initialize and train the model
                 12) Test the model, compute accuracy by class
+                ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- -
                 13) Save the model and output
 
 Created on Mon Mar 20 21:34:32 2023
@@ -225,75 +227,30 @@ for v,varname in enumerate(varnames):
                 threscount = np.zeros(nclasses)
                 for t in range(nclasses):
                     threscount[t] = len(np.where(y_class==t)[0])
-                nsamples = int(np.min(threscount))
-                print("Using %i samples, the size of the smallest class" % (nsamples))
-            y_class,X,shuffidx = am.select_samples(nsamples,y_class,X,verbose=debug)
-            lead_nsamples      = y_class.shape[0]
-            sampled_idx.append(shuffidx) # Save the sample indices
+                eparams['nsamples'] = int(np.min(threscount))
+                print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+            y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle'])
             
-            # Flatten input data for FNN
-            if "FNN" in eparams['netname']:
-                ndat,nchan,nlat,nlon = X.shape
-                inputsize            = nchan*nlat*nlon
-                outsize              = nclasses
-                X                    = X.reshape(ndat,inputsize)
+            # --------------------------------------------------------------------------------
+            # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
+            # --------------------------------------------------------------------------------
+            output = am.train_NN_lead(X,y_class,eparams,pparams,debug=debug,checkgpu=checkgpu)
+            model,trainloss,valloss,testloss,trainacc,valacc,testacc,y_predicted,y_actual,class_acc,lead_acc = output
             
-            # --------------------------
-            # 10. Train Test Split
-            # --------------------------
-            X_subsets,y_subsets      = am.train_test_split(X,y_class,eparams['percent_train'],
-                                                           percent_val=eparams['percent_val'],
-                                                           debug=debug,offset=eparams['cv_offset'])
-            # Convert to Tensors
-            X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
-            y_subsets = [torch.from_numpy(y.astype(np.compat.long)) for y in y_subsets]
-            
-            
-            # # Put into pytorch dataloaders
-            data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=eparams['batch_size']) for iset in range(len(X_subsets))]
-            train_loader,test_loader,val_loader = data_loaders
-            
-            # -------------------
-            # 11. Train the model
-            # -------------------
-            nn_params = pparams.nn_param_dict[eparams['netname']] # Get corresponding param dict for network
-            
-            # Initialize model
-            if "FNN" in eparams['netname']:
-                layers = am.build_FNN_simple(inputsize,outsize,nn_params['nlayers'],nn_params['nunits'],nn_params['activations'],
-                                          dropout=nn_params['dropout'],use_softmax=eparams['use_softmax'])
-                pmodel = nn.Sequential(*layers)
-                
-            else:
-                # Note: Currently not supported due to issues with timm model. Need to rewrite later...
-                pmodel = am.transfer_model(eparams['netname'],nclasses,cnndropout=nn_params['cnndropout'],unfreeze_all=eparams['unfreeze_all'],
-                                        nlat=nlat,nlon=nlon,nchannels=nchannels)
-            # Train/Validate Model
-            model,trainloss,testloss,valloss,trainacc,testacc,valacc = am.train_ResNet(pmodel,eparams['loss_fn'],eparams['opt'],
-                                                                                       train_loader,test_loader,val_loader,
-                                                                                       eparams['max_epochs'],early_stop=eparams['early_stop'],
-                                                                                       verbose=debug,reduceLR=eparams['reduceLR'],
-                                                                                       LRpatience=eparams['LRpatience'],checkgpu=checkgpu)
-            
-            # Save train/test/validation loss
+            # Append outputs for the leadtime
             train_loss_grid.append(trainloss)
             val_loss_grid.append(valloss)
             test_loss_grid.append(testloss)
+            
             train_acc_grid.append(trainacc)
             val_acc_grid.append(valacc)
             test_acc_grid.append(testacc)
             
-            # ------------------------------------------------------
-            # 12. Test the model separately to get accuracy by class
-            # ------------------------------------------------------
-            y_predicted,y_actual,test_loss = am.test_model(model,test_loader,eparams['loss_fn'],
-                                                           checkgpu=checkgpu,debug=False)
-            lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
-            
-            yvalpred.append(y_predicted)
-            yvallabels.append(y_actual)
             acc_by_class.append(class_acc)
             total_acc.append(lead_acc)
+            yvalpred.append(y_predicted)
+            yvallabels.append(y_actual)
+            sampled_idx.append(shuffidx) # Save the sample indices
             
             # ------------------------------
             # 13. Save the model and metrics
@@ -322,6 +279,7 @@ for v,varname in enumerate(varnames):
             # Clear some memory
             del model
             torch.cuda.empty_cache()  # Save some memory
+            
             print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
             # End Lead Loop >>>
         print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
