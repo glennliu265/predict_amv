@@ -2083,40 +2083,38 @@ def compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False):
     return total_acc,class_acc
 
 
-def train_NN_lead(predictors,target,lead,eparams,pparams,debug=False,checkgpu=True):
+def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
+    """
+    Wrapper for training neural network.
     
-    nchannels,nens,ntime,nlat,nlon = predictors.shape
-    nclasses = len(eparams['thresholds']+1)
+    Inputs:
+        X (ARRAY: [samples,channels,lat,lon]) : Predictors
+        y (ARRAY: [samples,1]) : Target
+        eparams (dict) : Training Parameters for the experiment, see train_NN_CESM1.py
+        pparams (dict) : Architecture hyperparameters for network, see train_NN_CESM1.py
+    Returns:
+        model : Trained PyTorch Model
+        trainloss,valloss,testloss : Loss by Epoch
+        trainacc,valacc,testacc : Accuracy by Epoch
+        y_predicted,y_actual : Predicted and Actual value for test set
+        class_acc : Test accuracy by class
+        lead_acc : Total accuracy by class
+
+    """
     
-    # --------------------------
-    # 08. Apply lead/lag to data
-    # --------------------------
-    # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-    X,y_class = apply_lead(predictors,target,lead,reshape=True,ens=nens,tstep=ntime)
-    
-    # ----------------------
-    # 09. Select samples
-    # ----------------------
-    if eparams['nsamples'] is None: # Default: nsamples = smallest class
-        threscount = np.zeros(nclasses)
-        for t in range(nclasses):
-            threscount[t] = len(np.where(y_class==t)[0])
-        nsamples = int(np.min(threscount))
-        print("Using %i samples, the size of the smallest class" % (nsamples))
-    y_class,X,shuffidx = select_samples(nsamples,y_class,X,shuffle=eparams['shuffle'],verbose=debug)
-    lead_nsamples      = y_class.shape[0]
+    nclasses  = len(eparams['thresholds']) + 1
     
     # Flatten input data for FNN
     if "FNN" in eparams['netname']:
-        ndat,nchan,nlat,nlon = X.shape
-        inputsize            = nchan*nlat*nlon
+        ndat,nchannels,nlat,nlon = X.shape
+        inputsize            = nchannels*nlat*nlon
         outsize              = nclasses
         X                    = X.reshape(ndat,inputsize)
-
+    
     # --------------------------
     # 10. Train Test Split
     # --------------------------
-    X_subsets,y_subsets      = train_test_split(X,y_class,eparams['percent_train'],
+    X_subsets,y_subsets      = train_test_split(X,y,eparams['percent_train'],
                                                    percent_val=eparams['percent_val'],
                                                    debug=debug,offset=eparams['cv_offset'])
     # Convert to Tensors
@@ -2144,13 +2142,13 @@ def train_NN_lead(predictors,target,lead,eparams,pparams,debug=False,checkgpu=Tr
         pmodel = transfer_model(eparams['netname'],nclasses,cnndropout=nn_params['cnndropout'],unfreeze_all=eparams['unfreeze_all'],
                                 nlat=nlat,nlon=nlon,nchannels=nchannels)
         
-        # Train/Validate Model
-        model,trainloss,testloss,valloss,trainacc,testacc,valacc = train_ResNet(pmodel,eparams['loss_fn'],eparams['opt'],
-                                                                                   train_loader,test_loader,val_loader,
-                                                                                   eparams['max_epochs'],early_stop=eparams['early_stop'],
-                                                                                   verbose=debug,reduceLR=eparams['reduceLR'],
-                                                                                   LRpatience=eparams['LRpatience'],checkgpu=checkgpu)
-        
+    # Train/Validate Model
+    model,trainloss,testloss,valloss,trainacc,testacc,valacc = train_ResNet(pmodel,eparams['loss_fn'],eparams['opt'],
+                                                                               train_loader,test_loader,val_loader,
+                                                                               eparams['max_epochs'],early_stop=eparams['early_stop'],
+                                                                               verbose=debug,reduceLR=eparams['reduceLR'],
+                                                                               LRpatience=eparams['LRpatience'],checkgpu=checkgpu)
+    
     # ------------------------------------------------------
     # 12. Test the model separately to get accuracy by class
     # ------------------------------------------------------
@@ -2158,7 +2156,7 @@ def train_NN_lead(predictors,target,lead,eparams,pparams,debug=False,checkgpu=Tr
                                                    checkgpu=checkgpu,debug=False)
     lead_acc,class_acc = compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
     
-    func_output = [shuffidx,
+    func_output = [model,
               trainloss,valloss,testloss,
               trainacc,valacc,testacc,
               y_predicted,y_actual,
