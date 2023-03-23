@@ -8,6 +8,12 @@ Train Neural Networks (NN) for CESM1 Large Ensemble Simulations
  - Based on NN_test_lead_ann_ImageNet_classification_singlevar.py
 
 
+Current Structure:
+    - Indicate CESM1 training parameters in [train_cesm_parameters]
+    - Functions are mostly contained in [amvmod.py]
+    - Universal Variables + Architectures are in [predict_amv_params.py]
+    - Additional helper function from [amv] module [proc] and [viz]
+
 Updated Procedure
     1) Create Experiment Directory
     2) Load Data
@@ -59,11 +65,11 @@ from torch.utils.data import DataLoader, TensorDataset,Dataset
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import proc
 
-
 # Import packages specific to predict_amv
 cwd = os.getcwd()
 sys.path.append(cwd+"/../")
 import predict_amv_params as pparams
+import train_cesm_params as train_cesm_params
 import amv_dataloader as dl
 import amvmod as am
 
@@ -124,67 +130,17 @@ Specific Machine Learning Parameters (regularization, training options, etc)
 # # Create Experiment Directory
 expdir             = "FNN4_128_SingleVar_Rewrite"
 
-# ---------------------------------
-# (1) Data Preprocessing Parameters
-# ---------------------------------
-detrend         = 0        # True if the target was detrended
-varnames        = ["SST","SSH",] # Names of predictor variables
-region          = None     # Region of AMV Index (not yet implemented)
-season          = None     # Season of AMV Index (not yet implemented)
-lowpass         = False    # True if the target was low-pass filtered
-regrid          = None     # Regrid option of data
-#mask            = True     # True for land-ice masking
+# Load experiment parameters
+eparams            = train_cesm_params.train_params_all[expdir]
 
-# ---------------------------------
-# (2) Subsetting Parameters
-# ---------------------------------
-# Data subsetting
-ens             = 42      # Number of ensemble members to limit to
-ystart          = 1850    # Start year of processed dataset
-yend            = 2014    # End year of processed dataset
-bbox            = pparams.bbox
-
-# Label Determination
-quantile        = False   # Set to True to use quantiles
-thresholds      = [-1,1]  # Thresholds (standard deviations, or quantile values) 
-
-# Test/Train/Validate and Sampling
-nsamples        = 300     # Number of samples from each class to train with
-percent_train   = 0.60    # Training percentage
-percent_val     = 0.10    # Validation Percentage
-
-# Cross Validation Options
-cv_loop         = True    # Repeat for cross-validation
-cv_offset       = 0       # Set cv option. Default is test size chunk
-
-# ---------------------------------
-# (2) ML Parameters
-# ---------------------------------
-
-# Network Hyperparameters
-netname       = "FNN4_128"           # Key for Architecture Hyperparameters
-loss_fn       = nn.CrossEntropyLoss()# Loss Function (nn.CrossEntropyLoss())
-opt           = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight Decay]
-use_softmax   = False                # Set to true to change final layer to softmax
-reduceLR      = False                # Set to true to use LR scheduler
-LRpatience    = False                # Set patience for LR scheduler
-
-# Regularization and Training
-early_stop    = 3                    # Number of epochs where validation loss increases before stopping
-max_epochs    = 20                   # Maximum # of Epochs to train for
-batch_size    = 16                   # Pairs of predictions
-unfreeze_all  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
-
-
-# ---------------------------------
-# (3) Other Parameters
-# ---------------------------------
-runids         = np.arange(0,21,1)    # Which runs to do
-leads          = np.arange(0,26,3)    # Prediction Leadtimes
-debug          = True                 # Set to true for debugging/verbose outputs
-checkgpu       = True                 # Set to true to check if GPU is available
-savemodel      = True                 # Set to true to save model weights
-#% # Think about moving the section above this into another setup script ^^^
+# Set some looping parameters and toggles
+varnames           = ["SST","SSH",]       # Names of predictor variables
+leads              = np.arange(0,26,3)    # Prediction Leadtimes
+runids             = np.arange(0,21,1)    # Which runs to do
+checkgpu           = True                 # Set to true to check if GPU is availabl
+debug              = True                 # Set verbose outputs
+savemodel          = True                 # Set to true to save model weights
+#
 # -----------------------------------------------------------------------------
 
 # >> Add Loop by Predictor >> >>
@@ -197,15 +153,18 @@ proc.makedir("../../CESM_data/"+expdir)
 for fn in ("Metrics","Models","Figures"):
     proc.makedir("../../CESM_data/"+expdir+"/"+fn)
 
-
 # ----------------------------------------------
 #%% Data Loading...
 # ----------------------------------------------
+
+# Load some variables for ease
+ens            = eparams['ens']
+
 # Loads that that has been preprocessed by: ___
 
 # Load predictor and labels, lat/lon, cut region
-target         = dl.load_target_cesm(detrend=detrend,region=region)
-data,lat,lon   = dl.load_data_cesm(varnames,bbox,detrend=detrend,return_latlon=True)
+target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
+data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
 
 # Subset predictor by ensemble, remove NaNs, and get sizes
 data                           = data[:,0:ens,...]      # Limit to Ens
@@ -218,18 +177,18 @@ inputsize                      = nchannels*nlat*nlon    # Compute inputsize to r
 # ------------------------------------------------------------
 
 # Set exact threshold value
-std1         = target.std(1).mean() * thresholds[1] # Multiple stdev by threshold value 
-if quantile is False:
+std1         = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
+if eparams['quantile'] is False:
     thresholds_in = [-std1,std1]
 else:
-    thresholds_in = thresholds
+    thresholds_in = eparams['thresholds']
 
 # Classify AMV Events
-target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=quantile)
+target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
 target_class = target_class.reshape(target.shape)
 
 # Get necessary dimension sizes/values
-nclasses     = len(thresholds)+1
+nclasses     = len(eparams['thresholds'])+1
 nlead        = len(leads)
 
 """
@@ -243,14 +202,14 @@ nlead        = len(leads)
 
 # Print Message
 print("Running [train_NN_CESM1.py] with the following settings:")
-print("\tNetwork Type   : "+netname)
+print("\tNetwork Type   : "+ eparams['netname'])
 print("\tPredictor(s)   : "+str(varnames))
 print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
 print("\tRunids         : %i to %i" % (runids[0],runids[-1]))
-print("\tMax Epochs     : " + str(max_epochs))
-print("\tEarly Stop     : " + str(early_stop))
+print("\tMax Epochs     : " + str(eparams['max_epochs']))
+print("\tEarly Stop     : " + str(eparams['early_stop']))
 print("\t# Ens. Members : "+ str(ens))
-print("\tDetrend        : "+ str(detrend))
+print("\tDetrend        : "+ str(eparams['detrend']))
 
 for v,varname in enumerate(varnames): 
     
@@ -263,9 +222,9 @@ for v,varname in enumerate(varnames):
         expname = ("AMVClass%i_%s_nepoch%02i_" \
                    "nens%02i_maxlead%02i_"\
                    "detrend%i_run%02i_"\
-                   "quant%i_res%s" % (nclasses,netname,max_epochs,
-                                         ens,leads[-1],detrend,runid,
-                                         quantile,regrid))
+                   "quant%i_res%s" % (nclasses,eparams['netname'],eparams['max_epochs'],
+                                         ens,leads[-1],eparams['detrend'],runid,
+                                         eparams['quantile'],eparams['regrid']))
         
         # Preallocate Evaluation Metrics...
         train_loss_grid = [] #np.zeros((max_epochs,nlead))
@@ -307,11 +266,13 @@ for v,varname in enumerate(varnames):
             # ----------------------
             # Select samples
             # ----------------------
-            if nsamples is None: # Default: nsamples = smallest class
+            if eparams['nsamples'] is None: # Default: nsamples = smallest class
+                
                 threscount = np.zeros(nclasses)
                 for t in range(nclasses):
                     threscount[t] = len(np.where(y_class==t)[0])
                 nsamples = int(np.min(threscount))
+                print("Using %i samples, the size of the smallest class" % (nsamples))
             y_class,X,shuffidx = am.select_samples(nsamples,y_class,X,verbose=debug)
             lead_nsamples      = y_class.shape[0]
             sampled_idx.append(shuffidx) # Save the sample indices
@@ -319,7 +280,7 @@ for v,varname in enumerate(varnames):
             # --------------------------
             # Flatten input data for FNN
             # --------------------------
-            if "FNN" in netname:
+            if "FNN" in eparams['netname']:
                 ndat,nchan,nlat,nlon = X.shape
                 inputsize            = nchan*nlat*nlon
                 outsize              = nclasses
@@ -328,37 +289,39 @@ for v,varname in enumerate(varnames):
             # --------------------------
             # Train Test Split
             # --------------------------
-            X_subsets,y_subsets      = am.train_test_split(X,y_class,percent_train,
-                                                           percent_val=percent_val,
-                                                           debug=debug,offset=cv_offset)
+            X_subsets,y_subsets      = am.train_test_split(X,y_class,eparams['percent_train'],
+                                                           percent_val=eparams['percent_val'],
+                                                           debug=debug,offset=eparams['cv_offset'])
             # Convert to Tensors
             X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
             y_subsets = [torch.from_numpy(y.astype(np.compat.long)) for y in y_subsets]
             
             
             # # Put into pytorch dataloaders
-            data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=batch_size) for iset in range(len(X_subsets))]
+            data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=eparams['batch_size']) for iset in range(len(X_subsets))]
             train_loader,test_loader,val_loader = data_loaders
             
             # ---------------
             # Train the model
             # ---------------
-            nn_params = pparams.nn_param_dict[netname] # Get corresponding param dict for network
+            nn_params = pparams.nn_param_dict[eparams['netname']] # Get corresponding param dict for network
             
             # Initialize model
-            if "FNN" in netname:
+            if "FNN" in eparams['netname']:
                 layers = am.build_FNN_simple(inputsize,outsize,nn_params['nlayers'],nn_params['nunits'],nn_params['activations'],
-                                          dropout=nn_params['dropout'],use_softmax=use_softmax)
+                                          dropout=nn_params['dropout'],use_softmax=eparams['use_softmax'])
                 pmodel = nn.Sequential(*layers)
                 
             else:
                 # Note: Currently not supported due to issues with timm model. Need to rewrite later...
-                pmodel = am.transfer_model(netname,nclasses,cnndropout=nn_params['cnndropout'],unfreeze_all=unfreeze_all,
+                pmodel = am.transfer_model(eparams['netname'],nclasses,cnndropout=nn_params['cnndropout'],unfreeze_all=eparams['unfreeze_all'],
                                         nlat=nlat,nlon=nlon,nchannels=nchannels)
             # Train/Validate Model
-            model,trainloss,testloss,valloss,trainacc,testacc,valacc = am.train_ResNet(pmodel,loss_fn,opt,train_loader,test_loader,val_loader,max_epochs,
-                                                                     early_stop=early_stop,verbose=debug,
-                                                                     reduceLR=reduceLR,LRpatience=LRpatience,checkgpu=checkgpu)
+            model,trainloss,testloss,valloss,trainacc,testacc,valacc = am.train_ResNet(pmodel,eparams['loss_fn'],eparams['opt'],
+                                                                                       train_loader,test_loader,val_loader,
+                                                                                       eparams['max_epochs'],early_stop=eparams['early_stop'],
+                                                                                       verbose=debug,reduceLR=eparams['reduceLR'],
+                                                                                       LRpatience=eparams['LRpatience'],checkgpu=checkgpu)
             
             # Save train/validation loss
             train_loss_grid.append(trainloss)
@@ -371,13 +334,13 @@ for v,varname in enumerate(varnames):
             # --------------------------------------------------
             # Test the model separately to get accuracy by class
             # --------------------------------------------------
-            y_predicted,y_actual,test_loss = am.test_model(model,test_loader,loss_fn,
+            y_predicted,y_actual,test_loss = am.test_model(model,test_loader,eparams['loss_fn'],
                                                            checkgpu=checkgpu,debug=False)
             lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
             
+            
             yvalpred.append(y_predicted)
             yvallabels.append(y_actual)
-            test_loss_grid.append(test_loss)
             acc_by_class.append(class_acc)
             total_acc.append(lead_acc)
             

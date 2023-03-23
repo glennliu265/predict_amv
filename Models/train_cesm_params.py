@@ -54,7 +54,7 @@ expdict                    = {}
 # (1) Data Preprocessing Parameters
 # ---------------------------------
 expdict['detrend']         = 0        # True if the target was detrended
-expdict['varnames']        = ["SST","SSH",] # Names of predictor variables
+#expdict['varnames']        = ["SST","SSH",] # Names of predictor variables
 expdict['region']          = None     # Region of AMV Index (not yet implemented)
 expdict['season']          = None     # Season of AMV Index (not yet implemented)
 expdict['lowpass']         = False    # True if the target was low-pass filtered
@@ -105,10 +105,10 @@ expdict['unfreeze_all']  = True                 # Set to true to unfreeze all la
 # ---------------------------------
 # (3) Other Parameters
 # ---------------------------------
-expdict['runids']         = np.arange(0,21,1)    # Which runs to do
-expdict['leads']          = np.arange(0,26,3)    # Prediction Leadtimes
-expdict['debug']          = True                 # Set to true for debugging/verbose outputs
-expdict['checkgpu']       = True                 # Set to true to check if GPU is available
-expdict['savemodel']      = True                 # Set to true to save model weights
+#expdict['runids']         = np.arange(0,21,1)    # Which runs to do
+#expdict['leads']          = np.arange(0,26,3)    # Prediction Leadtimes
+#expdict['debug']          = True                 # Set to true for debugging/verbose outputs
+#expdict['checkgpu']       = True                 # Set to true to check if GPU is available
+#expdict['savemodel']      = True                 # Set to true to save model weights
 
 train_params_all[expname] = expdict.copy()
