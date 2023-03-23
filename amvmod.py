@@ -1807,7 +1807,7 @@ def compute_LRP_composites(topN,in_acc,correct_id,relevances,absval=False,normal
 
 
 
-def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early_stop=False,verbose=True,
+def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,max_epochs,early_stop=False,verbose=True,
                  reduceLR=False,LRpatience=3,checkgpu=True):
     """
     inputs:
@@ -1815,8 +1815,9 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
         loss_fn     - (torch.nn) loss function
         opt         - tuple of [optimizer_name, learning_rate, weight_decay] for updating the weights
                       currently supports "Adadelta" and "SGD" optimizers
-        trainloader - (torch.utils.data.DataLoader) for training datasetmo
+        trainloader - (torch.utils.data.DataLoader) for training dataset
         testloader  - (torch.utils.data.DataLoader) for testing dataset
+        valloader   - (torch.utils.data.DataLoader) for validation dataset
         max_epochs  - number of training epochs
         early_stop  - BOOL or INT, Stop training after N epochs of increasing validation error
                      (set to False to stop at max epoch, or INT for number of epochs)
@@ -1867,15 +1868,15 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
     bestloss  = np.infty
     
     # Main Loop
-    train_acc,test_acc = [],[] # Preallocate tuples to store accuracy
-    train_loss,test_loss = [],[]   # Preallocate tuples to store loss
+    train_acc,test_acc,val_acc = [],[],[] # Preallocate tuples to store accuracy
+    train_loss,test_loss,val_loss = [],[],[]   # Preallocate tuples to store loss
     bestloss = np.infty
     
     for epoch in tqdm(range(max_epochs)): # loop by epoch
-        for mode,data_loader in [('train',trainloader),('eval',testloader)]: # train/test for each epoch
+        for mode,data_loader in [('train',trainloader),('test',testloader),('val',valloader)]: # train/test for each epoch
             if mode == 'train':  # Training, update weights
                 model.train()
-            elif mode == 'eval': # Testing, freeze weights
+            else: # Testing/Validation, freeze weights
                 model.eval()
             
             runningloss = 0
@@ -1905,10 +1906,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
-                elif mode == 'eval':  # update scheduler after 1st epoch
+                elif mode == 'val':  # update scheduler after 1st epoch for validation
                     if reduceLR:
                         scheduler.step(loss)
-                    
+                
                 runningloss += float(loss.item())
             
             if verbose: # Print progress message
@@ -1916,20 +1917,23 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                                                 runningloss/len(data_loader),correct/total*100))
             
             # Save model if this is the best loss
-            if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
+            if (runningloss/len(data_loader) < bestloss) and (mode == 'val'):
                 bestloss = runningloss/len(data_loader)
                 bestmodel = copy.deepcopy(model)
                 if verbose:
                     print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
-
+            
             # Save running loss values for the epoch
             if mode == 'train':
                 train_loss.append(runningloss/len(data_loader))
                 train_acc.append(correct/total)
-            else:
+            elif mode == 'test':
                 test_loss.append(runningloss/len(data_loader))
                 test_acc.append(correct/total)
-
+            elif mode == 'val':
+                val_loss.append(runningloss/len(data_loader))
+                val_acc.append(correct/total)
+                
                 # Evaluate if early stopping is needed
                 if epoch == 0: # Save previous loss
                     lossprev = runningloss/len(data_loader)
@@ -1938,14 +1942,13 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
                         i_incr += 1 # Add to counter
                         if verbose:
                             print("Validation loss has increased at epoch %i, count=%i"%(epoch+1,i_incr))
-                        
                     else:
                         i_incr = 0 # Zero out counter
                     lossprev = runningloss/len(data_loader)
 
                 if (epoch != 0) and (i_incr >= i_thres):
                     print("\tEarly stop at epoch %i "% (epoch+1))
-                    return bestmodel,train_loss,test_loss,train_acc,test_acc
+                    return bestmodel,train_loss,test_loss,val_loss,train_acc,test_acc,val_acc
 
             # Clear some memory
             #print("Before clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
@@ -1955,7 +1958,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,max_epochs,early
             #print("After clearing in epoch %i mode %s, memory is %i"%(epoch,mode,torch.cuda.memory_allocated(device)))
 
     #bestmodel.load_state_dict(best_model_wts)
-    return bestmodel,train_loss,test_loss,train_acc,test_acc
+    return bestmodel,train_loss,test_loss,val_loss,train_acc,test_acc,val_acc
 
 
 def test_model(model,test_loader,loss_fn,checkgpu=True,debug=False):
