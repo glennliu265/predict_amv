@@ -44,9 +44,6 @@ import torch
 from tqdm import tqdm
 import copy
 
-
-
-
 #%% Metrics and Analysis ----
 
 def load_result(fn,debug=False):
@@ -1358,8 +1355,8 @@ def count_samples(nsamples,y_class):
     Simplified version of select_samples that only counts the classes
     and returns the indices/counts
     """
-    classes    = np.unique(y_class)
-    nclasses   = len(classes)
+    classes         = np.unique(y_class)
+    nclasses        = len(classes)
     idx_by_class    = [] 
     count_by_class  = []
     for i in range(nclasses):
@@ -1403,8 +1400,8 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True):
     """
     
     allsamples,nchannels,H,W = X.shape
-    classes    = np.unique(y_class)
-    nclasses   = len(classes)
+    classes                  = np.unique(y_class)
+    nclasses                 = len(classes)
     
 
     # Sort input by classes
@@ -1435,6 +1432,8 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True):
         shuffidx = np.arange(0,classcount,1)
         if shuffle:
             np.random.shuffle(shuffidx)
+        else:
+            print("Warning: data will not be shuffled!")
         shuffidx = shuffidx[0:nsamples]
         
         # Select Shuffled Indices
@@ -1514,7 +1513,7 @@ def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0):
     for p,pct in enumerate(percent_splits):
         # Add modulo accounting for offset
         pct_rng = np.array([cumulative_pct+offset,cumulative_pct+pct+offset])%1
-        if pct_rng[0] == pct_rng[1]:
+        if (pct_rng[0] == pct_rng[1]):# and (p >0):
             print("Exceeded max percentage on segment [%s], Skipping..."%segments[p])
             continue
         # Add ranges to account for endpoints
