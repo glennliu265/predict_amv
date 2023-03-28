@@ -16,7 +16,7 @@ from torch import nn
 #%% Project paths
 
 datpath       = "../../CESM_data/"
-figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230324/"
+figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230331/"
 
 #%% Regions (Bounding Boxes and Names)
 regions       = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")
@@ -72,6 +72,37 @@ ens           = 40
 thresholds    = [-1,1] 
 quantile      = False
 percent_train = 0.8
+
+#%% module packages
+
+# Added info from scm. 
+mdict0 = {
+    "machine"      : 0, # Name of the machine
+    "amv_path"     : 0,# Path to amv module (with proc,viz)
+    "cesm2path"    : 0, # Path to CESM2 Data
+    "lenspath"     : 0, # Large Ensemble Data (CMIP5)
+
+    }
+
+mdict1 = {
+    "machine"      : "stormtrack", # Name of the machine
+    "amv_path"     : "/home/glliu/00_Scripts/01_Projects/00_Commons/",# Path to amv module (with proc,viz)
+    "cesm2path"    : 0, # Path to CESM2 Data
+    "lenspath"     : "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # Large Ensemble Data (CMIP5)
+
+    }
+
+mdict2 = {
+    "machine"      : "Astraeus",
+    "amv_path"     : "/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/",
+    "cesm2path"    : "/Users/gliu/Globus_File_Transfer/CESM2_LE/1x1/",
+    "lenspath"     : 0, # Large Ensemble Data (CMIP5)
+    }
+
+machine_path_dicts = (mdict1,mdict2,)
+machine_names      = [d["machine"] for d in machine_path_dicts]
+machine_paths      = dict(zip(machine_names,machine_path_dicts))
+
 
 
 #%% LENs Parameters
@@ -185,6 +216,12 @@ cmip6_dict         = dict(zip(indicts_cmip6_keys,indicts_cmip6))
 # outsize        = len(thresholds) + 1
 
 #%% ML Model Parameters/Dictionary
+
+
+"""
+Descriptions taken from NN training script
+cnndropout : Set to 1 to test simple CNN with dropout layer
+"""
 
 # FNN2
 FNN2_dict={
