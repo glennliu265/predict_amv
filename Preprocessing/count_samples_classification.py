@@ -29,10 +29,38 @@ import copy
 import xarray as xr
 import sys
 
+
+#%%
+
+#% Load custom packages and setup parameters
+# Import general utilities from amv module
+sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
+
+import proc
+
+# Import packages specific to predict_amv
+cwd = os.getcwd()
+sys.path.append(cwd+"/../")
+import predict_amv_params as pparams
+import train_cesm_params as train_cesm_params
+import amv_dataloader as dl
+import amvmod as am
+
+# Load Predictor Information
+bbox          = pparams.bbox
+
+
+#%% User Edits
+
+# Set experiment directory/key used to retrieve params from [train_cesm_params.py]
+expdir             = "FNN4_128_SingleVar_Rerun100"
+eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
+
+
 #%% Import some parameters (add more here eventually)
 
-cmipver = 6
-do_only = ["CESM2",]
+cmipver = "CESM1"
+#do_only = ["CESM2",]
 
 sys.path.append("../")
 import predict_amv_params as pparams
@@ -51,6 +79,7 @@ if cmipver == 5:
     ens           = 30
     regrid        = 3
     
+    
 elif cmipver == 6:
     dataset_names = pparams.cmip6_names
     ystarts       = (1850,)*len(dataset_names)
@@ -59,18 +88,26 @@ elif cmipver == 6:
     limit_time    = [1850,2014] # Set Dates here to limit the range of the variable
     ens           = 25
     regrid        = None
+    yend          = 2014
+    
+elif cmipver == "CESM1":
+    
+    dataset_name = "CESM1"
+    ystarts      = [1920,]
+    datdir       = "../../CESM_data/"
+    varnames     = ('SST',"SSH",)
+    limit_time   = [1920,2005]
+    ens          = eparams['ens']
+    regrid       = eparams['regrid']
+    
 
 
-# Special Settings for double checking 1920-2005/CESM1 differences
-limit_time = [1920,2005]
-ens        = 40
 
 # -------------
 #%% User Edits
 # -------------
 
 # Other Things...
-yend                = 2014
 lp                  = 0
 d                   = 5
 v                   = 0
