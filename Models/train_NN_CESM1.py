@@ -33,7 +33,6 @@ Updated Procedure:
 Created on Mon Mar 20 21:34:32 2023
 @author: gliu
 
-
 """
 
 import sys
@@ -46,10 +45,9 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 
-#% Load custom packages and setup parameters
-# Import general utilities from amv module
-sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
-import proc
+#%% Load custom packages and setup parameters
+
+machine = 'stormtrack' # Indicate machine (see module packages section in pparams)
 
 # Import packages specific to predict_amv
 cwd = os.getcwd()
@@ -62,18 +60,26 @@ import amvmod as am
 # Load Predictor Information
 bbox          = pparams.bbox
 
+# Import general utilities from amv module
+pkgpath = pparams.machine_paths[machine]['amv_path']
+sys.path.append(pkgpath)
+import proc
+
 # ============================================================
 #%% User Edits vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 # ============================================================
 
+# Set machine and import corresponding paths
+
+
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir             = "FNN4_128_SingleVar_Rewrite"
+expdir             = "FNN4_128_SingleVar_100"
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
 varnames           = ["SST","SSH",]       # Names of predictor variables
-leads              = np.arange(0,26,3)    # Prediction Leadtimes
-runids             = np.arange(0,21,1)    # Which runs to do
+leads              = np.arange(0,26,1)    # Prediction Leadtimes
+runids             = np.arange(0,100,1)    # Which runs to do
 
 # Other toggles
 checkgpu           = True                 # Set to true to check if GPU is availabl
@@ -275,8 +281,8 @@ for v,varname in enumerate(varnames):
                      'yvallabels'     : yvallabels,
                      'sampled_idx'    : sampled_idx,
                      'thresholds_all' : thresholds_all,
-                     'exp_params'     : eparams
-                     'sample_sizes'   : sample_sizes
+                     'exp_params'     : eparams,
+                     'sample_sizes'   : sample_sizes,
                      }
                      )
             
