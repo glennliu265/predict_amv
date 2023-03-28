@@ -34,20 +34,21 @@ import amv_dataloader as dl
 
 # Adjustable settings
 leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
-nsamples       = None                 # Number of samples for each class
+nsamples       = 300                  # Number of samples for each class
 ens            = 40
 bbox           = pparams.bbox
-thresholds     = pparams.thresholds # Thresholds (standard deviations, determines number of classes)   
-classes        = pparams.classes    # Name of classes
+thresholds     = pparams.thresholds   # Thresholds (standard deviations, determines number of classes)   
+classes        = pparams.classes      # Name of classes
 quantile       = False  # Set to True to use quantile thresholds
-percent_train  = .80
+percent_train  = 1.00
 use_train      = False
+usenoise       = False
+varname        = "SST"
 
 # Other Toggles
-detrend        = 1                 # Set to True to use detrended data
-save_baseline  = True                # Set to True to save baseline
+detrend        = 1                    # Set to True to use detrended data
+save_baseline  = True                 # Set to True to save baseline
 ccai_names     = False                # Set to True to use CCAI naming conventions (will likely become dead code)
-
 
 # Other Toggles
 datpath        = pparams.datpath
@@ -116,7 +117,7 @@ At this point, have:
 # Limit to # of ensemble members
 data   = data[:,0:ens,:,:,:]
 target = target[0:ens,:]
-
+tstep  = data.shape[2]
 # -------------
 #%% Make classes
 # -------------
@@ -132,6 +133,14 @@ if quantile is False:
 y       = target[:ens,:].reshape(ens*tstep,1)
 y_class = am.make_classes(y,thresholds,reverse=True,exact_value=True,quantiles=quantile)
 y_class = y_class.reshape(ens,(tstep)) # Reshape to [ens x lead]
+
+
+#%% Quickly Count the Classes....
+for l,lead in enumerate(leads):
+    y_class_in = y_class[:,lead:]
+    print("Lead %i" % lead)
+    idx_by_class,count_by_class=am.count_samples(nsamples,y_class_in)
+
 
 #%%
 
@@ -175,32 +184,37 @@ for l,lead in enumerate(leads):
     y                 = y_class[:,lead:].flatten()[:,None] # Note, overwriting y again ...
     
     
+    #
+    # Subsample prior to the split
+    #
+    if nsamples is not None:
+        y_class_label,y_class_predictor,shuffidx = am.select_samples(nsamples,y,X)
+        y_class_predictor                        = y_class_predictor.squeeze()
+    else:
+        y_class_label     = y
+        y_class_predictor = X.squeeze()
+    
+    
     # ----------------
     # Train/Test Split
     # ----------------
-    X_subset,y_subset = am.train_test_split(X,y,percent_train=percent_train,debug=True)
-    if percent_train == 1:
-        X_in = X_subset[0]
-        y_in = y_subset[0]
-    else:
+    X_subset,y_subset = am.train_test_split(y_class_predictor,y_class_label,
+                                            percent_train=percent_train,
+                                            debug=True)
+    if percent_train < 1:
         X_train,X_val     = X_subset
         y_train,y_val     = y_subset
         if use_train:
-            y_in = y_train
-            X_in = X_train
+            y_class_label     = y_train
+            y_class_predictor = X_train
         else:
-            y_in = y_val
-            X_in = X_val
+            y_class_label     = y_val
+            y_class_predictor = X_val
     
     # -------------------------------------
     # Randomly sample same # for each class
     # -------------------------------------
-    if nsamples is not None:
-        y_class_label,y_class_predictor,shuffidx = am.select_samples(nsamples,y_in,X_in)
-        y_class_predictor = y_class_predictor.squeeze()
-    else:
-        y_class_label     = y_in
-        y_class_predictor = X_in.squeeze()
+
     
     # Output : y_class_predictor 
     
