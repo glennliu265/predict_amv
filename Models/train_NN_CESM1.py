@@ -63,7 +63,7 @@ bbox          = pparams.bbox
 # Import general utilities from amv module
 pkgpath = pparams.machine_paths[machine]['amv_path']
 sys.path.append(pkgpath)
-import proc
+from amv import proc
 
 # ============================================================
 #%% User Edits vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
