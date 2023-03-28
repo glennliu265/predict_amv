@@ -11,8 +11,6 @@ Created on Mon Mar 27 22:36:05 2023
 @author: gliu
 """
 
-
-
 import sys
 import numpy as np
 import os
@@ -22,8 +20,9 @@ import tqdm
 import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset,Dataset
+import matplotlib.pyplot as plt
 
-#% Load custom packages and setup parameters
+#%% Load custom packages and setup parameters
 # Import general utilities from amv module
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import proc
@@ -44,13 +43,13 @@ bbox          = pparams.bbox
 # ============================================================
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir             = "FNN4_128_SingleVar_100"
+expdir             = "FNN4_128_SingleVar_Rerun100"
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames           = ["SST","SSH","SSS","PSL"]       # Names of predictor variables
+varnames           = ["SST",]       # Names of predictor variables
 leads              = np.arange(0,26,1)    # Prediction Leadtimes
-runids             = np.arange(0,100,1)    # Which runs to do
+runids             = np.arange(0,1,1)    # Which runs to do
 
 # Other toggles
 checkgpu           = True                 # Set to true to check if GPU is availabl
@@ -123,149 +122,109 @@ nlead        = len(leads)
 # Output: 
     predictors :: [channel x ens x year x lat x lon]
     labels     :: [ens x year]
-"""     
-# ------------------------------------------------------------
-# %% Looping for runid
-# ------------------------------------------------------------
+"""
+     
+#%% Add option to load existing runid?
 
-# Print Message
-print("Running [train_NN_CESM1.py] with the following settings:")
-print("\tNetwork Type   : "+ eparams['netname'])
-print("\tPredictor(s)   : "+str(varnames))
-print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
-print("\tRunids         : %i to %i" % (runids[0],runids[-1]))
-print("\tMax Epochs     : " + str(eparams['max_epochs']))
-print("\tEarly Stop     : " + str(eparams['early_stop']))
-print("\t# Ens. Members : "+ str(ens))
-print("\tDetrend        : "+ str(eparams['detrend']))
 
-# ------------------------
-# 04. Loop by predictor...
-# ------------------------
-for v,varname in enumerate(varnames): 
-    vt = time.time()
-    predictors = data[[v],...] # Get selected predictor
+
+# Do some dummy selections
+v = 0
+predictors = data[[v],...] # Get selected predictor
+k_offset = 0
+# Preallocate
+nruns = len(runids)
+nleads = len(leads)
+nsamples = eparams['nsamples']
+varname  = "SST"
+
+
+
+y_subsets_all    = []
+shuffid_all      = []
+sample_size_all  = []
+idx_byclass_all  = []
+total_count_byclass = np.zeros((nruns,nleads,nclasses))
+
+# --------------------
+# 05. Loop by runid...
+# --------------------
+for nr,runid in enumerate(runids):
+    rt = time.time()
     
-    # --------------------
-    # 05. Loop by runid...
-    # --------------------
-    for nr,runid in enumerate(runids):
-        rt = time.time()
+    # Preallocate Evaluation Metrics...
+    sampled_idx          = []
+    sample_sizes         = []
+    y_subsets_lead       = []
+    idx_byclass_lead     = []
+    # -----------------------
+    # 07. Loop by Leadtime...
+    # -----------------------
+    for l,lead in enumerate(leads):
         
-        # ---------------------------------------
-        # 06. Set experiment name and preallocate
-        # ---------------------------------------
-        # Set experiment save name (ex: Ann2deg_NAT_CNN2_nepoch5_nens_40_lead24 )
-        expname = ("AMVClass%i_%s_nepoch%02i_" \
-                   "nens%02i_maxlead%02i_"\
-                   "detrend%i_run%02i_"\
-                   "quant%i_res%s" % (nclasses,eparams['netname'],eparams['max_epochs'],
-                                         ens,leads[-1],eparams['detrend'],runid,
-                                         eparams['quantile'],eparams['regrid']))
+        # --------------------------
+        # 08. Apply lead/lag to data
+        # --------------------------
+        # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+        X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=ens,tstep=ntime)
+        
+        
+        idx_by_class,count_by_class=am.count_samples(nsamples,y_class)
+        total_count_byclass[nr,l,:] = count_by_class
+        
+        # ----------------------
+        # 09. Select samples
+        # ----------------------
+        if eparams['nsamples'] is None: # Default: nsamples = smallest class
+            threscount = np.zeros(nclasses)
+            for t in range(nclasses):
+                threscount[t] = len(np.where(y_class==t)[0])
+            eparams['nsamples'] = int(np.min(threscount))
+            print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+       
+        y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle'])
         
 
-        # Preallocate Evaluation Metrics...
-        train_loss_grid = [] #np.zeros((max_epochs,nlead))
-        test_loss_grid  = [] #np.zeros((max_epochs,nlead))
-        val_loss_grid   = [] 
         
-        train_acc_grid  = []
-        test_acc_grid   = [] # This is total_acc
-        val_acc_grid    = []
         
-        acc_by_class    = []
-        total_acc       = []
-        yvalpred        = []
-        yvallabels      = []
-        sampled_idx     = []
-        thresholds_all  = []
-        sample_sizes    = []
+        # --------------------------
+        # 10. Train Test Split
+        # --------------------------
+        X_subsets,y_subsets      = am.train_test_split(X,y_class,eparams['percent_train'],
+                                                       percent_val=eparams['percent_val'],
+                                                       debug=True,offset=k_offset)
         
-        # -----------------------
-        # 07. Loop by Leadtime...
-        # -----------------------
-        for l,lead in enumerate(leads):
-            
-            # Set names for intermediate saving, based on leadtime
-            if (lead == leads[-1]) and (len(leads)>1): # Output all files together
-                outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,expname)
-            else: # Output individual lead times while training
-                outname = "/leadtime_testing_%s_%s_lead%02dof%02d.npz" % (varname,expname,lead,leads[-1])
-            
-            # --------------------------
-            # 08. Apply lead/lag to data
-            # --------------------------
-            # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-            X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=ens,tstep=ntime)
-            
-            # ----------------------
-            # 09. Select samples
-            # ----------------------
-            if eparams['nsamples'] is None: # Default: nsamples = smallest class
-                threscount = np.zeros(nclasses)
-                for t in range(nclasses):
-                    threscount[t] = len(np.where(y_class==t)[0])
-                eparams['nsamples'] = int(np.min(threscount))
-                print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
-           
-            y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle'])
-            
-            # --------------------------------------------------------------------------------
-            # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
-            # --------------------------------------------------------------------------------
-            output = am.train_NN_lead(X,y_class,eparams,pparams,debug=debug,checkgpu=checkgpu)
-            model,trainloss,valloss,testloss,trainacc,valacc,testacc,y_predicted,y_actual,class_acc,lead_acc = output
-            
-            # Append outputs for the leadtime
-            train_loss_grid.append(trainloss)
-            val_loss_grid.append(valloss)
-            test_loss_grid.append(testloss)
-            
-            train_acc_grid.append(trainacc)
-            val_acc_grid.append(valacc)
-            test_acc_grid.append(testacc)
-            
-            acc_by_class.append(class_acc)
-            total_acc.append(lead_acc)
-            yvalpred.append(y_predicted)
-            yvallabels.append(y_actual)
-            sampled_idx.append(shuffidx) # Save the sample indices
-            sample_sizes.append(eparams['nsamples'])
-            
-            # ------------------------------
-            # 13. Save the model and metrics
-            # ------------------------------
-            if savemodel:
-                modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
-                torch.save(model.state_dict(),modout)
-            
-            # Save Metrics
-            savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
-            np.savez(savename,**{
-                     'train_loss'     : train_loss_grid,
-                     'test_loss'      : test_loss_grid,
-                     'train_acc'      : train_acc_grid,
-                     'test_acc'       : test_acc_grid,
-                     'total_acc'      : total_acc,
-                     'acc_by_class'   : acc_by_class,
-                     'yvalpred'       : yvalpred,
-                     'yvallabels'     : yvallabels,
-                     'sampled_idx'    : sampled_idx,
-                     'thresholds_all' : thresholds_all,
-                     'exp_params'     : eparams,
-                     'sample_sizes'   : sample_sizes,
-                     }
-                     )
-            
-            # Clear some memory
-            del model
-            torch.cuda.empty_cache()  # Save some memory
-            
-            print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
-            # End Lead Loop >>>
-        print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
-        # End Runid Loop >>>
-    print("\nPredictor %s finished in %.2fs" % (varname,time.time()-vt))
-    # End Predictor Loop >>>
-print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
+        
+        sampled_idx.append(shuffidx) # Save the sample indices
+        sample_sizes.append(eparams['nsamples'])
+        y_subsets_lead.append(y_subsets)
+        idx_byclass_lead.append(idx_by_class)
+        print("\nCompleted counting for %s lead %i of %i" % (varname,lead,leads[-1]))
+    
+    
+    shuffid_all.append(sampled_idx)
+    sample_size_all.append(sample_size_all)
+    y_subsets_all.append(y_subsets_lead)
+    idx_byclass_all.append(idx_byclass_lead)
+    print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+    # End Runid Loop >>>
+
+#%% Plot total class counts by leadtime
+fig,axs = plt.subplots(1,2,figsize=(8,3))
+
+for c in range(3):
+    if c == 1:
+        ax = axs[1]
+    else:
+        ax = axs[0]
+    for nr in range(nruns):
+        clabel = "%s (Run %i,n=%i-%i)" % (pparams.classes[c],runids[nr],total_count_byclass[nr,:,c].min(),total_count_byclass[nr,:,c].max())
+        ax.plot(leads,total_count_byclass[nr,:,c],label=clabel,color=pparams.class_colors[c])
+        
+    ax.grid(True)
+    ax.legend()
+    
+#%% Plot total classes by 
+    
+
              
