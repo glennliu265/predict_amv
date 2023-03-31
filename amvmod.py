@@ -1372,7 +1372,7 @@ def count_samples(nsamples,y_class):
         print("%i samples found for class %i" % (classcount,inclass))
     return idx_by_class,count_by_class
 
-def select_samples(nsamples,y_class,X,shuffle=True,verbose=True):
+def select_samples(nsamples,y_class,X,shuffle=True,verbose=True,):
     """
     Sample even amounts from each class. Shuffles data (unless shuffle=False)
 
@@ -1428,12 +1428,13 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True):
         if verbose:
             print("%i samples found for class %i" % (classcount,inclass))
         
-        # Shuffle and select first nsamples
+        # Shuffle and select first N samples for that class ...
         shuffidx = np.arange(0,classcount,1)
         if shuffle:
             np.random.shuffle(shuffidx)
         else:
-            print("Warning: data will not be shuffled!")
+            if verbose:
+                print("Warning: data will not be shuffled prior to class subsetting!")
         shuffidx = shuffidx[0:nsamples]
         
         # Select Shuffled Indices
@@ -1443,8 +1444,8 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True):
     
     # Shuffle samples again before output (so they arent organized by class)
     shuffidx = np.arange(0,nsamples*nclasses,1)
-    np.random.shuffle(shuffidx)
-    
+    np.random.shuffle(shuffidx) # Shuffle classes prior to output
+
     return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
 #%% Convenience Functions
 
@@ -1628,7 +1629,6 @@ def prep_traintest_classification(data,target,lead,thresholds,percent_train,
         return X_train,X_val,y_train,y_val,y_train_ic,y_val_ic
     return X_train,X_val,y_train,y_val
 
-
 def get_ensyr(id_val,lead,ens=40,tstep=86,percent_train=0.8,get_train=False):
     # Get ensemble and year of reshaped valdation indices (or training if get_train=True)
     # Assume target is of the order [ens  x time] (default is (40,86))
@@ -1644,6 +1644,92 @@ def get_ensyr(id_val,lead,ens=40,tstep=86,percent_train=0.8,get_train=False):
     else:
         val_id = reshape_id[int(np.floor(percent_train*nsamples)):,:]
     return val_id[id_val]
+
+
+def make_ensyr(ens=42,yr=86,meshgrid=True):
+    """Make either meshgrid or index array for [nens] x [nyr]"""
+    if meshgrid:
+        yrs = np.tile(np.arange(0,yr)[:,None],ens).T #+ startyr # [ens x yr]
+        ens = np.tile(np.arange(0,ens)[:,None],yr) #[ens x yr]
+        return yrs,ens
+    else:
+        id_ensyr = np.zeros((ens,yr),dtype='object')
+        for e in range(ens):
+            for y in range(yr):
+                id_ensyr[e,y] = (e,y)
+        return id_ensyr # [ens x yr]
+
+
+def get_ensyr_linear(lead,linearids,
+              reflead=0,nens=42,nyr=86,
+              apply_lead=True,ref_lead=True,
+              return_labels=False,debug=False,return_counterpart=True):
+    """
+    Given linear indices for a ens x year array where the lead/lag has been applied...
+    Retrieve the corresponding linear indices for a reference lead/lag application
+    Also optionally recover the lead and ensemble member labels
+    
+    Parameters
+    ----------
+    lead (INT)          : Lead applied to data
+    linearids (LIST)    : Linear indices to find
+    reflead (INT)       : Lead applied to reference (default = 0)
+    nens     (INT)      : Number of ensemble members, default is 42
+    nyr      (INT)      : Number of years, default is 86
+    apply_lead (BOOL)   : True to apply lead, false to apply lag to data
+    ref_lead  (BOOL)    : Same but for reference set
+    return_labels   (BOOL) : Set to true to return ens,yr labels for a dataset
+
+    Returns
+    -------
+    
+    
+
+    """
+
+    # Get the arrays (absolute)
+    yrs,ens  = make_ensyr(ens=nens,yr=nyr,meshgrid=True)
+    id_ensyr = make_ensyr(ens=nens,yr=nyr,meshgrid=False)
+    in_arrs  = [yrs,ens,id_ensyr]
+    
+    # Apply lead/lag
+    if apply_lead: # Lead the data
+        apply_arr = [arr[:,lead:].flatten() for arr in in_arrs]
+    else: # Lag the data
+        apply_arr = [arr[:,:(nyr-lead)].flatten() for arr in in_arrs]
+
+    # Get the corresponding indices where lead/lag is applied
+    apply_ids = [arr[linearids] for arr in apply_arr]
+    yrslead,enslead,idlead = apply_ids
+
+    # Find the corresponding indices where it is not flattened, at a specified lead
+    if ref_lead: # Lead the data
+        ref_arr = [arr[:,reflead:].flatten() for arr in in_arrs]
+        #counterpart = [arr[:,:(nyr-reflead)].flatten() for arr in in_arrs]
+    else: # Lag the data
+        ref_arr          = [arr[:,:(nyr-reflead)].flatten() for arr in in_arrs]
+        #counterpart_arrs = [arr[:,reflead:].flatten() for arr in in_arrs]
+    refyrs,refens,refids                = ref_arr
+    #counter_yrs,counter_ens,counter_ids = counterpart_arrs
+
+    ref_linearids         = [] # Contains linear ids in the lead
+    #counterpart_linearids = [] # Countains linear ids for the counterpart (lag if lead, lead if lag...)
+    for ii,ens_yr_set in enumerate(idlead):
+        sel_ens,sel_yr = ens_yr_set
+        foundid = np.where((refyrs ==sel_yr) * (refens == sel_ens))[0]
+        assert len(foundid) == 1,"Found less/more than 1 id for i=%i (%s): %s" % (linearids[ii],str(ens_yr_set),foundid)
+        ref_linearids.append(foundid[0])
+        
+        if debug:
+            print("For linear id %i..." % (linearids[ii]))
+            print("\tApplied Lead id          : %s" % (str(ens_yr_set)))
+            print("\tReference Lead (l=%i) id : %s" % (reflead,refids[foundid[0]]))
+            print("\tReference linear id      : %i" % (foundid[0]))
+        assert refids[foundid[0]] == ens_yr_set
+    if return_labels:
+        return ref_linearids,refids[ref_linearids]
+    else:
+        return ref_linearids
 
 #def data_loader(varname=None,datpath=None):
 ## Added LRP Functions
