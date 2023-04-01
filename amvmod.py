@@ -1659,6 +1659,125 @@ def make_ensyr(ens=42,yr=86,meshgrid=True):
                 id_ensyr[e,y] = (e,y)
         return id_ensyr # [ens x yr]
 
+def select_ensyr_linearids(ens_yr_arr,target_lead=0,lag=False,nens=42,nyr=86,debug=False):
+    """Given an array of [sample x 2] where 0=ens, 1=year, retrieve the corresponding linear
+    indices. """
+    
+    # Get the arrays (absolute)
+    yrs,ens  = make_ensyr(ens=nens,yr=nyr,meshgrid=True)  
+    id_ensyr = make_ensyr(ens=nens,yr=nyr,meshgrid=False) 
+    in_arrs  = [yrs,ens,id_ensyr]
+    
+    # Apply lead/lag for the target lead
+    if lag: # Lag the data 
+        apply_arr = [arr[:,:(nyr-target_lead)].flatten() for arr in in_arrs]
+    else: # Lead the data
+        apply_arr = [arr[:,target_lead:].flatten() for arr in in_arrs]
+    target_years,target_ens,target_id = apply_arr
+    
+    # Find the corresponding linear indices
+    target_linearids = []
+    nsamples         = ens_yr_arr.shape[0]
+    for NN in range(nsamples):
+        sel_ens = ens_yr_arr[NN,0]
+        sel_yr  = ens_yr_arr[NN,1]
+        foundid = np.where((target_years ==sel_yr) * (target_ens == sel_ens))[0]
+        assert len(foundid) == 1,"Found less/more than 1 id for %s: %s" % (ens_yr_arr[NN,:],foundid)
+        assert np.all(np.array(target_id[foundid[0]]) == ens_yr_arr[NN,:]),"Mismatch in found indices (%s) != (%s)" % (np.array(target_id[foundid[0]]),ens_yr_arr[NN,:])
+        target_linearids.append(foundid[0])
+        if debug:
+            print("For sample %i (ens==%i, year=%i)" % (NN,ens_yr_arr[NN,0],ens_yr_arr[NN,1]))
+            print("\tFound linear id %i" % foundid[0])
+            print("\tWith ens %i, yr %i" % target_id[foundid[0]])
+    return target_linearids
+
+def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
+                      nens=None,ntime=None,shuffle_class=shuffle_class,debug=False):
+    """
+    Take consistent samples of a target.predictor dataset
+
+    Parameters
+    ----------
+    data : ARR [channel x ens x time x lat x lon]
+        Predictor dataset
+    target_class : ARR [ens x time]
+        Target (classes)
+    leads : LIST [leads]
+        Leadtimes
+    nsamples : INT
+        Number of samples to take
+    leadmax : TYPE, optional
+        Longest leadtime to take the sample from (defaults to maximum lead). The default is None.
+    nens : INT, optional
+        Number of ensemble members to use. The default is 42.
+    ntime : INT, optional
+        Number of timesteps. The default is 86.
+    shuffle_class : BOOL, optional
+        Set to true to shuffle calsses before sampling. The default is shuffle_class.
+    debug : BOOL, optional
+        Set to true to ouput debugging messages. The default is False.
+
+    Returns
+    -------
+    target_indices : LIST [samples]
+        Indices of selected samples for the target.
+    target_refids : LIST
+       Reference ids for target in the form of of (ens,yr). [samples x (ens,yr)].
+    predictor_indices : LIST [lead][samples]
+        Indices of selected samples for the predictor.
+    predictor_refids : [lead][samples x (ens,yr)]
+        DESCRIPTION.
+
+    """
+    nclasses = len(np.unique(target_class))
+    nlead    = len(leads)
+    if (nens is None) or (ntime is None):
+        nchannels,nens,ntime,nlat,nlon = data.shape
+    if leadmax is None:
+        leadmax      = leads.max()
+    X,y_class    = apply_lead(data[[0],...],target_class,leadmax,reshape=True,ens=nens,tstep=ntime)
+    
+    if nsamples is None: # Default: nsamples = smallest class
+        threscount = np.zeros(nclasses)
+        for t in range(nclasses):
+            threscount[t] = len(np.where(y_class==t)[0])
+        nsamples = int(np.min(threscount))
+        print("Using %i samples, the size of the smallest class" % (nsamples))
+
+    # Select samples based on the longest leadtime. 
+    y_class,X,shuffidx_max = select_samples(nsamples,y_class,X,verbose=debug,shuffle=shuffle_class)
+    shuffidx_max           = shuffidx_max.astype(int) # There indices are w.r.t. the lagged data
+    
+    # Get [absolute] linear indices for reference lead [lead], based on applied lead [leadmax]
+    target_indices,target_refids = get_ensyr_linear(leadmax,shuffidx_max,
+                reflead=0,nens=nens,nyr=ntime,
+                apply_lead=True,ref_lead=True,
+                return_labels=True,debug=True)
+    
+    # Convert to numpy array of [sample x 2] where 0 = ens, 1 = yr
+    target_refids              = np.array([[a[0],a[1]] for a in target_refids],dtype='int')
+    
+    # Get indices for predictors
+    predictor_indices = []
+    predictor_refids  = []
+    for l,lead in enumerate(leads):
+        # Get the references 
+        pref      = np.array([[a[0],a[1]-lead] for a in target_refids],dtype="int")
+        if debug:
+            plt.hist(pref[:,1]),plt.title("lead %i (predictor years %i to %i)"% (lead,pref[:,1].min(),pref[:,1].max())),plt.show()
+            
+        target_linearids = select_ensyr_linearids(pref,target_lead=0,lag=False,nens=nens,
+                                                     nyr=ntime,)
+        predictor_indices.append(target_linearids)
+        predictor_refids.append(pref)
+    if debug:  
+        ii = 22
+        for l in range(nlead):
+            print("Lead %02i, target is (e=%02i,y=%02i, idx=%i), predictor is (e=%02i,y=%02i, idx%i)" % (leads[l],
+                                                                                target_refids[ii,0],target_refids[ii,1],target_indices[ii],
+                                                                                predictor_refids[l][ii,0],predictor_refids[l][ii,1],
+                                                                                predictor_indices[l][ii]))
+    return target_indices,target_refids,predictor_indices,predictor_refids
 
 def get_ensyr_linear(lead,linearids,
               reflead=0,nens=42,nyr=86,
@@ -1686,7 +1805,7 @@ def get_ensyr_linear(lead,linearids,
     
 
     """
-
+    
     # Get the arrays (absolute)
     yrs,ens  = make_ensyr(ens=nens,yr=nyr,meshgrid=True)
     id_ensyr = make_ensyr(ens=nens,yr=nyr,meshgrid=False)
@@ -1697,35 +1816,46 @@ def get_ensyr_linear(lead,linearids,
         apply_arr = [arr[:,lead:].flatten() for arr in in_arrs]
     else: # Lag the data
         apply_arr = [arr[:,:(nyr-lead)].flatten() for arr in in_arrs]
-
+    
     # Get the corresponding indices where lead/lag is applied
     apply_ids = [arr[linearids] for arr in apply_arr]
     yrslead,enslead,idlead = apply_ids
 
     # Find the corresponding indices where it is not flattened, at a specified lead
     if ref_lead: # Lead the data
-        ref_arr = [arr[:,reflead:].flatten() for arr in in_arrs]
-        #counterpart = [arr[:,:(nyr-reflead)].flatten() for arr in in_arrs]
+        ref_arr     = [arr[:,reflead:].flatten() for arr in in_arrs]
+        counterpart_arrs = [arr[:,:(nyr-reflead)].flatten() for arr in in_arrs]
     else: # Lag the data
         ref_arr          = [arr[:,:(nyr-reflead)].flatten() for arr in in_arrs]
-        #counterpart_arrs = [arr[:,reflead:].flatten() for arr in in_arrs]
+        counterpart_arrs = [arr[:,reflead:].flatten() for arr in in_arrs]
     refyrs,refens,refids                = ref_arr
-    #counter_yrs,counter_ens,counter_ids = counterpart_arrs
+    counter_yrs,counter_ens,counter_ids = counterpart_arrs
 
     ref_linearids         = [] # Contains linear ids in the lead
-    #counterpart_linearids = [] # Countains linear ids for the counterpart (lag if lead, lead if lag...)
+    counterpart_linearids = [] # Countains linear ids for the counterpart (lag if lead, lead if lag...)
     for ii,ens_yr_set in enumerate(idlead):
+        
+        # Get the reference lead/lag
         sel_ens,sel_yr = ens_yr_set
         foundid = np.where((refyrs ==sel_yr) * (refens == sel_ens))[0]
         assert len(foundid) == 1,"Found less/more than 1 id for i=%i (%s): %s" % (linearids[ii],str(ens_yr_set),foundid)
         ref_linearids.append(foundid[0])
-        
         if debug:
             print("For linear id %i..." % (linearids[ii]))
             print("\tApplied Lead id          : %s" % (str(ens_yr_set)))
             print("\tReference Lead (l=%i) id : %s" % (reflead,refids[foundid[0]]))
             print("\tReference linear id      : %i" % (foundid[0]))
         assert refids[foundid[0]] == ens_yr_set
+        
+        # Get the counterpart indices (and check to make sure they are ok...)
+        c_ens,c_yr = counter_ids[foundid[0]]
+        assert c_ens == sel_ens,"The counterpart ensemble member (%i) is not equal to the reference member (%i)" % (c_ens,sel_ens)
+        assert ((sel_yr - c_yr) == reflead),"The lagged difference %i is not equal to reflead %i" % (c_yr-sel_yr,reflead)
+        
+        # Find the corresponding indices 
+        
+        
+
     if return_labels:
         return ref_linearids,refids[ref_linearids]
     else:
