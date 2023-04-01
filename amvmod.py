@@ -1692,7 +1692,7 @@ def select_ensyr_linearids(ens_yr_arr,target_lead=0,lag=False,nens=42,nyr=86,deb
     return target_linearids
 
 def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
-                      nens=None,ntime=None,shuffle_class=shuffle_class,debug=False):
+                      nens=None,ntime=None,shuffle_class=False,debug=False):
     """
     Take consistent samples of a target.predictor dataset
 
@@ -1752,7 +1752,7 @@ def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
     target_indices,target_refids = get_ensyr_linear(leadmax,shuffidx_max,
                 reflead=0,nens=nens,nyr=ntime,
                 apply_lead=True,ref_lead=True,
-                return_labels=True,debug=True)
+                return_labels=True,debug=debug)
     
     # Convert to numpy array of [sample x 2] where 0 = ens, 1 = yr
     target_refids              = np.array([[a[0],a[1]] for a in target_refids],dtype='int')
@@ -1778,7 +1778,7 @@ def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
                                                                                 predictor_refids[l][ii,0],predictor_refids[l][ii,1],
                                                                                 predictor_indices[l][ii]))
     return target_indices,target_refids,predictor_indices,predictor_refids
-
+    
 def get_ensyr_linear(lead,linearids,
               reflead=0,nens=42,nyr=86,
               apply_lead=True,ref_lead=True,
@@ -1802,8 +1802,6 @@ def get_ensyr_linear(lead,linearids,
     Returns
     -------
     
-    
-
     """
     
     # Get the arrays (absolute)
@@ -1842,20 +1840,15 @@ def get_ensyr_linear(lead,linearids,
         ref_linearids.append(foundid[0])
         if debug:
             print("For linear id %i..." % (linearids[ii]))
-            print("\tApplied Lead id          : %s" % (str(ens_yr_set)))
-            print("\tReference Lead (l=%i) id : %s" % (reflead,refids[foundid[0]]))
-            print("\tReference linear id      : %i" % (foundid[0]))
+            print("\tApplied Lead is             : %s" % (str(ens_yr_set)))
+            print("\tFound Reference Lead (l=%i) : %s" % (reflead,refids[foundid[0]]))
+            print("\tReference linear id         : %i" % (foundid[0]))
         assert refids[foundid[0]] == ens_yr_set
         
         # Get the counterpart indices (and check to make sure they are ok...)
         c_ens,c_yr = counter_ids[foundid[0]]
         assert c_ens == sel_ens,"The counterpart ensemble member (%i) is not equal to the reference member (%i)" % (c_ens,sel_ens)
         assert ((sel_yr - c_yr) == reflead),"The lagged difference %i is not equal to reflead %i" % (c_yr-sel_yr,reflead)
-        
-        # Find the corresponding indices 
-        
-        
-
     if return_labels:
         return ref_linearids,refids[ref_linearids]
     else:
