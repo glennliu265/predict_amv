@@ -47,7 +47,7 @@ from torch.utils.data import DataLoader, TensorDataset,Dataset
 
 #%% Load custom packages and setup parameters
 
-machine = 'stormtrack' # Indicate machine (see module packages section in pparams)
+machine = 'Astraeus' # Indicate machine (see module packages section in pparams)
 
 # Import packages specific to predict_amv
 cwd = os.getcwd()
@@ -70,7 +70,6 @@ from amv import proc
 # ============================================================
 
 # Set machine and import corresponding paths
-
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
 expdir             = "FNN4_128_SingleVar_Rerun100"
@@ -153,6 +152,102 @@ nlead        = len(leads)
     predictors :: [channel x ens x year x lat x lon]
     labels     :: [ens x year]
 """     
+
+# ---------------------------------------------
+# %% If option is set, presample for everything
+# ---------------------------------------------
+
+if eparams["shuffle_trainset"] is True:
+    # am.consistent_sample(data,target_class,leads,nsamples,leadmax=None,
+    #                       nens=None,ntime=None,shuffle_class=shuffle_class,debug=False)
+    
+# leadmax      = leads.max()
+# X,y_class    = am.apply_lead(data[[0],...],target_class,leadmax,reshape=True,ens=ens,tstep=ntime)
+
+# if eparams['nsamples'] is None: # Default: nsamples = smallest class
+#     threscount = np.zeros(nclasses)
+#     for t in range(nclasses):
+#         threscount[t] = len(np.where(y_class==t)[0])
+#     eparams['nsamples'] = int(np.min(threscount))
+#     print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+
+# # Select samples based on the longest leadtime. 
+# y_class,X,shuffidx_max = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+# shuffidx_max           = shuffidx_max.astype(int) # There indices are w.r.t. the lagged data
+
+# # Get the absolute indices
+# apply_lead = True # Lead is applied to current
+# ref_lead   = True # Lead is applied to reference
+
+# # Get [absolute] linear indices for reference lead [lead], based on applied lead [leadmax]
+# shuffidx_target_abs,tref = am.get_ensyr_linear(leadmax,shuffidx_max,
+#             reflead=0,nens=nens,nyr=ntime,
+#             apply_lead=True,ref_lead=True,
+#             return_labels=True,debug=True)
+
+# # Convert to numpy array of [sample x 2] where 0 = ens, 1 = yr
+# tref              = np.array([[a[0],a[1]] for a in tref],dtype='int')
+
+# # Get indices for predictors
+# predictor_indices = []
+# predictor_refids  = []
+# for l,lead in enumerate(leads):
+#     # Get the references 
+#     pref      = np.array([[a[0],a[1]-lead] for a in tref],dtype="int")
+#     if debug:
+#         plt.hist(pref[:,1]),plt.title("lead %i (predictor years %i to %i)"% (lead,pref[:,1].min(),pref[:,1].max())),plt.show()
+        
+#     target_linearids = am.select_ensyr_linearids(pref,target_lead=0,lag=False,nens=nens,
+#                                                  nyr=ntime,)
+#     predictor_indices.append(target_linearids)
+#     predictor_refids.append(pref)
+    
+# ii = 22
+# for l in range(nlead):
+#     print("Lead %02i, target is (e=%02i,y=%02i, idx=%i), predictor is (e=%02i,y=%02i, idx%i)" % (leads[l],
+#                                                                         tref[ii,0],tref[ii,1],shuffidx_target_abs[ii],
+#                                                                         predictor_refids[l][ii,0],predictor_refids[l][ii,1],
+#                                                                         predictor_indices[l][ii]))
+"""
+Output
+
+shuffidx_target  = [nsamples*nclasses,]        - Indices of target
+predictor_refids = [nlead][nsamples*nclasses,] - Indices of predictor at each leadtime
+
+tref --> array of the target years
+predictor_refids --> array of the predictor refids
+"""
+
+
+# shuffidx_all_target    = []
+# shuffidx_all_predictor = []
+# target_refs            = []
+# predictor_refs         = []
+# for l,lead in enumerate(leads):
+#     print(lead)
+    
+#     reflead    = 0
+#     apply_lead = True # Lead is applied to current
+#     ref_lead   = True # Lead is applied to reference
+
+#     # Get linear indices for reference lead [lead], based on applied lead [leadmax]
+#     shuffidx_target,tref = am.get_ensyr_linear(leadmax,shuffidx_max,
+#                   reflead=lead,nens=nens,nyr=ntime,
+#                   apply_lead=True,ref_lead=True,
+#                   return_labels=True,debug=False)
+    
+#     shuffidx_predictor,pref = am.get_ensyr_linear(leadmax,shuffidx_max,
+#                   reflead=lead,nens=nens,nyr=ntime,
+#                   apply_lead=True,ref_lead=False,
+#                   return_labels=True,debug=False)
+    
+#     shuffidx_all_target.append(shuffidx_target)
+#     shuffidx_all_predictor.append(shuffidx_predictor)
+#     target_refs.append(tref)
+#     predictor_refs.append(pref)
+    
+
+
 # ------------------------------------------------------------
 # %% Looping for runid
 # ------------------------------------------------------------
@@ -192,7 +287,6 @@ for v,varname in enumerate(varnames):
                                          ens,leads[-1],eparams['detrend'],runid,
                                          eparams['quantile'],eparams['regrid']))
         
-
         # Preallocate Evaluation Metrics...
         train_loss_grid = [] #np.zeros((max_epochs,nlead))
         test_loss_grid  = [] #np.zeros((max_epochs,nlead))
@@ -230,65 +324,70 @@ for v,varname in enumerate(varnames):
             # ----------------------
             # 09. Select samples
             # ----------------------
-            if eparams['nsamples'] is None: # Default: nsamples = smallest class
-                threscount = np.zeros(nclasses)
-                for t in range(nclasses):
-                    threscount[t] = len(np.where(y_class==t)[0])
-                eparams['nsamples'] = int(np.min(threscount))
-                print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
-           
-            y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle'])
+            if eparams['shuffle_trainsplit'] is False:
+                if eparams['nsamples'] is None: # Default: nsamples = smallest class
+                    threscount = np.zeros(nclasses)
+                    for t in range(nclasses):
+                        threscount[t] = len(np.where(y_class==t)[0])
+                    eparams['nsamples'] = int(np.min(threscount))
+                    print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+                y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+            else:
+                print("Select the sample samples")
+                shuffidx = sampled_idx[l-1]
+                y_class  = y_class[shuffidx,...]
+                X        = X[shuffidx,...]
+                am.count_samples(eparams['nsamples'],y_class)
+            # # --------------------------------------------------------------------------------
+            # # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
+            # # --------------------------------------------------------------------------------
+            # output = am.train_NN_lead(X,y_class,eparams,pparams,debug=debug,checkgpu=checkgpu)
+            # model,trainloss,valloss,testloss,trainacc,valacc,testacc,y_predicted,y_actual,class_acc,lead_acc = output
             
-            # --------------------------------------------------------------------------------
-            # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
-            # --------------------------------------------------------------------------------
-            output = am.train_NN_lead(X,y_class,eparams,pparams,debug=debug,checkgpu=checkgpu)
-            model,trainloss,valloss,testloss,trainacc,valacc,testacc,y_predicted,y_actual,class_acc,lead_acc = output
+            # # Append outputs for the leadtime
+            # train_loss_grid.append(trainloss)
+            # val_loss_grid.append(valloss)
+            # test_loss_grid.append(testloss)
             
-            # Append outputs for the leadtime
-            train_loss_grid.append(trainloss)
-            val_loss_grid.append(valloss)
-            test_loss_grid.append(testloss)
+            # train_acc_grid.append(trainacc)
+            # val_acc_grid.append(valacc)
+            # test_acc_grid.append(testacc)
             
-            train_acc_grid.append(trainacc)
-            val_acc_grid.append(valacc)
-            test_acc_grid.append(testacc)
+            # acc_by_class.append(class_acc)
+            # total_acc.append(lead_acc)
+            # yvalpred.append(y_predicted)
+            # yvallabels.append(y_actual)
+            sampled_idx.append(shuffidx.astype(int)) # Save the sample indices
+            # sample_sizes.append(eparams['nsamples'])
             
-            acc_by_class.append(class_acc)
-            total_acc.append(lead_acc)
-            yvalpred.append(y_predicted)
-            yvallabels.append(y_actual)
-            sampled_idx.append(shuffidx) # Save the sample indices
-            sample_sizes.append(eparams['nsamples'])
+            # # ------------------------------
+            # # 13. Save the model and metrics
+            # # ------------------------------
+            # if savemodel:
+            #     modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
+            #     torch.save(model.state_dict(),modout)
             
-            # ------------------------------
-            # 13. Save the model and metrics
-            # ------------------------------
-            if savemodel:
-                modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
-                torch.save(model.state_dict(),modout)
+            # # Save Metrics
+            # savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
+            # np.savez(savename,**{
+            #          'train_loss'     : train_loss_grid,
+            #          'test_loss'      : test_loss_grid,
+            #          'train_acc'      : train_acc_grid,
+            #          'test_acc'       : test_acc_grid,
+            #          'total_acc'      : total_acc,
+            #          'acc_by_class'   : acc_by_class,
+            #          'yvalpred'       : yvalpred,
+            #          'yvallabels'     : yvallabels,
+            #          'sampled_idx'    : sampled_idx,
+            #          'thresholds_all' : thresholds_all,
+            #          'exp_params'     : eparams,
+            #          'sample_sizes'   : sample_sizes,
+            #          }
+            #          )
             
-            # Save Metrics
-            savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
-            np.savez(savename,**{
-                     'train_loss'     : train_loss_grid,
-                     'test_loss'      : test_loss_grid,
-                     'train_acc'      : train_acc_grid,
-                     'test_acc'       : test_acc_grid,
-                     'total_acc'      : total_acc,
-                     'acc_by_class'   : acc_by_class,
-                     'yvalpred'       : yvalpred,
-                     'yvallabels'     : yvallabels,
-                     'sampled_idx'    : sampled_idx,
-                     'thresholds_all' : thresholds_all,
-                     'exp_params'     : eparams,
-                     'sample_sizes'   : sample_sizes,
-                     }
-                     )
-            
-            # Clear some memory
-            del model
-            torch.cuda.empty_cache()  # Save some memory
+            # # Clear some memory
+            # del model
+            # torch.cuda.empty_cache()  # Save some memory
             
             print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
             # End Lead Loop >>>
