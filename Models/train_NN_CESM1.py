@@ -158,56 +158,13 @@ nlead        = len(leads)
 # ---------------------------------------------
 
 if eparams["shuffle_trainset"] is True:
-    # am.consistent_sample(data,target_class,leads,nsamples,leadmax=None,
-    #                       nens=None,ntime=None,shuffle_class=shuffle_class,debug=False)
     
-# leadmax      = leads.max()
-# X,y_class    = am.apply_lead(data[[0],...],target_class,leadmax,reshape=True,ens=ens,tstep=ntime)
-
-# if eparams['nsamples'] is None: # Default: nsamples = smallest class
-#     threscount = np.zeros(nclasses)
-#     for t in range(nclasses):
-#         threscount[t] = len(np.where(y_class==t)[0])
-#     eparams['nsamples'] = int(np.min(threscount))
-#     print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
-
-# # Select samples based on the longest leadtime. 
-# y_class,X,shuffidx_max = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
-# shuffidx_max           = shuffidx_max.astype(int) # There indices are w.r.t. the lagged data
-
-# # Get the absolute indices
-# apply_lead = True # Lead is applied to current
-# ref_lead   = True # Lead is applied to reference
-
-# # Get [absolute] linear indices for reference lead [lead], based on applied lead [leadmax]
-# shuffidx_target_abs,tref = am.get_ensyr_linear(leadmax,shuffidx_max,
-#             reflead=0,nens=nens,nyr=ntime,
-#             apply_lead=True,ref_lead=True,
-#             return_labels=True,debug=True)
-
-# # Convert to numpy array of [sample x 2] where 0 = ens, 1 = yr
-# tref              = np.array([[a[0],a[1]] for a in tref],dtype='int')
-
-# # Get indices for predictors
-# predictor_indices = []
-# predictor_refids  = []
-# for l,lead in enumerate(leads):
-#     # Get the references 
-#     pref      = np.array([[a[0],a[1]-lead] for a in tref],dtype="int")
-#     if debug:
-#         plt.hist(pref[:,1]),plt.title("lead %i (predictor years %i to %i)"% (lead,pref[:,1].min(),pref[:,1].max())),plt.show()
-        
-#     target_linearids = am.select_ensyr_linearids(pref,target_lead=0,lag=False,nens=nens,
-#                                                  nyr=ntime,)
-#     predictor_indices.append(target_linearids)
-#     predictor_refids.append(pref)
+    output_sample=am.consistent_sample(data,target_class,leads,eparams['nsamples'],leadmax=leads.max(),
+                          nens=None,ntime=None,
+                          shuffle_class=eparams['shuffle_class'],debug=False)
     
-# ii = 22
-# for l in range(nlead):
-#     print("Lead %02i, target is (e=%02i,y=%02i, idx=%i), predictor is (e=%02i,y=%02i, idx%i)" % (leads[l],
-#                                                                         tref[ii,0],tref[ii,1],shuffidx_target_abs[ii],
-#                                                                         predictor_refids[l][ii,0],predictor_refids[l][ii,1],
-#                                                                         predictor_indices[l][ii]))
+    target_indices,target_refids,predictor_indices,predictor_refids = output_sample
+    
 """
 Output
 
@@ -217,36 +174,6 @@ predictor_refids = [nlead][nsamples*nclasses,] - Indices of predictor at each le
 tref --> array of the target years
 predictor_refids --> array of the predictor refids
 """
-
-
-# shuffidx_all_target    = []
-# shuffidx_all_predictor = []
-# target_refs            = []
-# predictor_refs         = []
-# for l,lead in enumerate(leads):
-#     print(lead)
-    
-#     reflead    = 0
-#     apply_lead = True # Lead is applied to current
-#     ref_lead   = True # Lead is applied to reference
-
-#     # Get linear indices for reference lead [lead], based on applied lead [leadmax]
-#     shuffidx_target,tref = am.get_ensyr_linear(leadmax,shuffidx_max,
-#                   reflead=lead,nens=nens,nyr=ntime,
-#                   apply_lead=True,ref_lead=True,
-#                   return_labels=True,debug=False)
-    
-#     shuffidx_predictor,pref = am.get_ensyr_linear(leadmax,shuffidx_max,
-#                   reflead=lead,nens=nens,nyr=ntime,
-#                   apply_lead=True,ref_lead=False,
-#                   return_labels=True,debug=False)
-    
-#     shuffidx_all_target.append(shuffidx_target)
-#     shuffidx_all_predictor.append(shuffidx_predictor)
-#     target_refs.append(tref)
-#     predictor_refs.append(pref)
-    
-
 
 # ------------------------------------------------------------
 # %% Looping for runid
@@ -338,6 +265,7 @@ for v,varname in enumerate(varnames):
                 y_class  = y_class[shuffidx,...]
                 X        = X[shuffidx,...]
                 am.count_samples(eparams['nsamples'],y_class)
+            
             # # --------------------------------------------------------------------------------
             # # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
             # # --------------------------------------------------------------------------------
@@ -372,8 +300,10 @@ for v,varname in enumerate(varnames):
             # np.savez(savename,**{
             #          'train_loss'     : train_loss_grid,
             #          'test_loss'      : test_loss_grid,
+            #          'val_loss'       : val_loss_grid,
             #          'train_acc'      : train_acc_grid,
             #          'test_acc'       : test_acc_grid,
+            #          'val_acc'        : val_acc_grid,
             #          'total_acc'      : total_acc,
             #          'acc_by_class'   : acc_by_class,
             #          'yvalpred'       : yvalpred,
