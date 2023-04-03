@@ -273,6 +273,7 @@ for v,varname in enumerate(varnames):
                     y_class  = y_class[shuffidx,...]
                     X        = X[shuffidx,...]
                     am.count_samples(eparams['nsamples'],y_class)
+                shuffidx = shuffidx.astype(int)
             else:
                 print("Using preselected indices")
                 pred_indices = predictor_indices[l]
@@ -301,7 +302,7 @@ for v,varname in enumerate(varnames):
             total_acc.append(lead_acc)
             yvalpred.append(y_predicted)
             yvallabels.append(y_actual)
-            sampled_idx.append(shuffidx.astype(int)) # Save the sample indices
+            sampled_idx.append(shuffidx) # Save the sample indices
             sample_sizes.append(eparams['nsamples'])
             
             # ------------------------------
