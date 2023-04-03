@@ -88,14 +88,15 @@ expdict['quantile']        = False   # Set to True to use quantiles
 expdict['thresholds']      = [-1,1]  # Thresholds (standard deviations, or quantile values) 
 
 # Test/Train/Validate and Sampling
-expdict['nsamples']        = 300     # Number of samples from each class to train with. None = size of minimum class
-expdict['percent_train']   = 0.60    # Training percentage
-expdict['percent_val']     = 0.10    # Validation Percentage
-expdict['shuffle']         = True    # Set to True to shuffle the data prior to sample selection
+expdict['nsamples']             = 300               # Number of samples from each class to train with. None = size of minimum class
+expdict['percent_train']        = 0.60              # Training percentage
+expdict['percent_val']          = 0.10              # Validation Percentage
+expdict['shuffle_class']        = True              # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit']   = True             # Set to False to maintain same set for train/test/val split
 
 # Cross Validation Options
-expdict['cv_loop']         = False    # Repeat for cross-validation
-expdict['cv_offset']       = 0       # Set cv option. Default is test size chunk
+expdict['cv_loop']              = False             # Repeat for cross-validation
+expdict['cv_offset']            = 0                 # Set cv option. Default is test size chunk
 
 # ---------------------------------
 # (2) ML Parameters
@@ -115,6 +116,7 @@ expdict['max_epochs']    = 20                   # Maximum # of Epochs to train f
 expdict['batch_size']    = 16                   # Pairs of predictions
 expdict['unfreeze_all']  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
+
 train_params_all[expname] = expdict.copy()
 #%%
 """
@@ -133,7 +135,32 @@ expdict = train_params_all["FNN4_128_SingleVar_Rewrite"].copy()
 expdict['cv_loop']         = True    # Repeat for cross-validation
 percent_test               = 1 - (expdict['percent_train'] + expdict['percent_val'])
 expdict['cv_offset']       = percent_test       # Set cv option. Default is test size chunk
-expdict['shuffle']         = False    # Do Not Shuffle
+expdict['shuffle_class']        = False              # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit']   = True             # Set to False to maintain same set for train/test/val split
+
+
+train_params_all[expname] = expdict.copy()
+
+#%%
+"""
+FNN4_128_SingleVar_CV_consistent
+
+Single Variable Training for 4 Layer Fully-Connected NN, Cross Validation Test, wuith consistent sampling
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_CV_consistent"
+
+# Copy dictionary from above
+expdict = train_params_all["FNN4_128_SingleVar_Rewrite"].copy()
+
+# Cross Validation Options
+expdict['cv_loop']         = True    # Repeat for cross-validation
+percent_test               = 1 - (expdict['percent_train'] + expdict['percent_val'])
+expdict['cv_offset']       = percent_test       # Set cv option. Default is test size chunk
+expdict['shuffle_class']        = False              # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit']   = False             # Set to False to maintain same set for train/test/val split
+
 
 train_params_all[expname] = expdict.copy()
 
@@ -180,7 +207,8 @@ expdict['thresholds']      = [-1,1]  # Thresholds (standard deviations, or quant
 expdict['nsamples']        = 300     # Number of samples from each class to train with. None = size of minimum class
 expdict['percent_train']   = 0.80    # Training percentage
 expdict['percent_val']     = 0.00    # Validation Percentage
-expdict['shuffle']         = True    # Set to True to shuffle the data prior to sample selection
+expdict['shuffle_class']      = True              # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit'] = True             # Set to False to maintain same set for train/test/val split
 
 # Cross Validation Options
 expdict['cv_loop']         = False    # Repeat for cross-validation
@@ -248,7 +276,8 @@ expdict['thresholds']      = [-1,1]  # Thresholds (standard deviations, or quant
 expdict['nsamples']        = 400     # Number of samples from each class to train with. None = size of minimum class
 expdict['percent_train']   = 0.60    # Training percentage
 expdict['percent_val']     = 0.10    # Validation Percentage
-expdict['shuffle']         = False    # Set to True to shuffle the data prior to sample selection
+expdict['shuffle_class']        = True              # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit']   = True             # Set to False to maintain same set for train/test/val split
 
 # Cross Validation Options
 expdict['cv_loop']         = False    # Repeat for cross-validation
@@ -272,6 +301,26 @@ expdict['batch_size']    = 32                   # Pairs of predictions
 expdict['unfreeze_all']  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 train_params_all[expname] = expdict.copy()
+
+#%%
+"""
+FNN4_128_SingleVar_Rerun100_consistent
+
+Same as above, but with a consistent sample to assess weight initilization effects
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                         = "FNN4_128_SingleVar_Rerun100_consistent"
+
+# Copy dictionary from above
+expdict                         = train_params_all["FNN4_128_SingleVar_Rerun100"].copy()
+
+# Cross Validation Options
+expdict['shuffle_class']        = False            # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit']   = False             # Set to False to maintain same set for train/test/val split
+
+
+train_params_all[expname]       = expdict.copy()
 
 
 #%%
