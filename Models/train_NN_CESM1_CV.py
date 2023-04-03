@@ -71,7 +71,7 @@ eparams            = train_cesm_params.train_params_all[expdir] # Load experimen
 # Set some looping parameters and toggles
 varnames           = ["SST","SSH",]#"SSS","PSL"]       # Names of predictor variables
 leads              = np.arange(0,26,3)    # Prediction Leadtimes
-runids             = np.arange(0,21,1)    # Which runs to do
+runids             = np.arange(22,51,1)    # Which runs to do
 
 # Other toggles
 checkgpu           = True                 # Set to true to check if GPU is availabl
@@ -169,8 +169,7 @@ else:
     predictor_indices  = None
     target_refids      = None
     predictor_refids   = None
-    
-    
+
 """
 Output
 
@@ -180,7 +179,6 @@ predictor_refids = [nlead][nsamples*nclasses,] - Indices of predictor at each le
 tref --> array of the target years
 predictor_refids --> array of the predictor refids
 """
-
 
 # ------------------------------------------------------------
 # %% Looping for runid
@@ -210,7 +208,7 @@ for v,varname in enumerate(varnames):
     for k in range(nfolds):
         ft = time.time()
         
-        k_offset = k*percent_test
+        k_offset             = k*percent_test
         eparams["cv_offset"] = k_offset
         print(k_offset)
         
@@ -391,7 +389,7 @@ for v,varname in enumerate(varnames):
                 # End Lead Loop >>>
             print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
             # End Runid Loop >>>
-        print("\nFold %i of %i finished in %.2fs" % (k,nfolds,time.time()-ft))
+        print("\nFold %i of %i finished in %.2fs" % (k+1,nfolds,time.time()-ft))
         # End k-fold loop >>>
     print("\nPredictor %s finished in %.2fs" % (varname,time.time()-vt))
     # End Predictor Loop >>>

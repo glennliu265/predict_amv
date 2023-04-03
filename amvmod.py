@@ -50,10 +50,27 @@ def load_result(fn,debug=False):
     """
     Load results for each of the variable names (testacc, etc)
     input: fn (str), Name of the file
+    
+    vnames/output are:
+        train_loss
+        test_loss
+        val_loss
+        train_acc
+        test_acc
+        val_acc
+        total_acc
+        acc_by_class
+        yvalpred
+        yvallabels
+        sampled_idx
+        thresholds_all
+        exp_params
+        sample_sizes
+    
     Copied from viz_acc_by_predictor.py on 2023.01.25
     """
     
-    ld = np.load(fn,allow_pickle=True)
+    ld     = np.load(fn,allow_pickle=True)
     vnames = ld.files
     if debug:
         print(vnames)
@@ -84,11 +101,11 @@ def load_metrics_byrun(flist,leads,debug=False,runmax=None):
         # if len(output[4]) > len(leads):
         #     print("Selecting Specific Leads!")
         #     output = [out[leads] for out in output]
-        totalm.append(output[4])
-        classm.append(output[5])
-        ypredm.append(output[6])
-        ylabsm.append(output[7])
-        shuffidsm.append(output[8])
+        totalm.append(output[6])
+        classm.append(output[7])
+        ypredm.append(output[8])
+        ylabsm.append(output[9])
+        shuffidsm.append(output[10])
         print("\tLoaded %s, %s, %s, and %s for run %02i" % (vnames[4],vnames[5],vnames[6],vnames[7],i))
     return totalm,classm,ypredm,ylabsm,shuffidsm,vnames
     
@@ -2325,6 +2342,13 @@ def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
     X_subsets,y_subsets      = train_test_split(X,y,eparams['percent_train'],
                                                    percent_val=eparams['percent_val'],
                                                    debug=debug,offset=eparams['cv_offset'])
+    
+    # Print classes for debugging
+    if debug:
+        print("For offset %.2f" % (eparams["cv_offset"]))
+        _,_ = count_samples(eparams['nsamples'],y_subsets[1])
+        #return # Uncomment here to check for offsetting error
+    
     # Convert to Tensors
     X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
     y_subsets = [torch.from_numpy(y.astype(np.compat.long)) for y in y_subsets]
