@@ -76,7 +76,7 @@ expdir             = "FNN4_128_SingleVar_Rerun100_consistent"
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames           = ["PSL","SSH",]       # Names of predictor variables
+varnames           = ["SST","SSS",]       # Names of predictor variables
 leads              = np.arange(0,26,1)    # Prediction Leadtimes
 runids             = np.arange(0,100,1)    # Which runs to do
 
