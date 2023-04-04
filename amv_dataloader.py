@@ -66,6 +66,24 @@ def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_l
         return data, ds.lat.values,ds.lon.values
     return data
 
+def load_data_reanalysis(dataset_name,varname,bbox,datpath=None,detrend=False,regrid="CESM1",return_latlon=False):
+    """
+    Load predictors for a selected reanalysis dataset, preprocessed by [regrid_reanalysis_cesm1.py].
+    
+    """
+    if datpath is None:
+        datpath    = "../../CESM_data/Reanalysis/regridded/"
+    if dataset_name == "HadISST":
+        date_range = "18700101_20221231"
+    ncname    = "%s%s_%s_NAtl_%s_bilinear_detrend%i_regrid%s.nc" % (datpath,dataset_name,varname,date_range,detrend,regrid) 
+    ds        = xr.open_dataset(ncname)
+    ds        = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3])) # [yr x lat x lon]
+    data      = ds[varname].values[None,None,...]                             # [channel x ens x yr x lat x lon]
+    if return_latlon:
+        return data, ds.lat.values,ds.lon.values
+    return data
+    
+
 
 
 
