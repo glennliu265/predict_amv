@@ -19,8 +19,8 @@ import xarray as xr
 
 def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None):
     """
-    Load target for AMV prediction, as calculated from the script:
-        
+    Load target for AMV prediction, as calculated from the script: 
+         [prepare_regional_targets.py]
     Inputs:
         datpath [STR]  : Path to the dataset. Default is "../../CESM_data/"
         region  [STR]  : Region over which Index was calculated over (3-letter code). Default is None, whole basin
@@ -82,6 +82,18 @@ def load_data_reanalysis(dataset_name,varname,bbox,datpath=None,detrend=False,re
     if return_latlon:
         return data, ds.lat.values,ds.lon.values
     return data
+
+
+def load_target_reanalysis(dataset_name,region_name,datpath=None,detrend=False,):
+    """
+    Load target for a selected reanalysis dataset, preprocessed by [regrid_reanalysis_cesm1.py].
+    
+    """
+    if datpath is None:
+        datpath    = "../../CESM_data/Reanalysis/regridded/"
+    fn  = "%s%s_label_%s_amv_index_detrend%i_regridCESM1.npy" % (datpath,dataset_name,region_name,detrend)
+    return np.load(fn)
+    
     
 
 
