@@ -1757,7 +1757,9 @@ def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
     if nsamples is None: # Default: nsamples = smallest class
         threscount = np.zeros(nclasses)
         for t in range(nclasses):
-            threscount[t] = len(np.where(y_class==t)[0])
+            count = len(np.where(y_class==t)[0])
+            print("Found %i samples for class %i" % (count,t))
+            threscount[t] = count
         nsamples = int(np.min(threscount))
         print("Using %i samples, the size of the smallest class" % (nsamples))
 
