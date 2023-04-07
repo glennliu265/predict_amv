@@ -2398,6 +2398,116 @@ def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
               lead_acc]
     return func_output
       
+def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
+                                 shuffle_trainsplit=False):
     
+    '''
+    lead               : prediction leadtimes
+    y_class            : the target classes
+    nsamples           : how much subsampling to do
+    percent_train      : percentage of the data to use in training
+    shuffle_trainsplit : Use a consistent sample (currently not supported...)
+    '''
+    # Preallocate
+    total_acc       = [] # [lead]
+    acc_by_class    = [] # [lead x class]
+    yvalpred        = [] # [lead x ensemble x time]
+    yvallabels      = [] # [lead x ensemble x time]
+    samples_counts  = [] # [lead x class]
+    
+    # Get needed dimensions
+    ens,tstep       = y_class.shape
+    
+    # Looping for each leadtime
+    for l,lead in enumerate(leads):
+
+        # -------------------------------------------------------
+        # Set [predictor] to the [target] but at the initial time
+        # -------------------------------------------------------
+        X                 = y_class[:,:(tstep-lead)].flatten()[:,None,None,None] # Expand dimensions to accomodate function
+        y                 = y_class[:,lead:].flatten()[:,None] # Note, overwriting y again ...
+        
+        # ----------------------------------------------
+        # Subsample prior to the split, if option is set
+        # ----------------------------------------------
+        if nsamples is not None:
+            y_class_label,y_class_predictor,shuffidx = select_samples(nsamples,y,X)
+            y_class_predictor                        = y_class_predictor.squeeze()
+        else:
+            y_class_label     = y
+            y_class_predictor = X.squeeze()
+        
+        # ----------------
+        # Train/Test Split
+        # ----------------
+        X_subset,y_subset = train_test_split(y_class_predictor,y_class_label,
+                                                percent_train=percent_train,
+                                                debug=True)
+        
+        if percent_train < 1:
+            X_train,X_val     = X_subset
+            y_train,y_val     = y_subset
+            if use_train:
+                y_class_label     = y_train
+                y_class_predictor = X_train
+            else:
+                y_class_label     = y_val
+                y_class_predictor = X_val
+            
+
+            
+        # ----------------------
+        # Make predictions
+        # ----------------------
+        allsamples = y_class_predictor.shape[0]
+        classval   = [0,1,2]
+        correct    = np.array([0,0,0])
+        total      = np.array([0,0,0])
+        for n in range(allsamples):
+            actual = int(y_class_label[n,0])
+            y_pred = int(y_class_predictor[n])
+            
+            #print("For sample %i, predicted %i, actual %i" % (n,y_pred,actual))
+            # Add to Counter
+            if actual == y_pred:
+                correct[actual] += 1
+            total[actual] += 1
+        
+        # ----------------------------------
+        # Calculate and save overall results
+        # ----------------------------------
+        accbyclass   = correct/total
+        totalacc     = correct.sum()/total.sum() 
+        
+        # Append Results
+        acc_by_class.append(accbyclass)
+        total_acc.append(totalacc)
+        #yvalpred.append(y_pred)
+        yvalpred.append(y_class_predictor)
+        yvallabels.append(y_class_label)
+        samples_counts.append(total)
+        
+        # Report Results
+        print("**********************************")
+        print("Results for lead %i" % lead + "...")
+        print("\t Total Accuracy is %.3f " % (totalacc*100) + "%")
+        print("\t Accuracy by Class is...")
+        for i in range(3):
+            print("\t\t Class %i : %.3f " % (classval[i],accbyclass[i]*100) + "%")
+        print("**********************************")
+        # End Lead Loop
+    out_dict = {
+        "total_acc"      : total_acc,
+        "acc_by_class"   : acc_by_class,
+        "yvalpred"       : yvalpred,
+        "yvallabels"     : yvallabels,
+        "samples_counts" : samples_counts,
+        "nsamples"       : nsamples,
+        "leads"          : leads,
+        "percent_train"  : percent_train,
+        "y_class"        : y_class
+        }
+    return out_dict
+        
         
         
