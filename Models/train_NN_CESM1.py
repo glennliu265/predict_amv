@@ -72,18 +72,18 @@ from amv import proc
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir             = "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs"
-eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
+expdir              = "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs"
+eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames           = ["SSH",]       # Names of predictor variables
-leads              = np.arange(0,25,3)    # Prediction Leadtimes
-runids             = np.arange(0,50,1)    # Which runs to do
+varnames            = ["SSH",]       # Names of predictor variables
+leads               = np.arange(0,25,3)    # Prediction Leadtimes
+runids              = np.arange(0,50,1)    # Which runs to do
 
 # Other toggles
-checkgpu           = True                 # Set to true to check if GPU is availabl
-debug              = True                 # Set verbose outputs
-savemodel          = True                 # Set to true to save model weights
+checkgpu            = True                 # Set to true to check if GPU is availabl
+debug               = True                 # Set verbose outputs
+savemodel           = True                 # Set to true to save model weights
 
 # Save looping parameters into parameter dictionary
 eparams['varnames'] = varnames
