@@ -27,18 +27,19 @@ import viz,proc
 # varcolors    = ("r","violet","yellow","darkblue","dodgerblue","cyan")
 # varmarker    = ("o","d","x","v","^","*")
 detrend      = True
-expdirs      = ("FNN4_128_detrend","CNN2_singlevar",)#"FNN4_128_Singlevar")
+expdirs      = ("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
 skipvars     = ("UOHC","UOSC")
 #threscolors = ("r","gray","cornflowerblue")
-expnames   = ("FNN","CNN")
-expcolors  = ("gold","dodgerblue")
-quantile   = False
-
+expnames     = ("FNN","CNN")
+expcolors    = ("gold","dodgerblue")
+quantile     = False
+nsamples     = 300
 
 if quantile:
     chance_baseline = [0.33,]*3
 else:
-    chance_baseline = [0.16,0.68,0.16]
+    #chance_baseline = [0.16,0.68,0.16] # Commented out for now b/c code :0
+    chance_baseline  = [0.33,0.33,0.33]
 #datpath   = "../../CESM_data/"
 #figpath   = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221231/"
 
@@ -100,8 +101,6 @@ varmarker       = pparams.varmarker
 #         output.append(ld[v])
 #     return output,vnames
 
-
-
 # def retrieve_lead(shuffidx,lead,nens,tstep):
     
 #     orishape = [nens,tstep-lead]
@@ -146,13 +145,9 @@ for expdir in expdirs:
     #nruns = len(expdict['classacc'][0])
     #nleads,nclasses = expdict['classacc'][0][0].shape
     
-    
-    
     # Add to outputs
     alloutputs.append(expdict)
     
-
-
 #%% Load the data (Delete eventually if function form works...)
 # Read in results
 
@@ -226,7 +221,7 @@ for expdir in expdirs:
 #%% Load persistence baseline
 
 fpath = "../../CESM_data/"
-fnp   = "AMVClassification_Persistence_Baseline_ens40_RegionNone_maxlead24_step3_nsamplesNone_detrend%i_020pctdata.npz" % detrend
+fnp   = "AMVClassification_Persistence_Baseline_ens40_RegionNone_maxlead24_step3_nsamples%s_detrend%i_000pctdata.npz" % (nsamples,detrend)
 
 ldp = np.load(fpath+fnp,allow_pickle=True)#.f#.arr_0
 
@@ -324,9 +319,9 @@ plt.savefig("%sPredictor_Intercomparison_byclass_plotmax%i_%s.png"% (figpath,plo
 plotmodels = [0,1,2,4]
 ex         = expnum
 add_conf   = True
-plotconf   = 0.95
+plotconf   = 0.68
 plotmax    = False # Set to True to plot maximum
-
+alpha      = 0.25
 fig,axs = plt.subplots(1,3,figsize=(18,4))
 
 for c in range(3):
@@ -359,18 +354,17 @@ for c in range(3):
         ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnames[i],zorder=9)
         if add_conf:
             if plotconf:
-                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.3,color=varcolors[i],zorder=1,label="")
+                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors[i],zorder=1,label="")
             else:
-                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=varcolors[i],zorder=1)
+                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors[i],zorder=1)
         
     ax.plot(leads,persaccclass[:,c],color=dfcol,label="Persistence",ls="dashed")
     ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
     
-        
         # Add max/min predictability dots (removed this b/c it looks messy)
         # ax.scatter(leads,classacc[i,:,:,c].max(0),color=varcolors[i])
         # ax.scatter(leads,classacc[i,:,:,c].min(0),color=varcolors[i])
-        
+    
     #ax.plot(leads,autodat[::3,c],color='k',ls='dotted',label="AutoML",lw=lwall)
     #ax.plot(leads,persaccclass[:,c],color='k',label="Persistence",lw=lwall)
 
@@ -382,7 +376,7 @@ for c in range(3):
     if c == 1:
         ax.set_xlabel("Prediction Lead (Years)")
         
-plt.savefig("%sPredictor_Intercomparison_byclass_plotmax%i_%s_AGUver.png"% (figpath,plotmax,expdirs[expnum]),
+plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_AGUver.png"% (figpath,detrend,plotmax,expdirs[expnum]),
             dpi=200,bbox_inches="tight",transparent=True)
 
 #%% Make the same plot as above, but output in increments
@@ -394,11 +388,10 @@ plotconf   = 0.95
 fill_alpha = 0.20
 plotmax    = False # Set to True to plot maximum
 
-
 def init_accplot(c,figsize=(6,4),labelx=True,labely=True):
     # Initialize plot
     fig,ax = plt.subplots(1,1,figsize=(6,4),constrained_layout=True)
-
+    
     ax.set_title("%s" %(classes[c]),fontsize=16,)
     ax.set_xlim([0,24])
     ax.set_xticks(leads)
@@ -416,7 +409,6 @@ def init_accplot(c,figsize=(6,4),labelx=True,labely=True):
     
     return fig,ax
 
-
 # Just Plot AMV+, introduce each predictor
 c = 0
 
@@ -425,6 +417,7 @@ pcounter = 0
 fig,ax = init_accplot(c)
 ax.legend(ncol=3,fontsize=10)
 savename = "%sPredictor_Intercomparison_byclass_plotmax%i_%s_AGUver_%02i.png"% (figpath,plotmax,expdirs[expnum],pcounter)
+
 # Initial Save
 plt.savefig(savename,
             dpi=200,bbox_inches="tight",transparent=True)
