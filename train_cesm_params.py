@@ -344,6 +344,25 @@ expdict['shuffle_trainsplit']   = False              # Set to False to maintain 
 train_params_all[expname]       = expdict.copy()
 
 
+#%% Sme as above, but adapt the old amount of epochs
+
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname= "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs"
+
+# Copy dictionary from above
+expdict                         = train_params_all["FNN4_128_SingleVar_debug1_shuffle_all0"].copy()
+
+expdict['early_stop']    = 3#10                   # Number of epochs where validation loss increases before stopping
+expdict['max_epochs']    = 20#100                  # Maximum # of Epochs to train for
+expdict['batch_size']    = 32                   # Pairs of predictions
+
+
+
+train_params_all[expname]       = expdict.copy()
+
+
+
 """
 
 Some Notes on Parameters and subdivisions

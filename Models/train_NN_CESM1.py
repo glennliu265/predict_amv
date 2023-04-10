@@ -72,7 +72,7 @@ from amv import proc
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir             = "FNN4_128_SingleVar_debug1_shuffle_all"
+expdir             = "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs"
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
