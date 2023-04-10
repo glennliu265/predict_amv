@@ -259,7 +259,7 @@ for v,varname in enumerate(varnames):
                 # ----------------------
                 # 09. Select samples
                 # ----------------------
-                if eparams['shuffle_trainsplit'] is False:
+                if (eparams['shuffle_trainsplit'] is False) or (l == 0):
                     if eparams['nsamples'] is None: # Default: nsamples = smallest class
                         threscount = np.zeros(nclasses)
                         for t in range(nclasses):
@@ -268,7 +268,7 @@ for v,varname in enumerate(varnames):
                         print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
                     y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
                 else:
-                    print("Select the sample samples")
+                    print("Select the pre-sampled indices")
                     shuffidx = sampled_idx[l-1]
                     y_class  = y_class[shuffidx,...]
                     X        = X[shuffidx,...]
