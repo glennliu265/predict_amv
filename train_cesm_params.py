@@ -351,7 +351,7 @@ train_params_all[expname]       = expdict.copy()
 expname= "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs"
 
 # Copy dictionary from above
-expdict                         = train_params_all["FNN4_128_SingleVar_debug1_shuffle_all0"].copy()
+expdict                         = train_params_all["FNN4_128_SingleVar_debug1_shuffle_all"].copy()
 
 expdict['early_stop']    = 3#10                   # Number of epochs where validation loss increases before stopping
 expdict['max_epochs']    = 20#100                  # Maximum # of Epochs to train for
