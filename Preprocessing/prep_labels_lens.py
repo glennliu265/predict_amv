@@ -79,21 +79,21 @@ amvbbox         = pparams.amvbbox
 
 d = 1
 
-ds_all    = []
-ndata     = len(dataset_names)
+ds_all        = []
+ndata         = len(dataset_names)
 
 
-nasst_all = []
-amvid_all = []
-amvpats_all = []
+nasst_all     = []
+amvid_all     = []
+amvpats_all   = []
 nasstpats_all = []
 
 for d in range(ndata):
     # Open the dataset
-    ncsearch = "%s%s_%s_NAtl_%sto%s_detrend%i_regrid%sdeg.nc" % (datpath,dataset_names[d],
+    ncsearch  = "%s%s_%s_NAtl_%sto%s_detrend%i_regrid%sdeg.nc" % (datpath,dataset_names[d],
                                                                  varname,ystart,yend,
                                                                  detrend,regrid)
-    ds       = xr.open_dataset(ncsearch).load()
+    ds        = xr.open_dataset(ncsearch).load()
     ds_all.append(ds)
     
     # Compute the mean over the area
@@ -105,11 +105,10 @@ for d in range(ndata):
     amvid_lp  = proc.lp_butter(nasst.T[...,None],10,order=6).squeeze().T
     
     # Save the labels (normal and low-pass filtered)
-    savename       = "%s%s_%s_label_%sto%s_detrend%i_regrid%sdeg_lp0.npy" % (datpath,dataset_names[d],
+    savename  = "%s%s_%s_label_%sto%s_detrend%i_regrid%sdeg_lp0.npy" % (datpath,dataset_names[d],
                                                                          varname,ystart,yend,
                                                                          detrend,regrid)
-    
-    savename_lp    = savename.replace("lp0","lp1")
+    savename_lp = savename.replace("lp0","lp1")
     
     np.save(savename,nasst)
     np.save(savename_lp,amvid_lp)
@@ -210,8 +209,8 @@ plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 #%% Plot AMVs for 10 members of each large ensemble
 
-plotnums = np.arange(1,11)
-idxmode  = "AMV"
+plotnums    = np.arange(1,11)
+idxmode     = "AMV"
 
 cints       = np.arange(-2.6,2.8,0.2)
 
@@ -253,26 +252,6 @@ plt.suptitle("%s Regression Patterns ($\degree$C per 1$\sigma_{%s}$)" % (idxmode
 savename = "%sAMV_NASST_Patterns_10mem_CMIP6_LENS.png" % (figpath)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
 #%%
-    
 
-    for ii in range(2):
-
-        
-        if ii == 0:   # Plot the NASST Pattern
-            plotpat = nasstpats_all[d].mean(0)
-            ax.set_title("%s, nens=%i" % (dataset_long[d],nasstpats_all[d].shape[0]))
-        elif ii == 1: # Plot the AMV Pattern
-            plotpat = amvpats_all[d].mean(0)
-            
-        cf = ax.contourf(lon,lat,plotpat,levels=cints,cmap="RdBu_r",extend="both")
-        cl = ax.contour(lon,lat,plotpat,levels=cints,colors="k",linewidths=0.45)
-        ax.clabel(cl,cints[::2],fontsize=8)
-        
-
-fig.colorbar(cf,ax=axs.flatten(),orientation='horizontal',fraction=.045)
-            
-            
-savename = "%sAMV_NASST_Patterns_EnsAvg_CMIP6_LENS.png" % (figpath)
-plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
