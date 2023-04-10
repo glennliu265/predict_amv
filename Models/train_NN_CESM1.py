@@ -72,13 +72,13 @@ from amv import proc
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir             = "FNN4_128_SingleVar_Rerun100_consistent"
+expdir             = "FNN4_128_SingleVar_debug1_shuffle_trainsplit"
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames           = ["SST","SSS",]       # Names of predictor variables
+varnames           = ["SSH",]       # Names of predictor variables
 leads              = np.arange(0,26,1)    # Prediction Leadtimes
-runids             = np.arange(0,100,1)    # Which runs to do
+runids             = np.arange(0,20,1)    # Which runs to do
 
 # Other toggles
 checkgpu           = True                 # Set to true to check if GPU is availabl
