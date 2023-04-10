@@ -28,6 +28,7 @@ import viz,proc
 # varmarker    = ("o","d","x","v","^","*")
 detrend      = True
 expdirs      = ("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
+expdirs_long = ("FNN (Detrended)", "FNN (Undetrended)", "CNN (Undetrended)")
 skipvars     = ("UOHC","UOSC")
 #threscolors = ("r","gray","cornflowerblue")
 expnames     = ("FNN","CNN")
@@ -138,7 +139,7 @@ for expdir in expdirs:
         flists.append(flist)
     
     # Make the experiment dictionary
-    expdict = am.make_expdict(flists,leads)
+    expdict = am.make_expdict(flists,leads,no_val=True)
     
     expdict['classacc'] = np.array(expdict['classacc'])
     _,nruns,nleads,nclasses      = expdict['classacc'].shape
@@ -231,35 +232,35 @@ persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
 
 #%% Load the case for all predictors
 
-expdir   = "FNN4_128_ALL"
-varname  = "ALL"
-flist = glob.glob("%s%s/Metrics/leadtime_testing_%s*ALL.npz"%(datpath,expdir,varname))
-flist.sort()
-nruns = len(flist)
-#print('Found %i files for %s'%(nruns,varnames[v]))
+# expdir   = "FNN4_128_ALL"
+# varname  = "ALL"
+# flist = glob.glob("%s%s/Metrics/leadtime_testing_%s*ALL.npz"%(datpath,expdir,varname))
+# flist.sort()
+# nruns = len(flist)
+# #print('Found %i files for %s'%(nruns,varnames[v]))
 
-# Load Result for each model
-totalm    = []
-classm    = []
-ypredm    = []
-ylabsm    = []
-shuffidsm = []
-for i in range(nruns): # Load for 10 files
+# # Load Result for each model
+# totalm    = []
+# classm    = []
+# ypredm    = []
+# ylabsm    = []
+# shuffidsm = []
+# for i in range(nruns): # Load for 10 files
 
-    output,vnames = load_result(flist[i],debug=False)
+#     output,vnames = load_result(flist[i],debug=False)
     
     
-    if len(output[4]) > len(leads):
-        print("Selecting Specific Leads!")
-        output = [out[leads] for out in output]
+#     if len(output[4]) > len(leads):
+#         print("Selecting Specific Leads!")
+#         output = [out[leads] for out in output]
         
 
-    totalm.append(output[4])
-    classm.append(output[5])
-    ypredm.append(output[6])
-    ylabsm.append(output[7])
-    shuffidsm.append(output[8])
-    print("Loaded %s, %s, %s, and %s for run %i, predictor %s" % (vnames[4],vnames[5],vnames[6],vnames[7],i,varnames[v]))
+#     totalm.append(output[4])
+#     classm.append(output[5])
+#     ypredm.append(output[6])
+#     ylabsm.append(output[7])
+#     shuffidsm.append(output[8])
+#     print("Loaded %s, %s, %s, and %s for run %i, predictor %s" % (vnames[4],vnames[5],vnames[6],vnames[7],i,varnames[v]))
 
 
 
@@ -551,8 +552,110 @@ for c in [1,2]:
 #             dpi=200,bbox_inches="tight",transparent=True)
 
 
+#%% Remake the plots, but for the GRL Paper Outline...
 
-#%%
+
+darkmode = False
+plt.style.use('default')
+if darkmode == True:
+    dfcol = "w"
+else:
+    dfcol = "k"
+
+# Toggles
+plotmodels = [0,1,2,4]
+expnums    = [1,0]
+add_conf   = True
+plotconf   = 0.68
+plotmax    = False # Set to True to plot maximum
+alpha      = 0.25
+
+# Initialize figures
+fig,axs =  plt.subplots(2,3,constrained_layout=True,figsize=(18,8))
+
+for iplot,ex in enumerate(expnums):
+    
+    # Get the axes row
+    axs_row = axs[iplot,:]
+    
+    # Load the data
+    totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
+    
+    for c in range(3):
+        
+        # Initialize plot
+        ax = axs_row[c]
+        
+        ax.set_xlim([0,24])
+        ax.set_xticks(leads)
+        ax.set_ylim([0,1])
+        ax.set_yticks(np.arange(0,1.25,.25))
+        ax.grid(True,ls='dotted')
+        ax.minorticks_on()
+        
+        # Add Class Labels
+        if iplot == 0:
+            ax.set_title("%s" %(classes[c]),fontsize=16,)
+        
+        for i in plotmodels:
+            if plotmax:
+                plotacc = classacc[i,:,:,c].max(0)
+            else:
+                plotacc = classacc[i,:,:,c].mean(0)
+           # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
+            
+            mu        = classacc[i,:50,:,c].mean(0)
+            sigma     = classacc[i,:50,:,c].std(0)
+            
+            sortacc  = np.sort(classacc[i,:,:,c],0)
+            idpct    = sortacc.shape[0] * plotconf
+            lobnd    = np.floor(idpct).astype(int)
+            hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
+            
+            
+            ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnames[i],zorder=9)
+            if add_conf:
+                if plotconf:
+                    ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors[i],zorder=1,label="")
+                else:
+                    ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors[i],zorder=1)
+            
+        ax.plot(leads,persaccclass[:,c],color=dfcol,label="Persistence",ls="dashed")
+        ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
+        
+            # Add max/min predictability dots (removed this b/c it looks messy)
+            # ax.scatter(leads,classacc[i,:,:,c].max(0),color=varcolors[i])
+            # ax.scatter(leads,classacc[i,:,:,c].min(0),color=varcolors[i])
+        
+        #ax.plot(leads,autodat[::3,c],color='k',ls='dotted',label="AutoML",lw=lwall)
+        #ax.plot(leads,persaccclass[:,c],color='k',label="Persistence",lw=lwall)
+        #ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol)
+        
+        if c == 0:
+            
+            if iplot == 0:
+                ax.set_ylabel("Test Accuracy")
+            #     ax.text(-0.09, -0.05,"Test Accuracy", va='bottom', ha='center',rotation='vertical',
+            #             rotation_mode='anchor',transform=ax.transAxes)
+
+
+            ax.text(-0.18, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        if (c == 1):
+            if iplot == 0:
+                ax.legend(ncol=2,fontsize=10)
+            elif iplot == 1:
+                ax.set_xlabel("Prediction Lead (Years)")
+
+plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer.png"% (figpath,detrend,plotmax,expdirs[expnum]),
+            dpi=200,bbox_inches="tight",transparent=True)
+
+
+
+#%% ---------------------------------------------------------------------------
+# Scrap below
+
+
 #%% Save as above, but this time, for a single predictor
 
 for v in range(nvar):
