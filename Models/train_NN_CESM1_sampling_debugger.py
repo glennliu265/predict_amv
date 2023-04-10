@@ -181,6 +181,112 @@ tref --> array of the target years
 predictor_refids --> array of the predictor refids
 """
 
+#
+# %%  First, check that we are actually sampling the right classes
+#
+
+# Informmation
+import matplotlib.pyplot as plt
+class_colors=pparams.class_colors
+
+
+y_class = target_class.reshape((ntime*nens,1))[target_indices,:]
+xtks  = np.arange(0,86,20)
+xlabs = xtks + 1920 
+xlm   = [0,85]
+
+
+# fig,axs = plt.subplots(2,3,constrained_layout=True,sharey=True,
+#                        figsize=(16,4))
+
+# for ens in range(nens):
+    
+#     ax = axs.flatten()[ens%6]
+#     ax.plot(target[ens,:],label="Ens %02i" % (ens+1))
+#     # print(ens%6)
+
+# for a,ax in enumerate(axs.flatten()):
+#     ax.legend()
+#     ax.set_xticks(xtks)
+#     ax.set_xticklabels(xlabs)
+#     ax.set_xlim(xlm)
+
+# indicate indices
+ens = 0
+l   = 4
+"""
+Inputs: target, thresholds_in, ens, l,
+
+"""
+
+found_ids        = []
+found_events     = []
+found_predictors = []
+# Locate events
+for tt,targ in enumerate(target_refids):
+    print(targ)
+    targ_ens,targ_yr = targ
+    if targ_ens == ens: # Record information
+        found_ids.append(tt)
+        found_events.append(targ)
+        found_predictors.append(predictor_refids[l][tt])
+
+
+
+# Initialize Plot
+fig,ax = plt.subplots(1,1,figsize=(10,3))
+ax.legend()
+ax.set_xticks(xtks)
+ax.set_xticklabels(xlabs)
+ax.set_xlim(xlm)
+ax.minorticks_on()
+ax.grid(True,ls='dotted')
+ax.set_xlabel("Year")
+ax.set_ylabel("AMV Index ($\degree$C)")
+
+
+# Plot data and thresholds
+ax.plot(target[ens,:],label="Ens %02i" % (ens+1),color='limegreen')
+for th in thresholds_in:
+    ax.axhline(th,ls="dashed",color="gray",lw=0.75)
+ax.axhline(0,ls="solid",color="gray",lw=0.75)
+ax.plot(target.mean(0),label="Ens Avg.",color="gray",lw=0.75)
+ax.set_title("Selected Events for Ens %02i, Lead=%i Years" % (ens+1,leads[l]))
+
+
+# Plot the identified events
+for ii in found_ids:
+    targ_ens,targ_yr = target_refids[ii]
+    targ_class       = int(y_class[ii,0])
+    pred_ens,pred_yr = predictor_refids[l][ii]
+    
+    event_info     = (targ_yr,target[targ_ens,targ_yr])
+    predictor_info = (pred_yr,target[pred_ens,pred_yr])
+    
+    ax.plot([predictor_info[0],event_info[0]],
+            [predictor_info[1],event_info[1]],color=class_colors[targ_class],
+            linestyle="solid",lw=0.8)
+    ax.scatter(targ_yr,target[targ_ens,targ_yr],c=class_colors[targ_class])
+
+
+    
+#%%
+
+
+
+
+
+
+
+for l in range(nleads):
+    lead = leads[l]
+    
+    
+    
+    
+    
+
+
 # ------------------------------------------------------------
 # %% Looping for runid
 # ------------------------------------------------------------
@@ -283,58 +389,58 @@ for v,varname in enumerate(varnames):
                 X            = X.transpose(1,0,2,3) # [sample x channel x lat x lon]
                 shuffidx     = target_indices    
             
-            # # --------------------------------------------------------------------------------
-            # # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
-            # # --------------------------------------------------------------------------------
-            output = am.train_NN_lead(X,y_class,eparams,pparams,debug=debug,checkgpu=checkgpu)
-            model,trainloss,valloss,testloss,trainacc,valacc,testacc,y_predicted,y_actual,class_acc,lead_acc = output
+            # # # --------------------------------------------------------------------------------
+            # # # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
+            # # # --------------------------------------------------------------------------------
+            # output = am.train_NN_lead(X,y_class,eparams,pparams,debug=debug,checkgpu=checkgpu)
+            # model,trainloss,valloss,testloss,trainacc,valacc,testacc,y_predicted,y_actual,class_acc,lead_acc = output
             
-            # Append outputs for the leadtime
-            train_loss_grid.append(trainloss)
-            val_loss_grid.append(valloss)
-            test_loss_grid.append(testloss)
+            # # Append outputs for the leadtime
+            # train_loss_grid.append(trainloss)
+            # val_loss_grid.append(valloss)
+            # test_loss_grid.append(testloss)
             
-            train_acc_grid.append(trainacc)
-            val_acc_grid.append(valacc)
-            test_acc_grid.append(testacc)
+            # train_acc_grid.append(trainacc)
+            # val_acc_grid.append(valacc)
+            # test_acc_grid.append(testacc)
             
-            acc_by_class.append(class_acc)
-            total_acc.append(lead_acc)
-            yvalpred.append(y_predicted)
-            yvallabels.append(y_actual)
-            sampled_idx.append(shuffidx) # Save the sample indices
-            sample_sizes.append(eparams['nsamples'])
+            # acc_by_class.append(class_acc)
+            # total_acc.append(lead_acc)
+            # yvalpred.append(y_predicted)
+            # yvallabels.append(y_actual)
+            # sampled_idx.append(shuffidx) # Save the sample indices
+            # sample_sizes.append(eparams['nsamples'])
             
-            # ------------------------------
-            # 13. Save the model and metrics
-            # ------------------------------
-            if savemodel:
-                modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
-                torch.save(model.state_dict(),modout)
+            # # ------------------------------
+            # # 13. Save the model and metrics
+            # # ------------------------------
+            # if savemodel:
+            #     modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
+            #     torch.save(model.state_dict(),modout)
             
-            # Save Metrics
-            savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
-            np.savez(savename,**{
-                      'train_loss'     : train_loss_grid,
-                      'test_loss'      : test_loss_grid,
-                      'val_loss'       : val_loss_grid,
-                      'train_acc'      : train_acc_grid,
-                      'test_acc'       : test_acc_grid,
-                      'val_acc'        : val_acc_grid,
-                      'total_acc'      : total_acc,
-                      'acc_by_class'   : acc_by_class,
-                      'yvalpred'       : yvalpred,
-                      'yvallabels'     : yvallabels,
-                      'sampled_idx'    : sampled_idx,
-                      'thresholds_all' : thresholds_all,
-                      'exp_params'     : eparams,
-                      'sample_sizes'   : sample_sizes,
-                      }
-                      )
+            # # Save Metrics
+            # savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
+            # np.savez(savename,**{
+            #           'train_loss'     : train_loss_grid,
+            #           'test_loss'      : test_loss_grid,
+            #           'val_loss'       : val_loss_grid,
+            #           'train_acc'      : train_acc_grid,
+            #           'test_acc'       : test_acc_grid,
+            #           'val_acc'        : val_acc_grid,
+            #           'total_acc'      : total_acc,
+            #           'acc_by_class'   : acc_by_class,
+            #           'yvalpred'       : yvalpred,
+            #           'yvallabels'     : yvallabels,
+            #           'sampled_idx'    : sampled_idx,
+            #           'thresholds_all' : thresholds_all,
+            #           'exp_params'     : eparams,
+            #           'sample_sizes'   : sample_sizes,
+            #           }
+            #           )
             
-            # Clear some memory
-            del model
-            torch.cuda.empty_cache()  # Save some memory
+            # # Clear some memory
+            # del model
+            # torch.cuda.empty_cache()  # Save some memory
             
             print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
             # End Lead Loop >>>
