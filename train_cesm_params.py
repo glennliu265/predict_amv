@@ -324,20 +324,20 @@ train_params_all[expname]       = expdict.copy()
 
 #%%
 """
-FNN4_128_SingleVar_debug1_shuffle_trainsplit
+FNN4_128_SingleVar_debug1_shuffle_all
 
 Try rerunning the script above, but with shuffled data.
 """
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
-expname                         = "FNN4_128_SingleVar_debug1_shuffle_trainsplit"
+expname                         = "FNN4_128_SingleVar_debug1_shuffle_all"
 
 # Copy dictionary from above
 expdict                         = train_params_all["FNN4_128_SingleVar_Rerun100"].copy()
 
 # Cross Validation Options
-expdict['shuffle_class']        = False            # Set to True to sample DIFFERENT subsets prior to class subsetting
-expdict['shuffle_trainsplit']   = True             # Set to False to maintain same set for train/test/val split
+expdict['shuffle_class']        = False              # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit']   = False              # Set to False to maintain same set for train/test/val split
 
 
 # Runids 
