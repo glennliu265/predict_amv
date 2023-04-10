@@ -77,8 +77,8 @@ eparams            = train_cesm_params.train_params_all[expdir] # Load experimen
 
 # Set some looping parameters and toggles
 varnames           = ["SSH",]       # Names of predictor variables
-leads              = np.arange(0,26,1)    # Prediction Leadtimes
-runids             = np.arange(0,20,1)    # Which runs to do
+leads              = np.arange(0,25,3)    # Prediction Leadtimes
+runids             = np.arange(0,50,1)    # Which runs to do
 
 # Other toggles
 checkgpu           = True                 # Set to true to check if GPU is availabl
