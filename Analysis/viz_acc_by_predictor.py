@@ -26,15 +26,18 @@ import viz,proc
 # varnamesplot = ("SST","SSS","SLP","BSF","SSH","MLD")
 # varcolors    = ("r","violet","yellow","darkblue","dodgerblue","cyan")
 # varmarker    = ("o","d","x","v","^","*")
+
 detrend      = True
-expdirs      = ("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
+expdirs      = ("FNN4_128_SingleVar_debug1_shuffle_all","FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
 expdirs_long = ("FNN (Detrended)", "FNN (Undetrended)", "CNN (Undetrended)")
-skipvars     = ("UOHC","UOSC")
+skipvars     = ("UOHC","UOSC",)#
 #threscolors = ("r","gray","cornflowerblue")
 expnames     = ("FNN","CNN")
 expcolors    = ("gold","dodgerblue")
 quantile     = False
 nsamples     = 300
+
+no_vals      = (True,) * len(expdirs)
 
 if quantile:
     chance_baseline = [0.33,]*3
@@ -123,6 +126,7 @@ varmarker       = pparams.varmarker
 import amvmod as am
 
 alloutputs = []
+e = 0
 for expdir in expdirs:
     
     # Get list of files for each variable
@@ -139,7 +143,7 @@ for expdir in expdirs:
         flists.append(flist)
     
     # Make the experiment dictionary
-    expdict = am.make_expdict(flists,leads,no_val=True)
+    expdict = am.make_expdict(flists,leads,no_val=no_vals[e])
     
     expdict['classacc'] = np.array(expdict['classacc'])
     _,nruns,nleads,nclasses      = expdict['classacc'].shape
@@ -148,6 +152,7 @@ for expdir in expdirs:
     
     # Add to outputs
     alloutputs.append(expdict)
+    e += 1
     
 #%% Load the data (Delete eventually if function form works...)
 # Read in results
