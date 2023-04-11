@@ -2054,7 +2054,7 @@ def compute_LRP_composites(topN,in_acc,correct_id,relevances,absval=False,normal
     composite_rel /= topN
     return composite_rel
 
-def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
+def train_ResNet(model,loss_fn,optimizer,dataloaders,
                  max_epochs,early_stop=False,verbose=True,
                  reduceLR=False,LRpatience=3,checkgpu=True):
     """
@@ -2063,9 +2063,10 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
         loss_fn     - (torch.nn) loss function
         opt         - tuple of [optimizer_name, learning_rate, weight_decay] for updating the weights
                       currently supports "Adadelta" and "SGD" optimizers
-        trainloader - (torch.utils.data.DataLoader) for training dataset
-        testloader  - (torch.utils.data.DataLoader) for testing dataset
-        valloader   - (torch.utils.data.DataLoader) for validation dataset
+        dataloaders - List of (torch.utils.data.DataLoader) [train, test, val]
+            - trainloader - (torch.utils.data.DataLoader) for training dataset
+            - testloader  - (torch.utils.data.DataLoader) for testing dataset
+            - valloader   - (torch.utils.data.DataLoader) for validation dataset
         max_epochs  - number of training epochs
         early_stop  - BOOL or INT, Stop training after N epochs of increasing validation error
                      (set to False to stop at max epoch, or INT for number of epochs)
@@ -2085,7 +2086,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
     else:
         device = torch.device('cpu')
     model = model.to(device)
-
+    
     # Get list of params to update
     params_to_update = []
     for name,param in model.named_parameters():
@@ -2094,7 +2095,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
             # if verbose:
             #     print("Params to learn:")
             #     print("\t",name)
-
+    
     # Set optimizer
     if optimizer[0] == "Adadelta":
         opt = optim.Adadelta(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
@@ -2102,6 +2103,13 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
         opt = optim.SGD(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
     elif optimizer[0] == 'Adam':
         opt = optim.Adam(model.parameters(),lr=optimizer[1],weight_decay=optimizer[2])
+    
+    # Set up loaders
+    mode_names = ["train","test","val"]
+    mode_loop  = [(mode_names[i],dataloaders[i]) for i in range(len(dataloaders))]
+    val_flag = False
+    if len(dataloaders) > 2:
+        val_flag = True
     
     # Add Scheduler
     if reduceLR:
@@ -2121,7 +2129,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
     bestloss = np.infty
     
     for epoch in tqdm(range(max_epochs)): # loop by epoch
-        for mode,data_loader in [('train',trainloader),('test',testloader),('val',valloader)]: # train/test for each epoch
+        for mode,data_loader in mode_loop: # train/test for each epoch
             if mode == 'train':  # Training, update weights
                 model.train()
             else: # Testing/Validation, freeze weights
@@ -2154,7 +2162,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
                 if mode == 'train':
                     loss.backward() # Backward pass to calculate gradients w.r.t. loss
                     opt.step()      # Update weights using optimizer
-                elif mode == 'val':  # update scheduler after 1st epoch for validation
+                elif (mode == 'val') or (val_flag is False and mode == "test"):  # update scheduler after 1st epoch for validation
                     if reduceLR:
                         scheduler.step(loss)
                 
@@ -2165,7 +2173,7 @@ def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
                                                 runningloss/len(data_loader),correct/total*100))
             
             # Save model if this is the best loss
-            if (runningloss/len(data_loader) < bestloss) and (mode == 'val'):
+            if (runningloss/len(data_loader) < bestloss) and ((mode == 'val') or (val_flag is False and mode == "test")):
                 bestloss = runningloss/len(data_loader)
                 bestmodel = copy.deepcopy(model)
                 if verbose:
@@ -2371,7 +2379,12 @@ def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
     
     # # Put into pytorch dataloaders
     data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=eparams['batch_size']) for iset in range(len(X_subsets))]
-    train_loader,test_loader,val_loader = data_loaders
+    if len(data_loaders) == 2:
+        if debug:
+            print("There is no validation portion. Validation perc is set to %.2f" % (eparams['percent_val']))
+        train_loader,test_loader = data_loaders
+    else:
+        train_loader,test_loader,val_loader = data_loaders
     
     # -------------------
     # 11. Train the model
@@ -2391,7 +2404,7 @@ def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
         
     # Train/Validate Model
     model,trainloss,testloss,valloss,trainacc,testacc,valacc = train_ResNet(pmodel,eparams['loss_fn'],eparams['opt'],
-                                                                               train_loader,test_loader,val_loader,
+                                                                               data_loaders,
                                                                                eparams['max_epochs'],early_stop=eparams['early_stop'],
                                                                                verbose=debug,reduceLR=eparams['reduceLR'],
                                                                                LRpatience=eparams['LRpatience'],checkgpu=checkgpu)
