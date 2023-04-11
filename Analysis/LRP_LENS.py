@@ -33,7 +33,7 @@ import os
 #%%
 
 cmipver        = 6
-varname        = "SSH"
+varname        = "PSL"
 modelname      = "FNN4_128"
 leads          = np.arange(0,26,1)
 dataset_name   = "MIROC6"
@@ -41,7 +41,7 @@ dataset_name   = "MIROC6"
 """
 "CESM2"
 "IPSL-CM6A-LR"
-"CanESM5"
+1))2"CanESM5"
 "MIROC6"
 "ACCESS-ESM1-5"
 """

@@ -33,27 +33,29 @@ import amv_dataloader as dl
 
 #%%
 # Set path to the data 
-mocpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
-figpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230308/"
+mocpath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
+figpath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230308/"
 
 # Time_Period
-startyr = 1920
-endyr   = 2005
-ntime   = (endyr-startyr+1)*12
+startyr      = 1920
+endyr        = 2005
+ntime        = (endyr-startyr+1)*12
+coordinate   = "depth"
 
 # Select MOC component and region
 icomp        = 0 # 0=Eulerian Mean; 1=Eddy-Induced (Bolus); 2=Submeso
 iregion      = 1 # 0=Global Mean - Marginal Seas; 1= Altantic Ocean + Mediterranean Sea + Labrador Sea + GIN Sea + Arctic Ocean + Hudson Bay
-savename_moc = "%sCESM1_LENS_AMO_%sto%s_comp%i_region%i.npz" % (mocpath,startyr,endyr,icomp,iregion)
+savename_moc = "%sCESM1_LENS_AMO_%sto%s_comp%i_region%i_%s.npz" % (mocpath,startyr,endyr,icomp,iregion,coordinate)
 leads        = np.arange(0,26,6)
 
 
 
 # Set predictor options
-varnames    = ["SSH","SST",]
-detrend     = 0
-bbox        = pparams.bbox
+varnames     = ["SSH","SST",]
+detrend      = 0
+bbox         = pparams.bbox
 
+# Other toggles
 debug        = True
 
 
@@ -77,6 +79,8 @@ nvars,nens,nyrs,nlat,nlon = data.shape
 nleads                    = len(leads)
 regr_maps                 = np.zeros([nleads,nvars,nens,nlat,nlon])
 amoc_lead                 = False
+if coordinate == "density":
+    nens = 40 # Reduce to 40 members for density space AMOC
 
 for l in range(nleads):
     lead = leads[l]
@@ -98,7 +102,7 @@ for l in range(nleads):
 
 proj  = ccrs.PlateCarree()
 
-l = 4
+l = 2
 mesh=True
 clvl=np.arange(-2.1,2.1,0.3)
 fig,axs = plt.subplots(1,nvars,figsize=(10,4),
@@ -119,9 +123,8 @@ for v in range(nvars):
     ax.set_title(varnames[v])
     cb.set_label("AMOC Regression ([Fluctuation per Sv of iAMOC])")
 
-plt.savefig("%sAMOC_Regression_2var_amoclead%i_Lead%02i.png" % (figpath,amoc_lead,leads[l]),dpi=200,bbox_inches="tight")
+plt.savefig("%sAMOC_Regression_2var_amoclead%i_%s_Lead%02i.png" % (figpath,amoc_lead,coordinate,leads[l]),dpi=200,bbox_inches="tight")
 #%% Copied from viz_regional_predictability
-
 cmax    = 1
 fig,axs = plt.subplots(2,5,figsize=(14,6.5),
                        subplot_kw={'projection':proj},constrained_layout=True)
@@ -154,14 +157,10 @@ for v in range(2):
 cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.05)
 cb.set_label("AMOC Regression Coefficient ([Fluctuation per Sv of iAMOC])")
 
-plt.suptitle("Ensemble Average Predictor Maps regressed to AMOC Index (iAMOC), %i to %i" % (startyr, endyr))
-figname  = "%siAMOC_Predictor_LeadRegression_%ito%i_amooclead%i_detrend%i.png" % (figpath,startyr,endyr,amoc_lead,detrend,)
+plt.suptitle("Ensemble Average Predictor Maps regressed to AMOC Index (iAMOC in %s-space), %i to %i" % (coordinate,startyr, endyr))
+figname  = "%siAMOC_Predictor_LeadRegression_%ito%i_amooclead%i_detrend%i_%s.png" % (figpath,startyr,endyr,amoc_lead,detrend,coordinate)
 # savename = "%s.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn,pcount)
 plt.savefig(figname,dpi=150,bbox_inches="tight",transparent=True)
     
     
-
-        
-        
-        
 

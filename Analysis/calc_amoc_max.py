@@ -31,7 +31,7 @@ import proc
 startyr         = 1920                  # Starting year
 endyr           = 2005                  # Ending year
 ntime           = (endyr-startyr+1)*12  # Number of months
-coordinate      = "depth"             # "depth" or "density"
+coordinate      = "density"             # "depth" or "density"
 
 # Set path to the data 
 outpath         = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
@@ -116,6 +116,7 @@ for e in tqdm(range(nens)):
     
     # Get the indices
     idz,idlat        = proc.maxid_2d(moc.mean(0))
+    
     # Record desired data
     max_moc[e,:]     = moc[:,idz,idlat]
     max_zs[e]        = z[idz]
@@ -124,7 +125,7 @@ for e in tqdm(range(nens)):
     
     if debug:
         fig,ax = plot_moc(moc,lat,z,idz,idlat,coordinate)
-        plt.savefig("%sAMOC_Maximum_ens%02i.png" % (figpath,e),dpi=150)
+        plt.savefig("%sAMOC_Maximum_%s_ens%02i.png" % (figpath,coordinate,e),dpi=150)
         
 
 #%% Save File
@@ -183,6 +184,11 @@ ax.set_xlim([0,1032])
 plt.savefig("%sAMOC_Strength_LPFilter%03i.png" % (figpath,cutoff_mon),dpi =150)
 
 
+#%% Plot the mean AMOC streamfunction
+
+
+fig,ax = plot_moc(moc_means,lat,z,idz,idlat,coordinate)
+plt.savefig("%sAMOC_Maximum_%s_ensMEAN.png" % (figpath,coordinate),dpi=150)
 
 #%% 
 

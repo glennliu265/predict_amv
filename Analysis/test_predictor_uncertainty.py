@@ -84,7 +84,6 @@ checkgpu           = True
 
 # Load some variables for ease
 
-
 # Load predictor and labels, lat/lon, cut region
 target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
 data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
@@ -382,7 +381,3 @@ for c in range(3):
 ax.set_title("Total Accuracy for Predicting AMV (Predictor Uncertainty Test)")
 savename = "%sPredictor_Ablation_Test_ClassAcc_%s.png" % (figpath,expdir)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
-
-    
-
-

@@ -34,8 +34,8 @@ import amv_dataloader as dl
 
 # Adjustable settings
 leads          = np.arange(0,25,3)    # Time ahead (in years) to forecast AMV
-nsamples       = 300                  # Number of samples for each class
-ens            = 40
+nsamples       = 400                  # Number of samples for each class
+ens            = 42
 bbox           = pparams.bbox
 thresholds     = pparams.thresholds   # Thresholds (standard deviations, determines number of classes)   
 classes        = pparams.classes      # Name of classes
@@ -273,9 +273,8 @@ else:
     print("Persistsence baseline is not saved!")
 
 #%% Do functionized version and compare
+
 out_dict = am.compute_persistence_baseline(leads,y_class,nsamples=nsamples,percent_train=percent_train)
-
-
 shared_keys = [k for k in out_dict.keys() if k in outvars.keys()]
 #check       = [np.all(out_dict[k] == outvars[k]) for k in shared_keys]
 
