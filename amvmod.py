@@ -46,7 +46,7 @@ import copy
 
 #%% Metrics and Analysis ----
 
-def load_result(fn,debug=False):
+def load_result(fn,debug=False,load_dict=False):
     """
     Load results for each of the variable names (testacc, etc)
     input: fn (str), Name of the file
@@ -77,9 +77,11 @@ def load_result(fn,debug=False):
     output = []
     for v in vnames:
         output.append(ld[v])
+    if load_dict:
+        return ld,vnames
     return output,vnames
 
-def load_metrics_byrun(flist,leads,debug=False,runmax=None):
+def load_metrics_byrun(flist,leads,debug=False,runmax=None,no_val=True):
     """
     Given a list of metric files [flist] and leadtimes for each training run,
     Load the output and append.
@@ -101,20 +103,28 @@ def load_metrics_byrun(flist,leads,debug=False,runmax=None):
         # if len(output[4]) > len(leads):
         #     print("Selecting Specific Leads!")
         #     output = [out[leads] for out in output]
-        totalm.append(output[6])
-        classm.append(output[7])
-        ypredm.append(output[8])
-        ylabsm.append(output[9])
-        shuffidsm.append(output[10])
+        if no_val:
+            totalm.append(output[4])
+            classm.append(output[5])
+            ypredm.append(output[6])
+            ylabsm.append(output[7])
+            shuffidsm.append(output[8])
+        else:
+            totalm.append(output[6])
+            classm.append(output[7])
+            ypredm.append(output[8])
+            ylabsm.append(output[9])
+            shuffidsm.append(output[10])
         print("\tLoaded %s, %s, %s, and %s for run %02i" % (vnames[4],vnames[5],vnames[6],vnames[7],i))
     return totalm,classm,ypredm,ylabsm,shuffidsm,vnames
     
-def make_expdict(flists,leads):
+def make_expdict(flists,leads,no_val=True):
     """
     Given a nested list of metric files for the 
     training runs for each experiment, ([experiment][run]),
     Load out the data into arrays and create and experiment dictionary for analysis
     This data can later be unpacked by unpack_expdict
+    Set no_val=True to use old loading format, where validation data is not included. 
     
     Contents of expdict: 
         totalacc = [] # Accuracy for all classes combined [exp x run x leadtime]
@@ -141,7 +151,11 @@ def make_expdict(flists,leads):
     shuffids = [] # Indices                           [exp x run x leadtime x sample]
     for exp in range(len(flists)):
         # Load metrics for a given experiment
-        exp_metrics = load_metrics_byrun(flists[exp],leads,runmax=runmax)
+        if isinstance(no_val,list):
+            in_no_val = no_val[exp]
+        else:
+            in_no_val = no_val
+        exp_metrics = load_metrics_byrun(flists[exp],leads,runmax=runmax,no_val=in_no_val)
         
         # Load out and append variables
         totalm,classm,ypredm,ylabsm,shuffidsm,vnames = exp_metrics
@@ -2040,9 +2054,8 @@ def compute_LRP_composites(topN,in_acc,correct_id,relevances,absval=False,normal
     composite_rel /= topN
     return composite_rel
 
-
-
-def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,max_epochs,early_stop=False,verbose=True,
+def train_ResNet(model,loss_fn,optimizer,trainloader,testloader,valloader,
+                 max_epochs,early_stop=False,verbose=True,
                  reduceLR=False,LRpatience=3,checkgpu=True):
     """
     inputs:
@@ -2399,7 +2412,7 @@ def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
     return func_output
       
 def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
-                                 shuffle_trainsplit=False):
+                                 shuffle_trainsplit=False,use_train=False):
     
     '''
     lead               : prediction leadtimes
@@ -2407,6 +2420,7 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
     nsamples           : how much subsampling to do
     percent_train      : percentage of the data to use in training
     shuffle_trainsplit : Use a consistent sample (currently not supported...)
+    use_train          : Use training rather thn testing set
     '''
     # Preallocate
     total_acc       = [] # [lead]
@@ -2433,7 +2447,7 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
         if nsamples is not None:
             y_class_label,y_class_predictor,shuffidx = select_samples(nsamples,y,X)
             y_class_predictor                        = y_class_predictor.squeeze()
-        else:
+        else: # Otherwise, use max samples
             y_class_label     = y
             y_class_predictor = X.squeeze()
         
@@ -2444,6 +2458,7 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
                                                 percent_train=percent_train,
                                                 debug=True)
         
+        # Subset data if percent train is less than 100%
         if percent_train < 1:
             X_train,X_val     = X_subset
             y_train,y_val     = y_subset
@@ -2453,9 +2468,7 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
             else:
                 y_class_label     = y_val
                 y_class_predictor = X_val
-            
-
-            
+        
         # ----------------------
         # Make predictions
         # ----------------------
@@ -2497,8 +2510,8 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
         print("**********************************")
         # End Lead Loop
     out_dict = {
-        "total_acc"      : total_acc,
-        "acc_by_class"   : acc_by_class,
+        "total_acc"      : np.array(total_acc),
+        "acc_by_class"   : np.array(acc_by_class),
         "yvalpred"       : yvalpred,
         "yvallabels"     : yvallabels,
         "samples_counts" : samples_counts,
