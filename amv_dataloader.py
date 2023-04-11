@@ -83,7 +83,6 @@ def load_data_reanalysis(dataset_name,varname,bbox,datpath=None,detrend=False,re
         return data, ds.lat.values,ds.lon.values
     return data
 
-
 def load_target_reanalysis(dataset_name,region_name,datpath=None,detrend=False,):
     """
     Load target for a selected reanalysis dataset, preprocessed by [regrid_reanalysis_cesm1.py].
@@ -91,10 +90,48 @@ def load_target_reanalysis(dataset_name,region_name,datpath=None,detrend=False,)
     """
     if datpath is None:
         datpath    = "../../CESM_data/Reanalysis/regridded/"
-    fn  = "%s%s_label_%s_amv_index_detrend%i_regridCESM1.npy" % (datpath,dataset_name,region_name,detrend)
-    return np.load(fn)
+    fn     = "%s%s_label_%s_amv_index_detrend%i_regridCESM1.npy" % (datpath,dataset_name,region_name,detrend)
+    target = np.load(fn)
+    return target
     
+
+def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,region="NAT",quantile=False,
+                              detrend=False,limit_samples=True,nsamples=None,repeat_calc=1):
     
+    if datpath is None:
+        datpath = "../Data/Metrics/"
+    if dataset_name == "CESM1":
+        # Taken from viz_acc_byexp, generated using [Persistence_Classification_Baseline.py]
+        
+        
+        fn_base   = "leadtime_testing_ALL_AMVClass3_PersistenceBaseline_1before_nens40_maxlead24_"
+        fn_extend = "detrend%i_noise0_nsample400_limitsamples1_ALL_nsamples1.npz" % (detrend)
+        ldp       = np.load(datpath+fn_base+fn_extend,allow_pickle=True)
+        class_acc = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
+        total_acc = np.array(ldp['arr_0'][None][0]['total_acc'])
+        if len(total_acc) == 9:
+            persleads = np.arange(0,25,3)
+        else:
+            persleads = np.arange(0,26,1)
+    elif dataset_name == "HadISST":
+        # Based on output from [calculate_persistence_baseline.py]
+        savename      = "%spersistence_baseline_%s_%s_detrend%i_quantile%i_nsamples%s_repeat%i.npz" % (datpath,dataset_name,
+                                                                                                    region,detrend,
+                                                                                                    quantile,nsamples,repeat_calc)
+    
+        ldp = np.load(savename,allow_pickle=True)
+        class_acc = ldp['acc_by_class']
+        total_acc = ldp['total_acc']
+        persleads    = ldp['leads']
+    else:
+        print("Currently, only CESM1 and HadISST are supported")
+    if return_npfile:
+        return ldp
+    else:
+        return persleads,class_acc,total_acc
+        
+        
+        
 
 
 
