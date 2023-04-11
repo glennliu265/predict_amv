@@ -28,19 +28,19 @@ import cartopy.crs as ccrs
 from tqdm import tqdm
 import time
 
-
-
 #%% # User Edits
 
 # Indicate settings (Network Name)
 
 # Data and variable settings
-expdir    = "FNN4_128_detrend"
+expdir    = "FNN4_128_SingleVar_detrend"
 modelname  = "FNN4_128"
-varname    = "SSH" 
+varname    = "SSS" 
 leads      = np.arange(0,27,3)
 nleads     = len(leads)
 detrend    = True
+
+region_subset = ["NAT",]
 
 #datpath    = "../../CESM_data/"
 #figpath    = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221209/"
@@ -151,7 +151,7 @@ if detrend:
     regions = ("NAT",)
 else:
     regions = pparams.regions
-    bboxes  = [bboxes[0],]
+    bboxes  = pparams.bboxes #[bboxes[0],]
 
 classes = pparams.classes
 proj    = pparams.proj
@@ -169,9 +169,6 @@ nn_param_dict = pparams.nn_param_dict
 #%% Load Data and Labels
 # ----------------------
 st = time.time()
-
-
-
 
 # Load in input and labels 
 ds   = xr.open_dataset(datpath+"CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc" % (varname,detrend,regrid) )
@@ -281,7 +278,8 @@ labels_all       = {} # [region][lead][samplesize]
 
 for r,region in enumerate(regions): # Training data does not change for region
     
-
+    # if region == "SPG":
+    #     continue
     # List for each leadtime
     relevances_lead   = []
     factivations_lead = []
@@ -480,7 +478,7 @@ c                = 0
 normalize_sample = 2# 0=None, 1=samplewise, 2=after composite
 
 absval           = False
-cmax             = 1
+cmax             = 0.50
 
 for l,lead in enumerate(leads):
     
@@ -542,7 +540,7 @@ c                = 0  # Class
 topN             = 25 # Top 10 models
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
-cmax             = 1
+cmax             = 0.50
 # 
 
 pcount = 0
@@ -596,8 +594,6 @@ cb.set_label("Normalized Relevance")
 plt.suptitle("Mean LRP Maps for predicting %s using %s, %s, \n Top %02i Models (%s)" % (classes[c],varname,modelname,topN,ge_label))
 savename = "%sRegional_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_AGU%02i.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn,pcount)
 plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
-
-
 
 #%% Same as above but reduce the number of leadtimes
 
@@ -700,16 +696,29 @@ plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
 
 #%% For a given region, do composites by lead for positive and negative AMV
 
+# TZ Focus
+focus_region     = None#"TZ" # Set to None to plot the whole basin
+focus_bbox       = [-80,0,30,58]
+focus_figsize    = (28,3.5)
+
+if focus_region is None:
+    bbox_plot        = [-80,0,0,65]
+    figsize          = (16,4)
+else:
+    bbox_plot    = focus_bbox
+    figsize      = focus_figsize
+    
 
 topN             = 25 # Top 10 models
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
-cmax             = 1
+cmax             = 0.5
 region           = "NAT"
-r = regions.index(region)
-clvl             = np.arange(-2,2.4,0.4)
+r                = regions.index(region)
+clvl             = np.arange(-2.2,2.2,0.2)
 
-fig,axs = plt.subplots(2,9,figsize=(16,4),
+
+fig,axs = plt.subplots(2,9,figsize=figsize,
                        subplot_kw={'projection':proj},constrained_layout=True)
 
 for row,c in enumerate([0,2]):
@@ -766,13 +775,16 @@ for row,c in enumerate([0,2]):
         if i == 0:
             ax.text(-0.05, 0.55, classes[c], va='bottom', ha='center',rotation='vertical',
                     rotation_mode='anchor',transform=ax.transAxes)
-        ax.set_extent(bbox)
+        ax.set_extent(bbox_plot)
         ax.coastlines()
-cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.01)
+cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.015,pad=0.01)
 
 cb.set_label("Normalized Relevance")
-plt.suptitle("Composite Relevance for predicting using %s, %s, \n Top %02i Models (%s)" % (varname,modelname,topN,ge_label))
-savename = "%sComposite_LRP_%s_bylead_%s_top%02i_normalize%i_abs%i_%s.png" % (figpath,region,varname,topN,normalize_sample,absval,ge_label_fn)
+plt.suptitle("Composite Relevance for Predicting AMV using %s, %s, \n Top %02i Models (%s)" % (varname,modelname,topN,ge_label))
+savename = "%sComposite_LRP_%s_bylead_%s_top%02i_normalize%i_abs%i_%s_detrend%i.png" % (figpath,region,varname,topN,normalize_sample,absval,ge_label_fn,detrend)
+
+if focus_region is not None:
+    savename = proc.addstrtoext(savename,"_focus%s" % focus_region,)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
