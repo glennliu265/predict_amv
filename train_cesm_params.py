@@ -354,10 +354,8 @@ expname= "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs"
 expdict                  = train_params_all["FNN4_128_SingleVar_debug1_shuffle_all"].copy()
 
 expdict['early_stop']    = 3#10                   # Number of epochs where validation loss increases before stopping
-expdict['max_epochs']    = 20#100                  # Maximum # of Epochs to train for
-expdict['batch_size']    = 32                   # Pairs of predictions
-
-
+expdict['max_epochs']    = 20#100                 # Maximum # of Epochs to train for
+expdict['batch_size']    = 32                     # Pairs of predictions
 
 train_params_all[expname] = expdict.copy()
 
@@ -375,6 +373,20 @@ expdict['max_epochs']    = 20#100                  # Maximum # of Epochs to trai
 expdict['batch_size']    = 16                   # Pairs of predictions
 
 
+
+train_params_all[expname] = expdict.copy()
+
+
+#%% Sme as above, but remove validation set
+
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                  = "FNN4_128_SingleVar_debug1_shuffle_all_no_val"
+
+# Copy dictionary from above
+expdict                  = train_params_all["FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs"].copy()
+
+expdict['percent_val']   = 0
 
 train_params_all[expname] = expdict.copy()
 
