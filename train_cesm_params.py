@@ -390,6 +390,19 @@ expdict['percent_val']   = 0
 
 train_params_all[expname] = expdict.copy()
 
+#%% Sme as above, but increase training size
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                  = "FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020"
+
+# Copy dictionary from above
+expdict                  = train_params_all["FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs"].copy()
+
+expdict['percent_train']   = 0.80
+expdict['percent_val']     = 0
+
+train_params_all[expname] = expdict.copy()
+
 
 
 """
