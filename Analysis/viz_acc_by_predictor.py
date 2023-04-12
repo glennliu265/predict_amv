@@ -67,8 +67,9 @@ else:
     plt.style.use('default')
     dfcol = "k"
 
-
 # Other Toggles
+
+debug = True
 #%% Load variables from main parameter file
 
 # Note; Need to set script into current working directory (need to think of a better way)
@@ -91,40 +92,6 @@ varnamesplot    = pparams.varnamesplot
 varcolors       = pparams.varcolors
 varmarker       = pparams.varmarker
 
-#%% Functions (Delete eventually if function form works...)
-
-# def load_result(fn,debug=False):
-#     """
-#     Load results for each of the variable names
-    
-#     input: fn (str), Name of the file
-#     """
-    
-#     ld = np.load(fn,allow_pickle=True)
-#     vnames = ld.files
-#     if debug:
-#         print(vnames)
-#     output = []
-#     for v in vnames:
-#         output.append(ld[v])
-#     return output,vnames
-
-# def retrieve_lead(shuffidx,lead,nens,tstep):
-    
-#     orishape = [nens,tstep-lead]
-#     outidx   = np.unravel_index(shuffidx,orishape)
-#     return outidx
-
-# def unpack_expdict(expdict,dictkeys=None):
-#     if dictkeys is None:
-#         dictkeys = ("totalacc","classacc","ypred","ylabs","shuffids")
-#     unpacked = [expdict[key] for key in expdict]
-#     return unpacked
-
-# def pack_expdict(outputs):
-#     
-#     expdict = {dictkeys[o]: outputs[o] for (dictkeys[o],outputs[o]) in range(len(outputs))}
-#     return expdict
 
 #%% Load the data (with functions)
 import amvmod as am
@@ -158,75 +125,7 @@ for expdir in expdirs:
     alloutputs.append(expdict)
     e += 1
     
-#%% Load the data (Delete eventually if function form works...)
-# Read in results
 
-# Preallocate. Some quick definitions:
-# model    : Network type [simplecnn,resnet50,resnet50(retrained)]
-# run      : Run Number (1 to 10)
-# leadtime : Leadtime in years, 0,24 in 3-year steps
-
-
-# alloutputs = []
-# for expdir in expdirs:
-#     totalacc = [] # Accuracy for all classes combined [model x run x leadtime]
-#     classacc = [] # Accuracy by class [model x run x leadtime x class]
-#     ypred    = [] # Predictions [model x run x leadtime x sample]
-#     ylabs    = [] # Labels [model x run x leadtime x sample]
-#     shuffids = [] # Indices [model x run x leadtime x sample]
-#     for v in range(len(varnames)):
-        
-#         flist = glob.glob("%s%s/Metrics/leadtime_testing_%s*ALL.npz"%(datpath,expdir,varnames[v]))
-#         flist.sort()
-#         nruns = len(flist)
-#         print('Found %i files for %s'%(nruns,varnames[v]))
-        
-#         # Load Result for each model
-#         totalm    = []
-#         classm    = []
-#         ypredm    = []
-#         ylabsm    = []
-#         shuffidsm = []
-#         for i in range(nruns): # Load for 10 files
-            
-#             output,vnames = load_result(flist[i],debug=False)
-            
-            
-#             if len(output[4]) > len(leads):
-#                 print("Selecting Specific Leads!")
-#                 output = [out[leads] for out in output]
-                
-    
-#             totalm.append(output[4])
-#             classm.append(output[5])
-#             ypredm.append(output[6])
-#             ylabsm.append(output[7])
-#             shuffidsm.append(output[8])
-#             print("Loaded %s, %s, %s, and %s for run %i, predictor %s" % (vnames[4],vnames[5],vnames[6],vnames[7],i,varnames[v]))
-        
-#         #print(totalm)
-#         # Append to array
-#         totalacc.append(totalm)
-#         classacc.append(classm)
-#         ypred.append(ypredm)
-#         ylabs.append(ylabsm)
-#         shuffids.append(shuffidsm)
-    
-#     # Turn results into arrays
-#     totalacc = np.array(totalacc) # [predictor x run x lead]
-#     classacc = np.array(classacc) # [predictor x run x lead x class]
-#     ypred    = np.array(ypred)    # [predictor x run x lead x sample] # Last array (tercile based) is not an even sample size...
-#     ylabs    = np.array(ylabs)    # [predictor x run x lead x sample]
-#     shuffids = np.array(shuffids) # [predictor x run x lead x sample]
-    
-#     # Add to dictionary
-#     outputs = (totalacc,classacc,ypred,ylabs,shuffids)
-#     expdict = {}
-#     dictkeys = ("totalacc","classacc","ypred","ylabs","shuffids")
-#     for k,key in enumerate(dictkeys):
-#         expdict[key] = outputs[k]
-#     alloutputs.append(expdict)
-#     print(varnames)
 
 #%% Load persistence baseline
 
@@ -247,8 +146,8 @@ persacctotal = []
 persleads   = []
 for detrend in [False,True]:
     pers_leads,pers_class_acc,pers_total_acc = dl.load_persistence_baseline("CESM1",
-                                                                            return_npfile=False,region="NAT",quantile=quantile,
-                                                                            detrend=False,limit_samples=False,nsamples=400,repeat_calc=1)
+                                                                            return_npfile=False,region=None,quantile=quantile,
+                                                                            detrend=detrend,limit_samples=False,nsamples=nsamples,repeat_calc=1)
 
     persaccclass.append(pers_class_acc)
     persacctotal.append(pers_total_acc)
@@ -693,6 +592,69 @@ for iplot,ex in enumerate(expnums):
 plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer.png"% (figpath,detrend,plotmax,expdirs[expnum]),
             dpi=200,bbox_inches="tight",transparent=False)
 
+
+# --------------------------------------------------------------------------------
+# %% Do comparison plot of CNN vs FNN (Outline Ver, copied from AGU version below)
+# --------------------------------------------------------------------------------
+
+v            = 0 # Choose the first variable
+justbaseline = False
+plotconf     = 0.05
+detrend_plot = False
+plot_exs     = [1,2]
+fsz   = 14
+fszt  = 12
+fszb  = 16
+
+for v in range(nvar):
+    fig,ax = plt.subplots(1,1,figsize=(8,5.5),sharex=True,constrained_layout=True)
+    
+    # Plotting for each experiment
+    if justbaseline is False:
+        for ex,expid in enumerate(plot_exs):
+            totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[expid])
+            
+            plotacc   = np.array(totalacc)[v,:,:]
+            mu        = np.array(plotacc).mean(0)
+            sigma     = np.array(plotacc).std(0)
+            
+            
+            sortacc  = np.sort(plotacc,0)
+            idpct    = sortacc.shape[0] * plotconf
+            lobnd   = np.floor(idpct).astype(int)
+            hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
+            
+            
+            ax.plot(leads,mu,color=expcolors[ex],marker="o",alpha=1.0,lw=2.5,label=expnames[ex] + " (mean)",zorder=9)
+            if plotconf:
+                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.3,color=expcolors[ex],zorder=1,label=expnames[ex]+" (95% conf.)")
+            else:
+                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=expcolors[ex],zorder=1)
+    
+    
+    ax.plot(leads,persacctotal[detrend_plot],color=dfcol,label="Persistence",ls="dashed")
+    ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
+    ax.set_xlim([0,24])
+    ax.set_xticks(leads,fontsize=fszt)
+    ax.set_ylim([.25,1])
+    ax.set_yticks(np.arange(.30,1.1,.1))
+    ax.set_yticklabels((np.arange(.30,1.1,.1)*100).astype(int),fontsize=fszt)
+    ax.set_ylabel("Accuracy (%)",fontsize=fsz)
+    ax.set_xlabel("Prediction Lead Time (Years)",fontsize=fsz)
+    ax.grid(True,ls='dotted')
+    ax.legend(fontsize=fsz)
+    ax.minorticks_on()
+    ax.set_title("Total Accuracy, Predictor: %s" % (varnames[v]),fontsize=fszb)
+    
+    if justbaseline:
+        savename = "%sTotalAcc_CNNvFNN_conf%03i_baselineonly.png" % (figpath,plotconf*100)
+    else:
+        savename = "%sTotalAcc_CNNvFNN_%s_conf%03i.png" % (figpath,varnames[v],plotconf*100)
+    
+    print(savename)
+    plt.savefig(savename,dpi=200,bbox_inches='tight',transparent=False)
+    #ax.set_title("")
+    
 
 
 #%% ---------------------------------------------------------------------------
