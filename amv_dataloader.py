@@ -95,20 +95,26 @@ def load_target_reanalysis(dataset_name,region_name,datpath=None,detrend=False,)
     return target
     
 
-def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,region="NAT",quantile=False,
-                              detrend=False,limit_samples=True,nsamples=None,repeat_calc=1):
+def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,region=None,quantile=False,
+                              detrend=False,limit_samples=True,nsamples=None,repeat_calc=1,ens=42):
     
     if datpath is None:
         datpath = "../Data/Metrics/"
     if dataset_name == "CESM1":
         # Taken from viz_acc_byexp, generated using [Persistence_Classification_Baseline.py]
+        datpath = "../../CESM_data/Metrics/"
         
+        #fn_base   = "leadtime_testing_ALL_AMVClass3_PersistenceBaseline_1before_nens40_maxlead24_"
+        #fn_extend = "detrend%i_noise0_nsample400_limitsamples1_ALL_nsamples1.npz" % (detrend)
+        #ldp       = np.load(datpath+fn_base+fn_extend,allow_pickle=True)
         
-        fn_base   = "leadtime_testing_ALL_AMVClass3_PersistenceBaseline_1before_nens40_maxlead24_"
-        fn_extend = "detrend%i_noise0_nsample400_limitsamples1_ALL_nsamples1.npz" % (detrend)
+        fn_base   = "Classification_Persistence_Baseline_ens%02i_RegionNone_maxlead24_step3_" % ens
+        fn_extend = "nsamples%s_detrend%i_100pctdata.npz" % (nsamples,detrend)
+        
         ldp       = np.load(datpath+fn_base+fn_extend,allow_pickle=True)
         class_acc = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
         total_acc = np.array(ldp['arr_0'][None][0]['total_acc'])
+        
         if len(total_acc) == 9:
             persleads = np.arange(0,25,3)
         else:
@@ -130,7 +136,9 @@ def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,regi
     else:
         return persleads,class_acc,total_acc
         
-        
+    
+    
+
         
 
 
