@@ -2425,7 +2425,7 @@ def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
     return func_output
       
 def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
-                                 shuffle_trainsplit=False,use_train=False):
+                                 shuffle_trainsplit=False,use_train=False,debug=True):
     
     '''
     lead               : prediction leadtimes
@@ -2482,6 +2482,10 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
                 y_class_label     = y_val
                 y_class_predictor = X_val
         
+        if debug:
+            _,_=count_samples(nsamples,y_class_label)
+            
+        
         # ----------------------
         # Make predictions
         # ----------------------
@@ -2519,7 +2523,7 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
         print("\t Total Accuracy is %.3f " % (totalacc*100) + "%")
         print("\t Accuracy by Class is...")
         for i in range(3):
-            print("\t\t Class %i : %.3f " % (classval[i],accbyclass[i]*100) + "%")
+            print("\t\t Class %i : %.3f" % (classval[i],accbyclass[i]*100) + "% " + "(%i/%i)" % (correct[i],total[i]))
         print("**********************************")
         # End Lead Loop
     out_dict = {
