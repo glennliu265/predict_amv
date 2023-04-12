@@ -16,9 +16,13 @@ import matplotlib.pyplot as plt
 import os
 import glob
 import sys
+
+#%%
 # Load my own custom modules
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import viz,proc
+
+import amv_dataloader as dl
 
 #%% User Edits
 
@@ -28,7 +32,7 @@ import viz,proc
 # varmarker    = ("o","d","x","v","^","*")
 
 detrend      = True
-expdirs      = ("FNN4_128_SingleVar_debug1_shuffle_all","FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
+expdirs      = ("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
 expdirs_long = ("FNN (Detrended)", "FNN (Undetrended)", "CNN (Undetrended)")
 skipvars     = ("UOHC","UOSC",)#
 #threscolors = ("r","gray","cornflowerblue")
@@ -235,6 +239,33 @@ persaccclass = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
 persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
 
 
+#%% Updated load of persistence baseline
+
+
+persaccclass = []
+persacctotal = []
+persleads   = []
+for detrend in [False,True]:
+    pers_leads,pers_class_acc,pers_total_acc = dl.load_persistence_baseline("CESM1",
+                                                                            return_npfile=False,region="NAT",quantile=quantile,
+                                                                            detrend=False,limit_samples=False,nsamples=400,repeat_calc=1)
+
+    persaccclass.append(pers_class_acc)
+    persacctotal.append(pers_total_acc)
+    persleads.append(pers_leads)
+    
+    
+# Plot baselines
+fig,axs = plt.subplots(1,3)
+for c in range(3):
+    print(c)
+    ax = axs.flatten()[c]
+    
+    for i in range(2):
+        ax.plot(persleads[i],persaccclass[i][:,c],label="Detrend %i" % i)
+    ax.legend()
+               
+               
 #%% Load the case for all predictors
 
 # expdir   = "FNN4_128_ALL"
@@ -364,7 +395,7 @@ for c in range(3):
             else:
                 ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors[i],zorder=1)
         
-    ax.plot(leads,persaccclass[:,c],color=dfcol,label="Persistence",ls="dashed")
+    ax.plot(leads,persaccclass[detrend][:,c],color=dfcol,label="Persistence",ls="dashed")
     ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
     
         # Add max/min predictability dots (removed this b/c it looks messy)
@@ -405,7 +436,7 @@ def init_accplot(c,figsize=(6,4),labelx=True,labely=True):
     ax.set_yticks(np.arange(0,1.25,.25))
     ax.grid(True,ls='dotted')
     
-    ax.plot(leads,persaccclass[:,c],color='w',label="Persistence",lw=lwall,ls="solid")
+    ax.plot(leads,persaccclass[detrend][:,c],color='w',label="Persistence",lw=lwall,ls="solid")
     ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol,label="Random Chance")
     
     # if labely:
@@ -503,7 +534,6 @@ for c in [1,2]:
     pcounter += 1
 
 
-
 # fig,axs = plt.subplots(1,3,figsize=(18,4))
 
 # for c in range(3):
@@ -557,8 +587,9 @@ for c in [1,2]:
 #             dpi=200,bbox_inches="tight",transparent=True)
 
 
+# ----------------------------------------------------
 #%% Remake the plots, but for the GRL Paper Outline...
-
+# ----------------------------------------------------
 
 darkmode = False
 plt.style.use('default')
@@ -570,6 +601,7 @@ else:
 # Toggles
 plotmodels = [0,1,2,4]
 expnums    = [1,0]
+detrends   = [0,1]
 add_conf   = True
 plotconf   = 0.68
 plotmax    = False # Set to True to plot maximum
@@ -577,7 +609,7 @@ alpha      = 0.25
 
 # Initialize figures
 fig,axs =  plt.subplots(2,3,constrained_layout=True,figsize=(18,8))
-
+it = 0
 for iplot,ex in enumerate(expnums):
     
     # Get the axes row
@@ -586,15 +618,20 @@ for iplot,ex in enumerate(expnums):
     # Load the data
     totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
     
+    # Indicate detrending
+    exp_dt = detrends[ex]
+    
     for c in range(3):
         
-        # Initialize plot
         ax = axs_row[c]
+        
+        # Initialize plot
+        viz.label_sp(it,ax=ax,fig=fig,fontsize=16,alpha=0.2,x=0.02)
         
         ax.set_xlim([0,24])
         ax.set_xticks(leads)
         ax.set_ylim([0,1])
-        ax.set_yticks(np.arange(0,1.25,.25))
+        ax.set_yticks(np.arange(0,1.2,.2))
         ax.grid(True,ls='dotted')
         ax.minorticks_on()
         
@@ -625,7 +662,7 @@ for iplot,ex in enumerate(expnums):
                 else:
                     ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors[i],zorder=1)
             
-        ax.plot(leads,persaccclass[:,c],color=dfcol,label="Persistence",ls="dashed")
+        ax.plot(leads,persaccclass[exp_dt][:,c],color=dfcol,label="Persistence",ls="dashed")
         ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
         
             # Add max/min predictability dots (removed this b/c it looks messy)
@@ -644,16 +681,17 @@ for iplot,ex in enumerate(expnums):
             #             rotation_mode='anchor',transform=ax.transAxes)
 
 
-            ax.text(-0.18, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
-                    rotation_mode='anchor',transform=ax.transAxes)
+            ax.text(-0.13, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=20)
         if (c == 1):
             if iplot == 0:
                 ax.legend(ncol=2,fontsize=10)
             elif iplot == 1:
                 ax.set_xlabel("Prediction Lead (Years)")
+        it += 1
 
 plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer.png"% (figpath,detrend,plotmax,expdirs[expnum]),
-            dpi=200,bbox_inches="tight",transparent=True)
+            dpi=200,bbox_inches="tight",transparent=False)
 
 
 
