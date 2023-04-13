@@ -1434,6 +1434,10 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True,):
     classes                  = np.unique(y_class)
     nclasses                 = len(classes)
     
+    use_all_samples = False
+    if nsamples is "ALL":
+        print("Using all samples!")
+        use_all_samples = True
 
     # Sort input by classes
     label_by_class  = []
@@ -1466,7 +1470,10 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True,):
         else:
             if verbose:
                 print("Warning: data will not be shuffled prior to class subsetting!")
-        shuffidx = shuffidx[0:nsamples]
+        if use_all_samples is False:
+            shuffidx = shuffidx[0:nsamples] # Restrict to sample
+        else:
+            nsamples = classcount
         
         # Select Shuffled Indices
         y_class_sel[i*nsamples:(i+1)*nsamples,:] = sel_label[shuffidx,:]
@@ -1474,9 +1481,13 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True,):
         idx_sel[i*nsamples:(i+1)*nsamples]       = sel_idx[shuffidx]
     
     # Shuffle samples again before output (so they arent organized by class)
-    shuffidx = np.arange(0,nsamples*nclasses,1)
+    if use_all_samples:
+        total_samples = allsamples        # Use all samples, as recorded earlier
+    else:
+        total_samples = nsamples*nclasses # Only use selected samples
+    shuffidx = np.arange(0,total_samples,1)
     np.random.shuffle(shuffidx) # Shuffle classes prior to output
-
+    
     return y_class_sel[shuffidx,...],X_sel[shuffidx,...],idx_sel[shuffidx,...]
 #%% Convenience Functions
 
@@ -2463,7 +2474,6 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
         else: # Otherwise, use max samples
             y_class_label     = y
             y_class_predictor = X.squeeze()
-        
         # ----------------
         # Train/Test Split
         # ----------------
