@@ -4,7 +4,7 @@
 
 LRP by Predictor
 
-Visualize LRP Maps by Predictor. Made for the GRL Outline.
+Visualize LRP Maps by Predictor for a given experiment. Made for the GRL Outline.
 
 Copied [viz_reigonal_predictability]
 
@@ -29,26 +29,13 @@ import cartopy.crs as ccrs
 
 from tqdm import tqdm
 import time
+import os
 
-#%% # User Edits
+from torch.utils.data import DataLoader, TensorDataset,Dataset
 
-# Indicate settings (Network Name)
+#%% Load custom packages
 
-# Data and variable settings
-expdir    = "FNN4_128_SingleVar_detrend"
-modelname  = "FNN4_128"
-varname    = "SSS" 
-leads      = np.arange(0,27,3)
-nleads     = len(leads)
-detrend    = True
-
-region_subset = ["NAT",]
-
-#datpath    = "../../CESM_data/"
-#figpath    = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20221209/"
-#datpath + expdir + "/Figures/"
-
-# lrp methods
+# LRP Methods
 sys.path.append("/Users/gliu/Downloads/02_Research/03_Code/github/Pytorch-LRP-master/")
 from innvestigator import InnvestigateModel
 
@@ -56,109 +43,29 @@ from innvestigator import InnvestigateModel
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/scrap/")
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/predict_amv/")
 import LRPutils as utils
-import amvmod as am
-
-
 
 # Load visualization module
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import viz,proc
 
-# LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
-gamma          = 0.1
-epsilon        = 0.1
-innexp         = 2
-innmethod      ='b-rule'
-innbeta        = 0.1
-# Labeling for plots and output files
-ge_label     = "exp=%i, method=%s, $beta$=%.02f" % (innexp,innmethod,innbeta)
-ge_label_fn  = "innexp%i_%s_innbeta%.02f" % (innexp,innmethod,innbeta)
-
-# Data Settings
-regrid         = None
-quantile       = False
-ens            = 40
-tstep          = 86
-percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-#detrend        = 0
-bbox           = [-80,0,0,65]
-thresholds     = [-1,1]
-outsize        = len(thresholds) + 1
-
-# # Region Settings
-# regions     = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")
-# rcolors     = ("k","b",'r',"orange")
-# bbox_SP     = [-60,-15,40,65]
-# bbox_ST     = [-80,-10,20,40]
-# bbox_TR     = [-75,-15,10,20]
-# bbox_NA     = [-80,0 ,0,65]
-# bbox_NA_new = [-80,0,10,65]
-# bbox_ST_w   = [-80,-40,20,40]
-# bbox_ST_e   = [-40,-10,20,40]
-# bboxes      = (bbox_NA,bbox_SP,bbox_ST,bbox_TR,) # Bounding Boxes
-
-if modelname == "FNN2":
-    nlayers     = 2
-    nunits      = [20,20]
-    activations = [nn.ReLU(),nn.ReLU()]
-    dropout     = 0.5
-elif "FNN4_120" in modelname:
-    nlayers     = 4
-    nunits      = [120,120,120,120]
-    activations = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
-    dropout     = 0.5
-elif "FNN4_128" in modelname:
-    nlayers     = 4
-    nunits      = [128,128,128,128]
-    activations = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
-    dropout     = 0.5
-elif modelname == "simplecnn":
-    cnndropout     = True
-    num_classes    = 3 # 3 AMV States
-    num_inchannels = 1 # Single Predictor
-if "nodropout" in modelname:
-    dropout = 0
-    
-# Plotting Settings
-#classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
-#proj      = ccrs.PlateCarree()
-
-# Dark mode settings
-darkmode  = False
-if darkmode:
-    plt.style.use('dark_background')
-    dfcol = "w"
-else:
-    plt.style.use('default')
-    dfcol = "k"
-    
-#%% Convenience functions
-
-def get_prediction(factivations):
-    # factivations  [model x sample x class]
-    return np.argmax(factivations,2)
-
-#%% Load parameters to workspace
-
-# Note; Need to set script into current working directory (need to think of a better way)
-import os
+# Load parameter files
 cwd = os.getcwd()
-
 sys.path.append(cwd+"/../")
 import predict_amv_params as pparams
+import amvmod as am
+import amv_dataloader as dl
+import train_cesm_params as train_cesm_params
+import pamv_visualizer as pviz
 
 
+# Load relevant variables from parameter files
 bboxes  = pparams.bboxes
-if detrend:
-    regions = ("NAT",)
-else:
-    regions = pparams.regions
-    bboxes  = pparams.bboxes #[bboxes[0],]
+regions = pparams.regions
+rcolors = pparams.rcolors
 
 classes = pparams.classes
 proj    = pparams.proj
-
-rcolors = pparams.rcolors
+bbox    = pparams.bbox
 
 datpath = pparams.datpath
 figpath = pparams.figpath
@@ -166,186 +73,307 @@ proc.makedir(figpath)
 
 # Load model_dict
 nn_param_dict = pparams.nn_param_dict
-        
-# ----------------------
-#%% Load Data and Labels
-# ----------------------
-st = time.time()
 
-# Load in input and labels 
-ds   = xr.open_dataset(datpath+"CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc" % (varname,detrend,regrid) )
-ds   = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
-data = ds[varname].values[None,...]
-target = np.load(datpath+ "CESM_label_amv_index_detrend%i_regrid%s.npy" % (detrend,regrid))
+#%% # User Edits
 
+# Indicate settings (Network Name)
 
-# Load in SST just for reference
-ds   = xr.open_dataset(datpath+"CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc" % ("SST",detrend,regrid) )
-ds   = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
-datasst = ds["SST"].values[None,...]
+# Data and variable settings
+varnames       = ("SST","SSH","SSS","PSL")
+varnames_plot  = ("SST","SSH","SSS","SLP")
+expdir         = "FNN4_128_SingleVar"
+eparams        = train_cesm_params.train_params_all[expdir]
 
+leads          = np.arange(0,25,3)
+leads_sel      = [0,6,12,18,24] # Subset the leads for processing
 
-region_targets = []
-region_targets.append(target)
-# Load Targets for other regions
-for region in regions[1:]:
-    index = np.load(datpath+"CESM_label_%s_amv_index_detrend%i_regrid%s.npy" % (region,detrend,regrid))
-    region_targets.append(index)
+no_val         = True # Set to True for old training set, which had no validation
+nmodels        = 50 # Specify manually how much to do in the analysis
 
-# Apply Land Mask
-# Apply a landmask based on SST, set all NaN points to zero
-msk = xr.open_dataset(datpath+'CESM1LE_SST_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (detrend,regrid))
-msk = msk.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
-msk = msk["SST"].values
-msk[~np.isnan(msk)] = 1
-msk[np.isnan(msk)] = 0
-# Limit to input to ensemble member and apply mask
-data = data[:,0:ens,...] * msk[None,0:ens,...]
-data[np.isnan(data)] = 0
+#modelname     = "FNN4_128"
+#leads         = np.arange(0,25,3)
+#nleads        = len(leads)
+#detrend       = False
+#region_subset = ["NAT",]
 
-nchannels,nens,ntime,nlat,nlon = data.shape # Ignore year and ens for now...
-inputsize               = nchannels*nlat*nlon # Compute inputsize to remake FNN
+# LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
+gamma          = 0.1
+epsilon        = 0.1
+innexp         = 2
+innmethod      ='b-rule'
+innbeta        = 0.1
+
+# Labeling for plots and output files
+ge_label       = "exp=%i, method=%s, $beta$=%.02f" % (innexp,innmethod,innbeta)
+ge_label_fn    = "innexp%i_%s_innbeta%.02f" % (innexp,innmethod,innbeta)
 
 
-# Get indices based on training size
+# Other Toggles
+darkmode  = False
+debug     = True
 
-# Load Lat/Lon
-lat = ds.lat.values
-lon = ds.lon.values
-print(lon.shape),print(lat.shape)
+# Data Settings
+#regrid         = None
+#quantile       = False
+#ens            = 40
+#tstep          = 86
+#percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
+#detrend        = 0
+#bbox           = [-80,0,0,65]
+#thresholds     = [-1,1]
+#outsize        = len(thresholds) + 1
 
-
-# ---------------------
-#%% Get Model Weights
-# ---------------------
-
-modlist_all = {}
-modweights_all = {}
-for region in regions:
+# # Region Settings
     
-    # Get experiment Directory
-    if region == "NAT":
-        if detrend:
-            expdir = "%s_detrend" % modelname
-        else:
-            expdir = "%s_SingleVar" % modelname
-    else:
-        expdir = "FNN4_128_singlevar_regional/%s_%s" % (modelname,region)
+# Plotting Settings
+#classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
+#proj      = ccrs.PlateCarree()
+
+# Dark mode settings
+
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+else:
+    plt.style.use('default')
+    dfcol = "k"
     
-    # Pull model list
-    modlist_lead = []
-    modweights_lead = []
-    for lead in leads:
-        # Get Model Names
-        modpath = "%s%s/Models/" % (datpath,expdir)
-        modlist = glob.glob("%s*%s*.pt" % (modpath,varname))
-        modlist.sort()
-        print("Found %i models for %s, Lead %i" % (len(modlist),region,lead))
-        
-        # Cull the list (only keep files with the specified leadtime)
-        str1 = "_lead%i_" % (lead)   # ex. "..._lead2_..."
-        str2 = "_lead%02i_" % (lead) # ex. "..._lead02_..."
-        if np.any([str2 in f for f in modlist]):
-            modlist = [fname for fname in modlist if str2 in fname]
-        else:
-            modlist = [fname for fname in modlist if str1 in fname]
-        nmodels = len(modlist)
-        print("\t %i models remain for lead %i" % (len(modlist),lead))
-        
-        modlist_lead.append(modlist)
-        
-        modweights = []
-        for m in range(nmodels):
-            mod    = torch.load(modlist[m])
-            modweights.append(mod)
-        
-        modweights_lead.append(modweights)
-        
-    modlist_all[region] = modlist_lead
-    modweights_all[region] = modweights_lead
+    
+#%% Load the data and target (copied from [test_predictor_uncertainty.py] on 2023.04.12)
 
-#%% Obtain validation LRP Maps for each Region
+# Load predictor and labels, lat/lon, cut region
+target                          = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
+data_all,lat,lon                = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
 
-nmodels          = 50 # Specify manually how much to do in the analysis
+# Apply Preprocessing
+target_all                      = target[:eparams['ens'],:]
+data_all                        = data_all[:,:eparams['ens'],:,:,:]
+nchannels,nens,ntime,nlat,nlon  = data_all.shape
+
+
+# Make land mask
+data_mask = np.sum(data_all,(0,1,2))
+data_mask[~np.isnan(data_mask)] = 1
+if debug:
+    plt.pcolormesh(data_mask),plt.colorbar()
+
+
+# Remove all NaN points
+data_all[np.isnan(data_all)]     = 0
+
+# Get Sizes
+nchannels                       = 1 # Change to 1, since we are just processing 1 variable at a time
+inputsize                       = nchannels*nlat*nlon    # Compute inputsize to remake FNN
+nclasses                        = len(eparams['thresholds']) + 1
+nlead                           = len(leads)
+
+
+# Create Classes
+std1         = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
+if eparams['quantile'] is False:
+    thresholds_in = [-std1,std1]
+else:
+    thresholds_in = eparams['thresholds']
+
+# Classify AMV Events
+target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
+target_class = target_class.reshape(target.shape)
+
+
+#%% Load model outputs and weights
+
+modweights_byvar = [] # [variable][lead][runid][?]
+modlist_byvar    = [] 
+flists           = [] 
+
+for v,varname in enumerate(varnames):
+    
+    # Get the model weights
+    modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
+    modweights_byvar.append(modweights_lead)
+    modlist_byvar.append(modlist_lead)
+    
+    
+    # Get list of metric files
+    search = "%s%s/Metrics/%s" % (datpath,expdir,"*%s*" % varname)
+    flist  = glob.glob(search)
+    flist  = [f for f in flist if "of" not in f]
+    flist.sort()
+    flists.append(flist)
+    print("Found %i files for %s using searchstring: %s" % (len(flist),varname,search))
+    
+# Get the shuffled indices
+expdict = am.make_expdict(flists,leads)
+
+# Unpack Dictionary
+totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict,no_val)
+# shuffids [predictor][run][lead][nsamples]
+
+#%% Quick sanity check
+
+if debug:
+    
+    fig,axs = pviz.init_classacc_fig(leads)
+    for c in range(3):
+        ax = axs[c]
+        for v,varname in enumerate(varnames):
+            plotacc = np.array(classacc[v])[:,:,c].mean(0) # nrun, nlead, nclass
+            ax.plot(leads,plotacc,label=varname,lw=2)
+    ax.legend()
+
+#%%
+
+# A simple wrapper function
+def prep_traintest_classification_new(predictor,target_class,lead,eparams,
+                                      nens=42,ntime=86):
+    
+       # Apply Lead Lag (Might have to move this further within the loop...)
+       X,y_class = am.apply_lead(predictor,target_class,lead,reshape=True,ens=nens,tstep=ntime)
+       
+       # Flatten input data for FNN
+       # if "FNN" in eparams['netname']:
+       #     ndat,nchannels,nlat,nlon = X.shape
+       #     inputsize                = nchannels*nlat*nlon
+       #     X                        = X.reshape(ndat,inputsize)
+               
+       
+       # ------------------------
+       # 10. Train/Test/Val Split
+       # ------------------------
+       X_subsets,y_subsets = am.train_test_split(X,y_class,eparams['percent_train'],
+                                                      percent_val=eparams['percent_val'],
+                                                      debug=False,offset=eparams['cv_offset'])
+       
+       # Convert to Tensors
+       X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
+       y_subsets = [torch.from_numpy(y.astype(np.compat.long)) for y in y_subsets]
+       
+       
+       return X_subsets,y_subsets
+
+
+    
+    
+
+
+#%% Obtain validation LRP Maps for each Region [Copied many sections from test_predictor_uncertainty.py]
+# Currently takes ~74.51s to run...
+
 st               = time.time()
-
 # Preallocate
-relevances_all   = {} # [region][lead][model x sample x inputsize ]
-factivations_all = {} # [region][lead][model x sample x class]
-idcorrect_all    = {} # [region][lead][class][model][ids]
+relevances_all   = {} # [variable][lead][model x sample x inputsize ]
+factivations_all = {} # [variable][lead][model x sample x class]
+idcorrect_all    = {} # [variable][lead][class][model][ids]
+modelacc_all     = {} # [variable][lead][model x class]
+labels_all       = {} # [variable][lead][samplesize]
 
-modelacc_all     = {} # [region][lead][model x class]
-labels_all       = {} # [region][lead][samplesize]
-
-
-for r,region in enumerate(regions): # Training data does not change for region
+for v,varname in enumerate(varnames): # Training data does not change for region
     
-    # if region == "SPG":
-    #     continue
-    # List for each leadtime
+    # Get the data
+    predictor         = data_all[[v],...]
+    
+    # Preallocate
     relevances_lead   = []
     factivations_lead = []
     idcorrect_lead    = []
     modelacc_lead     = []
     labels_lead       = []
-    for l,lead in enumerate(leads): # Training data does chain with leadtime
+    
+    
+    for l,lead in enumerate(leads_sel): # Training data does chain with leadtime
         
-        # Get List of Models
-        modlist = modlist_all[region][l]
-        modweights = modweights_all[region][l]
+        id_lead = list(leads).index(lead)
+        if debug:
+            print("Lead is %i, idx = %i" % (leads[id_lead],id_lead))
         
-        # Prepare data
-        X_train,X_val,y_train,y_val = am.prep_traintest_classification(data,region_targets[r],lead,thresholds,percent_train,
-                                                                       ens=ens,tstep=tstep,quantile=quantile)
+        # Apply Lead Lag (Might have to move this further within the loop...)
+        X,y_class = am.apply_lead(predictor,target_class,lead,reshape=True,ens=nens,tstep=ntime)
         
+        # Flatten input data for FNN
+        if "FNN" in eparams['netname']:
+            ndat,nchannels,nlat,nlon = X.shape
+            inputsize                = nchannels*nlat*nlon
+            outsize                  = nclasses
+            X                        = X.reshape(ndat,inputsize)
+                
         
-        # Make land/ice mask
-        xsum = np.sum(np.abs(X_val),(0,1))
-        limask = np.zeros(xsum.shape) * np.nan
-        limask[np.abs(xsum)>1e-4] = 1
+        # ------------------------
+        # 10. Train/Test/Val Split
+        # ------------------------
+        X_subsets,y_subsets = am.train_test_split(X,y_class,eparams['percent_train'],
+                                                       percent_val=eparams['percent_val'],
+                                                       debug=False,offset=eparams['cv_offset'])
+        
+        # Convert to Tensors
+        X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
+        y_subsets = [torch.from_numpy(y.astype(np.compat.long)) for y in y_subsets]
+        
+        if eparams['percent_val'] > 0:
+            X_train,X_test,X_val = X_subsets
+            y_train,y_test,y_val = y_subsets
+        else:
+            X_train,X_test       = X_subsets
+            y_train,y_test       = y_subsets
+        
+        # # Put into pytorch dataloaders
+        # data_loaders = [DataLoader(TensorDataset(X_subsets[iset],y_subsets[iset]), batch_size=eparams['batch_size']) for iset in range(len(X_subsets))]
+        # if eparams['percent_val'] > 0:
+        #     train_loader,test_loader,val_loader = data_loaders
+        #     val_id = 1
+        # else:
+        #     train_loader,test_loader, = data_loaders
+        #     val_id = 1
         
         # Preallocate, compute relevances
-        valsize      = X_val.shape[0]
+        valsize      = X_test.shape[0] # Take last element (test set ...)
         relevances   = np.zeros((nmodels,valsize,inputsize))*np.nan # [model x sample x inputsize ]
         factivations = np.zeros((nmodels,valsize,3))*np.nan         # [model x sample x 3]
-        for m in tqdm(range(nmodels)): # Loop for each model
+        for m in range(nmodels):
             
-            # Build model 
-            if "FNN" in modelname:
-                layers = am.build_FNN_simple(inputsize,outsize,nlayers,nunits,activations,dropout=dropout)
-                pmodel = nn.Sequential(*layers)
-            elif modelname == "simplecnn":
-                pmodel = am.build_simplecnn(num_classes,cnndropout=cnndropout,unfreeze_all=True,
-                                    nlat=nlat,nlon=nlon,num_inchannels=num_inchannels)
+            # Get List of Models
+            modlist = modlist_byvar[v][id_lead][m]
+            modweights = modweights_byvar[v][id_lead][m]
+            
+            # Get sampled indices for entire set
+            #sampleids = (shuffids[v][nm][l]).astype(int)
+            
+            # ----------------- Section from LRP_LENs
+            # Rebuild the model
+            pmodel = am.recreate_model(eparams['netname'],nn_param_dict,inputsize,nclasses,nlon=nlon,nlat=nlat)
             
             # Load the weights
-            pmodel.load_state_dict(modweights[m])
+            pmodel.load_state_dict(modweights)
             pmodel.eval()
+            # ----------------- ----------------------
             
             # Investigate
             inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
                                   method=innmethod,
                                   beta=innbeta)
-            input_data = torch.from_numpy(X_val.reshape(X_val.shape[0],1,inputsize)).squeeze().float()
+            
+            input_data                       = X_test.squeeze().float()
             model_prediction, true_relevance = inn_model.innvestigate(in_tensor=input_data)
-            relevances[m,:,:]   = true_relevance.detach().numpy().copy()
-            factivations[m,:,:] = model_prediction.detach().numpy().copy()
+            relevances[m,:,:]                = true_relevance.detach().numpy().copy()
+            factivations[m,:,:]              = model_prediction.detach().numpy().copy()
+
+            
+            
         
         # Reshape Output
         relevances = relevances.reshape(nmodels,valsize,nchannels,nlat,nlon)
         y_pred     = np.argmax(factivations,2)
+        y_test     = y_test.numpy()
         
         # Compute accuracy
         modelacc  = np.zeros((nmodels,3)) # [model x class]
         modelnum  = np.arange(nmodels)+1 
-        top3mod   = []                    # [class]
         idcorrect = []
         for c in range(3):
             
             # Compute accuracy
-            class_id           = np.where(y_val == c)[0]
+            class_id           = np.where(y_test == c)[0]
             pred               = y_pred[:,class_id]
-            targ               = y_val[class_id,:].squeeze()
+            targ               = y_test[class_id,:].squeeze()
             correct            = (targ[None,:] == pred)
             num_correct        = correct.sum(1)
             num_total          = correct.shape[1]
@@ -363,28 +391,179 @@ for r,region in enumerate(regions): # Training data does not change for region
         factivations_lead.append(factivations)
         idcorrect_lead.append(idcorrect)
         modelacc_lead.append(modelacc)
-        labels_lead.append(y_val)
+        labels_lead.append(y_test)
         
     # Assign to dictionary
-    relevances_all[region]   = relevances_lead
-    factivations_all[region] = factivations_lead
-    idcorrect_all[region]    = idcorrect_lead
-    modelacc_all[region]     = modelacc_lead
-    labels_all[region]       = labels_lead
+    relevances_all[varname]   = relevances_lead
+    factivations_all[varname] = factivations_lead
+    idcorrect_all[varname]    = idcorrect_lead
+    modelacc_all[varname]     = modelacc_lead
+    labels_all[varname]       = labels_lead
 
 print("Computed relevances in %.2fs" % (time.time()-st))
-#%% Do a quick save
 
-# savename = "%sLRP_results_regional_%s.npz" % (datpath,ge_label_fn)
-# np.savez(savename,**{
-#     'relevances_all'  :   relevances_all, # [region][lead][model x sample x inputsize ]
-#     'factivations_all': factivations_all,  # [region][lead][model x sample x class]
-#     'idcorrect_all'   : idcorrect_all, # [region][lead][class][model][ids]
-#     'modelacc_all'    : modelacc_all, # [region][lead][model x class]
-#     'labels_all'      : labels_all, # [region][lead][samplesize]
-#     },allow_pickle=True)
+#
 
-#%% Do some visualizations
+
+
+# XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx
+  
+#%% Plot reduced nubber of leadtimes, for several variables (GRL Outline plot version)
+
+#Same as above but reduce the number of leadtimes
+plot_bbox        = [-80,0,0,60]
+leadsplot        = [24,18,12,6,0]
+topN             = 25
+normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
+absval           = False
+transparent      = False
+cmax             = 1
+
+clvl             = np.arange(-2.2,2.2,0.2)
+
+fsz_title        = 20
+fsz_axlbl        = 18
+fsz_ticks        = 16
+#cmax            = 0.5
+
+# Loop for each class
+for c in range(3):
+    ia = 0
+    fig,axs = plt.subplots(4,5,figsize=(24,16),
+                           subplot_kw={'projection':proj},constrained_layout=True)
+    # Loop for variable
+    for v,varname in enumerate(varnames):
+        # Loop for leadtime
+        for l,lead in enumerate(leadsplot):
+            
+            # Get lead index
+            id_lead    = list(leads_sel).index(lead)
+            if debug:
+                print("Lead %02i, idx=%i" % (lead,id_lead))
+                
+            # Axis Formatting
+            ax = axs[v,l]
+            blabel = [0,0,0,0]
+            #ax.set_extent(plot_bbox)
+            #ax.coastlines()
+            if v == 0:
+                
+                ax.set_title("Lead %02i Years" % (leads_sel[id_lead]),fontsize=fsz_title)
+            if l == 0:
+                blabel[0] = 1
+                ax.text(-0.15, 0.55, varnames_plot[v], va='bottom', ha='center',rotation='vertical',
+                        rotation_mode='anchor',transform=ax.transAxes,fontsize=fsz_axlbl)
+            if v == (len(varnames)-1):
+                blabel[-1]=1
+            ax = viz.add_coast_grid(ax,bbox=plot_bbox,blabels=blabel,fill_color="k")
+            ax = viz.label_sp(ia,ax=ax,fig=fig,alpha=0.8,fontsize=fsz_axlbl)
+            # -----------------------------
+            
+            # --------- Composite the Relevances and variables
+            
+            # Get variable
+            X_subsets,y_subsets = prep_traintest_classification_new(data_all[[v],...],
+                                                                    target_class,lead,
+                                                                    eparams,nens=nens,ntime=ntime)
+            if eparams['percent_val'] > 0:
+                X_train,X_test,X_val = X_subsets
+                y_train,y_test,y_val = y_subsets
+            else:
+                X_train,X_test       = X_subsets
+                y_train,y_test       = y_subsets
+            X_test = X_test.numpy()
+    
+            
+            # Get indices of the top 10 models
+            acc_in = modelacc_all[varname][id_lead][:,c] # [model x class]
+            idtopN = am.get_topN(acc_in,topN,sort=True)
+            
+            # Get the plotting indices
+            id_plot = np.array(idcorrect_all[varname][id_lead][c])[idtopN] # Indices to composite
+            
+            # Composite the relevances/variables
+            plotrel = np.zeros((nlat,nlon)) # Relevances
+            plotvar = np.zeros((nlat,nlon)) # Predictor
+            
+            for NN in range(topN):
+                
+                relevances_sel = relevances_all[varname][id_lead][idtopN[NN],id_plot[NN],:,:,:].squeeze()
+                var_sel        = X_test[id_plot[NN],:,:,:].squeeze()
+                
+                if (relevances_sel.shape[0] == 0) or (var_sel.shape[0]==0):
+                    continue
+                
+                if normalize_sample == 1: # Normalize each sample
+                    relevances_sel = relevances_sel / np.max(np.abs(relevances_sel),0)[None,...]
+                
+                if absval:
+                    relevances_sel = np.abs(relevances_sel)
+                    
+                plotrel += relevances_sel.mean(0) # Take mean of samples and add to relevance
+                plotvar += np.nanmean(var_sel,0)
+            
+            plotrel /= topN # Divide by # of models considered (top N)
+            plotvar /= topN
+            if normalize_sample == 2:
+                plotrel = plotrel/np.max(np.abs(plotrel))
+                
+            # Set Land Points to Zero
+            plotrel[plotrel==0] = np.nan
+            plotvar[plotrel==0] = np.nan
+            
+            # Do the plotting
+            pcm=ax.pcolormesh(lon,lat,plotrel*data_mask,vmin=-cmax,vmax=cmax,cmap="RdBu_r")
+            cl = ax.contour(lon,lat,plotvar*data_mask,levels=clvl,colors="k",linewidths=0.75)
+            ax.clabel(cl,clvl[::2])
+            ia += 1
+            # Finish Leadtime Loop (Column)
+        # Finish Variable Loop (Row)
+    cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.025,pad=0.01)
+    cb.set_label("Normalized Relevance",fontsize=fsz_axlbl)
+    cb.ax.tick_params(labelsize=fsz_ticks)
+    #plt.suptitle("Mean LRP Maps for Predicting %s using %s, \n Composite of Top %02i FNNs per leadtime" % (classes[c],varname,topN,))
+    savename = "%sPredictorComparison_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_Outline_smaller.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn)
+    plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
+    # Finish class loop (Fig)
+
+
+
+#%%
+#%%
+#%% Plot Colorbar
+
+fig,axs = plt.subplots(4,5,figsize=(8,6.5),
+                       subplot_kw={'projection':proj},constrained_layout=True)
+
+for r,region in enumerate(regions):
+    
+    for i in range(len(leadsplot)):
+        
+        lead = leadsplot[i]
+        print(lead)
+        l    = list(leads).index(lead)
+        print(l)
+        
+        ### Leads are all wrong need to fix it
+        ax = axs[r,i]
+        for r,region in enumerate(regions):
+            
+            for i in range(len(leadsplot)):
+                
+                lead = leadsplot[i]
+                print(lead)
+                l    = list(leads).index(lead)
+                print(l)
+                
+                ### Leads are all wrong need to fix it
+                ax = axs[r,i]
+                
+                ax.set_extent(bbox)
+                
+
+fig.colorbar(pcm,ax=axs[0,-1])
+savename = "%sRegional_LRP_AGU_%s_Colorbar.png" % (figpath,varname,)
+plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=True)
 
 #%% Visualize test accuracy by class and by region
 
@@ -394,7 +573,7 @@ for c in range(3):
     ax = axs[c]
     ax.set_title(classes[c])
     
-    for r,region in enumerate(regions):
+    for v,varname in enumerate(varnames):
         
         accsbylead = np.array(modelacc_all[region]) # lead x model x class
         
