@@ -13,6 +13,7 @@ Created on Tue Apr  4 11:20:44 2023
 
 @author: gliu
 """
+
 import numpy as np
 import sys
 import glob
@@ -47,6 +48,12 @@ import train_cesm_params as train_cesm_params
 import amv_dataloader as dl
 import amvmod as am
 
+
+# Import LRP package
+lrp_path = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/ml_demo/Pytorch-LRP-master/"
+sys.path.append(lrp_path)
+from innvestigator import InnvestigateModel
+
 #%% User Edits
 
 
@@ -55,7 +62,8 @@ varname            = "SST" # Testing variable
 detrend            = False
 leads              = np.arange(0,26,3)
 region_name        = "NAT"
-eparams['shuffle_trainsplit'] = False # Turn off shuffling
+nsamples           = "ALL"
+shuffle_trainsplit = False
 
 # CESM1-trained model information
 expdir             = "FNN4_128_SingleVar"
@@ -74,15 +82,32 @@ class_colors       = pparams.class_colors
 classes            = pparams.classes
 bbox               = pparams.bbox
 
+#eparams['shuffle_trainsplit'] = False # Turn off shuffling
 
 # Reanalysis dataset information
 dataset_name       = "HadISST"
 regrid             = "CESM1"
 
 
+# LRP Parameters
+innexp         = 2
+innmethod      ='b-rule'
+innbeta        = 0.1
+
 # Other toggles
-debug    = False
-checkgpu = True
+debug              = False
+checkgpu           = True
+darkmode           = False
+
+
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+    transparent      = True
+else:
+    plt.style.use('default')
+    dfcol = "k"
+    transparent      = False
 
 
 #%% Load the datasets
@@ -120,6 +145,8 @@ if eparams['quantile'] is False:
     thresholds_in = [-std1,std1]
 else:
     thresholds_in = eparams['thresholds']
+    
+#thresholds_in  = [-.36,.36]
 
 # Classify AMV Events
 target_class = am.make_classes(re_target.flatten()[:,None],thresholds_in,
@@ -136,17 +163,16 @@ nlead        = len(leads)
     labels     :: [ens x year]
 """     
 
-
 # ----------------------------------------------------
 # %% Retrieve a consistent sample if the option is set
 # ----------------------------------------------------
 
 
-if eparams["shuffle_trainsplit"] is False:
+if shuffle_trainsplit is False:
     print("Pre-selecting indices for consistency")
-    output_sample=am.consistent_sample(re_data,target_class,leads,None,leadmax=leads.max(),
+    output_sample = am.consistent_sample(re_data,target_class,leads,nsamples,leadmax=leads.max(),
                           nens=1,ntime=ntime,
-                          shuffle_class=eparams['shuffle_class'],debug=True)
+                          shuffle_class=eparams['shuffle_class'],debug=False)
     
     target_indices,target_refids,predictor_indices,predictor_refids = output_sample
 else:
@@ -154,6 +180,7 @@ else:
     predictor_indices  = None
     target_refids      = None
     predictor_refids   = None
+
 
 """
 Output
@@ -164,6 +191,7 @@ predictor_refids = [nlead][nsamples*nclasses,] - Indices of predictor at each le
 tref --> array of the target years
 predictor_refids --> array of the predictor refids
 """
+
 
 
 #%% Load model weights 
@@ -192,16 +220,20 @@ print("Found %i files per lead for %s using searchstring: %s" % (len(flist),varn
 # ------------------------
 # 04. Loop by predictor...
 # ------------------------
+vt                    = time.time()
+predictors            = re_data[[0],...] # Get selected predictor
+total_acc_all         = np.zeros((nmodels,nlead))
+class_acc_all         = np.zeros((nmodels,nlead,3)) # 
 
-vt = time.time()
-predictors = re_data[[0],...] # Get selected predictor
+relevances_all        = []
+predictor_all         = []
 
-
-nsample_total = len(target_indices)
-total_acc_all = np.zeros((nmodels,nlead))
-class_acc_all = np.zeros((nmodels,nlead,3)) # 
-y_predicted_all   = np.zeros((nmodels,nlead,nsample_total))
-y_actual_all      = np.zeros((nlead,nsample_total))
+if shuffle_trainsplit:
+    y_actual_all      = []
+else:
+    nsample_total     = len(target_indices)
+    y_predicted_all   = np.zeros((nmodels,nlead,nsample_total))
+    y_actual_all      = np.zeros((nlead,nsample_total))
 
 # --------------------
 # 05. Loop by runid...
@@ -209,18 +241,16 @@ y_actual_all      = np.zeros((nlead,nsample_total))
 for nr,runid in enumerate(runids):
     rt = time.time()
     
-        
     # Preallocate Evaluation Metrics...
-
-        
     # -----------------------
     # 07. Loop by Leadtime...
     # -----------------------
     outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,dataset_name)
+    
+    predictor_lead = []
+    relevances_lead  = []
     for l,lead in enumerate(leads):
         
-        
-
         if target_indices is None:
             # --------------------------
             # 08. Apply lead/lag to data
@@ -231,7 +261,7 @@ for nr,runid in enumerate(runids):
             # ----------------------
             # 09. Select samples
             # ----------------------
-            if eparams['shuffle_trainsplit'] is False:
+            if shuffle_trainsplit is False:
                 if eparams['nsamples'] is None: # Default: nsamples = smallest class
                     threscount = np.zeros(nclasses)
                     for t in range(nclasses):
@@ -294,6 +324,7 @@ for nr,runid in enumerate(runids):
         # ------------------------------------------------------
         y_predicted,y_actual,test_loss = am.test_model(pmodel,test_loader,eparams['loss_fn'],
                                                        checkgpu=checkgpu,debug=False)
+        
         lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
         
         
@@ -303,7 +334,23 @@ for nr,runid in enumerate(runids):
         y_predicted_all[nr,l,:]   = y_predicted
         y_actual_all[l,:] = y_actual
         
+        #
+        # Perform LRP
+        #
+        nsamples_lead = len(shuffidx)
+        inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+                                          method=innmethod,
+                                          beta=innbeta)
+        model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
+        model_prediction = model_prediction.detach().numpy().copy()
+        sample_relevances = sample_relevances.detach().numpy().copy()
+        if "FNN" in eparams['netname']:
+            predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
+            sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
+        predictor_lead.append(predictor_test)
+        relevances_lead.append(sample_relevances)
         
+                
         
         # Clear some memory
         del pmodel
@@ -311,27 +358,184 @@ for nr,runid in enumerate(runids):
         
         print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
         # End Lead Loop >>>
+    predictor_all.append(predictor_lead)
+    relevances_all.append(relevances_lead)
     print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
     # End Runid Loop >>>
 #print("\nPredictor %s finished in %.2fs" % (varname,time.time()-vt))
 # End Predictor Loop >>>
 
 #print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
+
+
+#%% Perform LRP
+
+#%% Prepare to do some visualization
+
+# Load baselines
+persleads,pers_class_acc,pers_total_acc = dl.load_persistence_baseline(dataset_name,
+                                                                        return_npfile=False,region="NAT",quantile=False,
+                                                                        detrend=False,limit_samples=True,nsamples=None,repeat_calc=1)
+
+# Load results from CESM1
 #%%
+
 fig,ax = plt.subplots(1,1)
-
 for nr in range(nmodels):
-    ax.plot(total_acc_all[nr,:],alpha=0.2)
-ax.plot(total_acc_all.mean(0))
+    ax.plot(leads,total_acc_all[nr,:],alpha=0.1,color="g")
+    
+ax.plot(leads,total_acc_all.mean(0),color="green",label="CESM1-trained NN (SST)")
+ax.plot(persleads,pers_total_acc,color="k",ls="dashed",label="Persistence Baseline")
+ax.axhline([.33],color="gray",ls="dashed",lw=0.75,label="Random Chance Baseline")
 
-#%%
+ax.legend()
+ax.grid(True,ls="dotted")
+ax.set_xticks(persleads[::3])
+ax.set_xlim([0,24])
+ax.set_yticks(np.arange(0,1.25,0.25))
+ax.set_xlabel("Prediction Lead (Years)")
+ax.set_ylabel("Accuracy")
+ax.set_title("Total Accuracy (HadISST Testing, %i samples per class)" % (nsample_total/3))
+# 
+figname = "%sReanalysis_Test_%s_Total_Acc.png" % (figpath,dataset_name)
+plt.savefig(figname,dpi=150)
+#%% 
 
-fig,axs = plt.subplots(1,3,constrained_layout=True,figsize=(12,4))
-
+fig,axs = plt.subplots(1,3,constrained_layout=True,figsize=(16,4))
 for c in range(3):
     ax = axs[c]
     for nr in range(nmodels):
-        ax.plot(class_acc_all[nr,:,c],alpha=0.2)
-    ax.plot(class_acc_all.mean(0)[...,c])
+        ax.plot(leads,class_acc_all[nr,:,c],alpha=0.1,color=class_colors[c])
+    ax.plot(leads,class_acc_all.mean(0)[...,c],color=class_colors[c],label="CESM1-trained NN (SST)")
+    
+    ax.plot(persleads,pers_class_acc[:,c],color="k",ls="dashed",label="Persistence Baseline")
+    ax.axhline([.33],color="gray",ls="dashed",lw=2,label="Random Chance Baseline")
+    
+    if c == 1:
+        ax.legend()
+    ax.grid(True,ls="dotted")
+    ax.set_xticks(persleads[::3])
+    ax.set_xlim([0,24])
+    ax.set_xlabel("Prediction Lead (Years)")
+    ax.set_ylabel("Accuracy")
+    ax.set_yticks(np.arange(0,1.25,0.25))
     ax.set_title(classes[c])
+figname = "%sReanalysis_Test_%s_Class_Acc.png" % (figpath,dataset_name)
+plt.savefig(figname,dpi=150)
+
+#%% Visualizet he class distribution
+
+idx_by_class,count_by_class = am.count_samples(None,target_class)
+
+class_str = "Class Count: AMV+ (%i) | Neutral (%i) | AMV- (%i)" % tuple(count_by_class)
+
+
+timeaxis = np.arange(0,re_target.shape[1]) + 1870
+fig,ax = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
+
+
+
+ax.plot(timeaxis,re_target.squeeze(),color="k",lw=2.5)
+ax.grid(True,ls="dashed")
+ax.minorticks_on()
+
+for th in thresholds_in:
+    ax.axhline([th],color="k",ls="dashed")
+
+ax.set_xlim([timeaxis[0],timeaxis[-1]])
+ax.set_title("HadISST NASST Index (1870-2022) \n%s" % (class_str))
+
+
+#%% Get correct indices for each class
+
+
+# y_predicted_all = [runs,lead,sample]
+# y_actual_all    = [lead,sample]
+correct_mask = []
+for l in range(len(leads)):
+    lead = leads[l]
+    y_preds   = y_predicted_all[:,l,:] # [runs lead sample]
+    i_correct = (y_preds == y_actual_all[l,:][None,:]) # Which Predictions are correct
+    correct_mask_lead = []
+    for c in range(3):
+        i_class = (y_actual_all[l,:] == c)
+        correct_mask_lead.append(i_correct*i_class)
+    correct_mask.append(correct_mask_lead)
+    
+    
+    
+
+
+
+#%% Visualize relevance maps
+
+relevances_all = np.array(relevances_all)
+predictor_all = np.array(predictor_all)
+nruns,nleads,nsamples_lead,nlat,nlon = relevances_all.shape
+
+plotleads        = [24,18,12,6,0]
+normalize_sample = 2
+
+cmax  = 1
+clvl = np.arange(-2.2,2.2,0.2)
+
+fsz_title        = 20
+fsz_axlbl        = 18
+fsz_ticks        = 16
+
+
+fig,axs  = plt.subplots(3,len(plotleads),constrained_layout=True,figsize=(18,10),
+                        subplot_kw={'projection':ccrs.PlateCarree()})
+
+
+ii = 0
+for c in range(3):
+    for l in range(len(plotleads)):
+        
+        ax = axs.flatten()[ii]
+        lead  = plotleads[l]
+        ilead = list(leads).index(lead) 
+        
+        # Axis Formatting
+        blabel = [0,0,0,0]
+        if c == 0:
+            ax.set_title("%s-Year Lead" % (plotleads[l]))
+        if l == 0:
+            blabel[0] = 1
+            ax.text(-0.15, 0.55, classes[c], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=fsz_axlbl)
+        
+        # Get correct predictions
+        cmask = correct_mask[l][c].flatten()
+        relevances_in = relevances_all[:,ilead,:,:,:]
+        newshape      = (np.prod(relevances_in.shape[:2]),) + (nlat,nlon)
+        # Apprently using cmask[:,...] brocasts, while cmask[:,None,None] doesn't
+        relevances_sel = relevances_in.reshape(newshape)[cmask[:,...]] # [Samples x Lat x Lon]
+        
+        predictor_in   = predictor_all[:,ilead,:,:,:]
+        predictor_sel = predictor_in.reshape(newshape)[cmask[:,...]] # [Samples x Lat x Lon]
+        if normalize_sample == 1:
+            relevances_sel = relevances_sel / np.abs(relevances_sel.max(0))[None,...]
+        
+        
+        # Plot the results
+        plotrel = relevances_sel.mean(0)
+        plotvar = predictor_sel.mean(0)
+        if normalize_sample == 2:
+            plotrel = plotrel/np.max(np.abs(plotrel))
+            
+        # Set Land Points to Zero
+        plotrel[plotrel==0] = np.nan
+        plotvar[plotrel==0] = np.nan
+        
+            
+        # Do the plotting
+        pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r")
+        cl = ax.contour(lon,lat,plotvar,levels=clvl,colors="k",linewidths=0.75)
+        ax.clabel(cl,clvl[::2])
+        
+            
+        ax.coastlines()
+        ax.set_extent(bbox)
+        ii+=1
 
