@@ -55,7 +55,7 @@ def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_l
     if datpath is None:
         datpath = "../../CESM_data/"
     for v,varname in enumerate(varnames):
-        ds        = xr.open_dataset('../../CESM_data/CESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (varname,detrend,regrid))
+        ds        = xr.open_dataset('%sCESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (datpath,varname,detrend,regrid))
         ds        = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
         outdata   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
         if v == 0:
@@ -124,7 +124,6 @@ def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,regi
         savename      = "%spersistence_baseline_%s_%s_detrend%i_quantile%i_nsamples%s_repeat%i.npz" % (datpath,dataset_name,
                                                                                                     region,detrend,
                                                                                                     quantile,nsamples,repeat_calc)
-    
         ldp = np.load(savename,allow_pickle=True)
         class_acc = ldp['acc_by_class']
         total_acc = ldp['total_acc']
@@ -139,7 +138,21 @@ def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,regi
     
     
 
-        
+def load_nfactors(varnames,datpath=None,detrend=0,regrid=None):
+    """Load normalization factors for data"""
+    if datpath is None:
+        datpath = "../../CESM_data/"
+    vardicts = []
+    for v,varname in enumerate(varnames):
+        np_fn = "%sCESM1LE_nfactors_%s_detrend%i_regrid%s.npy" % (datpath,varname,detrend,regrid)
+        ld    = np.load(np_fn,allow_pickle=True)
+        vdict = {
+            "mean" : ld[0].copy(),
+            "stdev": ld[1].copy()}
+        vardicts.append(vdict)
+    return vardicts
+
+    
 
 
 
