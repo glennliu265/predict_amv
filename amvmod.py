@@ -950,20 +950,15 @@ def make_classes(y,thresholds,exact_value=False,reverse=False,
 
     Parameters
     ----------
-    y : ARRAY
-        Labels to classify
-    thresholds : ARRAY
-        1D Array of thresholds to partition the data
-    exact_value: BOOL, optional
-        Set to True to use the exact value in thresholds (rather than scaling by
-                                                          standard deviation)
-
+    y          : ARRAY          - Labels to classify
+    thresholds : ARRAY          - 1D Array of thresholds to partition the data
+    exact_value: BOOL, optional - Set to True to use the exact value in thresholds (rather than scaling by standard deviation)
+    reverse    : BOOL, optional - Set to True to number classes in reverse order 
+                                     Ex. for thresholds=[-1,1]: returns [>1,-1<x<1,<-1] if True, reverse of this if False
+    
     Returns
     -------
-    y_class : ARRAY [samples,class]
-        Classified samples, where the second dimension contains an integer
-        representing each threshold
-
+    y_class    : ARRAY [samples,class] Classified samples, where the second dimension contains an integer representing each threshold d
     """
     
     if quantiles is False:
@@ -1435,54 +1430,58 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True,):
     nclasses                 = len(classes)
     
     use_all_samples = False
-    if nsamples is "ALL":
+    if nsamples == "ALL":
         print("Using all samples!")
         use_all_samples = True
+    else:
 
-    # Sort input by classes
-    label_by_class  = []
-    input_by_class  = []
-    idx_by_class    = []
-    
-    y_class_sel = np.zeros([nsamples*nclasses,1])#[]
-    X_sel       = np.zeros([nsamples*nclasses,nchannels,H,W])#[]
-    idx_sel     = np.zeros([nsamples*nclasses]) 
-    for i in range(nclasses):
+        # Sort input by classes
+        label_by_class  = []
+        input_by_class  = []
+        idx_by_class    = []
         
-        # Sort by Class
-        inclass = classes[i]
-        idx = (y_class==inclass).squeeze()
-        sel_label = y_class[idx,:]
-        sel_input = X[idx,:,:,:]
-        sel_idx = np.where(idx)[0]
-        
-        label_by_class.append(sel_label)
-        input_by_class.append(sel_input)
-        idx_by_class.append(sel_idx)
-        classcount = sel_input.shape[0]
-        if verbose:
-            print("%i samples found for class %i" % (classcount,inclass))
-        
-        # Shuffle and select first N samples for that class ...
-        shuffidx = np.arange(0,classcount,1)
-        if shuffle:
-            np.random.shuffle(shuffidx)
-        else:
+        y_class_sel = np.zeros([nsamples*nclasses,1])#[]
+        X_sel       = np.zeros([nsamples*nclasses,nchannels,H,W])#[]
+        idx_sel     = np.zeros([nsamples*nclasses]) 
+        for i in range(nclasses):
+            
+            # Sort by Class
+            inclass = classes[i]
+            idx = (y_class==inclass).squeeze()
+            sel_label = y_class[idx,:]
+            sel_input = X[idx,:,:,:]
+            sel_idx = np.where(idx)[0]
+            
+            label_by_class.append(sel_label)
+            input_by_class.append(sel_input)
+            idx_by_class.append(sel_idx)
+            classcount = sel_input.shape[0]
             if verbose:
-                print("Warning: data will not be shuffled prior to class subsetting!")
-        if use_all_samples is False:
-            shuffidx = shuffidx[0:nsamples] # Restrict to sample
-        else:
-            nsamples = classcount
-        
-        # Select Shuffled Indices
-        y_class_sel[i*nsamples:(i+1)*nsamples,:] = sel_label[shuffidx,:]
-        X_sel[i*nsamples:(i+1)*nsamples,...]     = sel_input[shuffidx,...]
-        idx_sel[i*nsamples:(i+1)*nsamples]       = sel_idx[shuffidx]
+                print("%i samples found for class %i" % (classcount,inclass))
+            
+            # Shuffle and select first N samples for that class ...
+            shuffidx = np.arange(0,classcount,1)
+            if shuffle:
+                np.random.shuffle(shuffidx)
+            else:
+                if verbose:
+                    print("Warning: data will not be shuffled prior to class subsetting!")
+            if use_all_samples is False:
+                shuffidx = shuffidx[0:nsamples] # Restrict to sample
+            else:
+                nsamples = classcount
+            
+            # Select Shuffled Indices
+            y_class_sel[i*nsamples:(i+1)*nsamples,:] = sel_label[shuffidx,:]
+            X_sel[i*nsamples:(i+1)*nsamples,...]     = sel_input[shuffidx,...]
+            idx_sel[i*nsamples:(i+1)*nsamples]       = sel_idx[shuffidx]
     
     # Shuffle samples again before output (so they arent organized by class)
     if use_all_samples:
         total_samples = allsamples        # Use all samples, as recorded earlier
+        y_class_sel   = y_class
+        X_sel         = X
+        idx_sel       = np.arange(0,allsamples)
     else:
         total_samples = nsamples*nclasses # Only use selected samples
     shuffidx = np.arange(0,total_samples,1)
@@ -1525,7 +1524,7 @@ def apply_lead(data,target,lead,reshape=True,ens=None,tstep=None):
         X = X.reshape(nchannels,ens*(tstep-lead),nlat,nlon).transpose(1,0,2,3)
     return X,y
 
-def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0):
+def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0,return_indices=False):
     
     """
     Perform train/test/val split on predictor [X: samples ,...] and label [y: samples x 1].
@@ -1599,6 +1598,8 @@ def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0):
     if debug:
         pct_check = [y.shape[0]/nsamples for y in y_subsets]
         print("Subset percentages are %s" % pct_check)
+    if return_indices:
+        return X_subsets,y_subsets,segment_indices
     return X_subsets,y_subsets
 
 def prep_traintest_classification(data,target,lead,thresholds,percent_train,
@@ -1787,7 +1788,7 @@ def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
             threscount[t] = count
         nsamples = int(np.min(threscount))
         print("Using %i samples, the size of the smallest class" % (nsamples))
-
+    
     # Select samples based on the longest leadtime. 
     y_class,X,shuffidx_max = select_samples(nsamples,y_class,X,verbose=debug,shuffle=shuffle_class)
     shuffidx_max           = shuffidx_max.astype(int) # There indices are w.r.t. the lagged data
@@ -1822,7 +1823,7 @@ def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
                                                                                 predictor_refids[l][ii,0],predictor_refids[l][ii,1],
                                                                                 predictor_indices[l][ii]))
     return target_indices,target_refids,predictor_indices,predictor_refids
-    
+
 def get_ensyr_linear(lead,linearids,
               reflead=0,nens=42,nyr=86,
               apply_lead=True,ref_lead=True,
@@ -2285,9 +2286,6 @@ def test_model(model,test_loader,loss_fn,checkgpu=True,debug=False):
     out_loss = total_loss / len(test_loader)
     return y_predicted,y_actual,out_loss
 
-
-
-
 def compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False):
     """
     
@@ -2478,7 +2476,6 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
         # Train/Test Split
         # ----------------
         X_subset,y_subset = train_test_split(y_class_predictor,y_class_label,
-                                                percent_train=percent_train,
                                                 debug=True)
         
         # Subset data if percent train is less than 100%
