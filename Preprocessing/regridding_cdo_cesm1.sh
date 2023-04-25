@@ -6,7 +6,7 @@
 # Set the scenario and variable names
 datasets=("PiControl")
 vars=("SSH" )
-var ="SSH"
+var="SSH"
 
 # Data Directory (note backslash included below for both paths)
 dd=/Users/gliu/Globus_File_Transfer/CESM1_LE/PiControl/SSH/
@@ -17,7 +17,7 @@ dic=/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/01_Data/CESM
 # Remapping Options
 # this is for 1x1 grid 
 # for 192x188 grid, '-remapbil,~/b.e11.B20TRC5CNBDRD.f09_g16.002.cam.h0.TS.192001-200512.nc'
-mappp='-remapbil,~/regrid_re1x1.nc'
+mappp='-remapbil,~/regrid_CESM1CAM_fixed.nc'
 
 cd $dd
 
