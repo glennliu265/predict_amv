@@ -66,9 +66,9 @@ def preprocess_SST(sst,lat,lon,bbox):
     
     # Remove mean climatological cycle
     st = time.time()
-    climavg,sst_yrmon=proc.calc_clim(sst,0,returnts=True)
-    sst_anom = sst_yrmon - climavg[None,:,:,:]
-    sst_anom = sst_anom.reshape(sst.shape)
+    climavg,sst_yrmon = proc.calc_clim(sst,0,returnts=True)
+    sst_anom          = sst_yrmon - climavg[None,:,:,:]
+    sst_anom          = sst_anom.reshape(sst.shape)
     print("Deseasoned in %.2fs" % (time.time()-st))
     
     # Flip dimensions
@@ -78,7 +78,7 @@ def preprocess_SST(sst,lat,lon,bbox):
     if np.any(lon > 180):
         st = time.time()
         print("Flipping Longitude!")
-        lon,sst_anom=proc.lon360to180(lon,sst_flipped)
+        lon,sst_flipped=proc.lon360to180(lon,sst_flipped)
         print("Flipped lon in %.2fs" % (time.time()-st))
     
     # Crop to region
@@ -112,7 +112,7 @@ if varname == "SST":
     
     # Load CESM1 lat lon
     lon,lat=scm.load_latlon(lon360=True)
-
+    
     # Load the CESM PiC Data
     #st = time.time()
     ssts_pic        = scm.load_cesm_pt(datpath_pic,loadname='full',grabpoint=None,ensorem=0)
@@ -120,8 +120,10 @@ if varname == "SST":
     #print("Loaded PiC Data in %.2fs" % (time.time()-st))
 
     # Preprocess and crop CESM PiC (deseason, flip dimension, crop to NAtl)
+    st = time.time()
     sst_region,lonr,latr = preprocess_SST(sst_pic,lat,lon,bbox)
-    sst_anom_pic    = sst_region
+    sst_anom_pic         = sst_region
+    print("Completed preprocessing in %.2fs" % (time.time()-st))
     
     # Take annual average (can remove later if I can find my monthly anomalized Htr Data)
     sst_anom_pic    = proc.ann_avg(sst_anom_pic,0)
@@ -188,5 +190,14 @@ outname       = "%s%s_%s_NAtl_%s_%s_%s_detrend%i_regridCESM1.nc" % (outpath,data
 ds_normalized_out.to_netcdf(outname,encoding=encoding_dict)
 print("Saved data in %s" % outname)
 
-#%% Compute Monthly Anomalies and Annual Averag
+#%% <10> Compute the AMV Index, if it is SST
+
+if varname == "SST":
+    #%Calculate the Index
+    ds_amv_reg = ds_normalized_out.sel(lon=slice(bbox_amv[0],bbox_amv[1]),lat=slice(bbox_amv[2],bbox_amv[3]))
+    amv_index  = (np.cos(np.pi*ds_amv_reg.lat/180) * ds_amv_reg[varname.upper()]).mean(dim=('lat','lon'))
+
+outname    = "%s%s_label_%s_amv_index_detrend%i_regridCESM1.npy" % (outpath,dataset_name,region_name,detrend)
+np.save(outname,amv_index)
+print("Saved target to %s" % outname)
 
