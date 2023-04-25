@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-
 Train Neural Networks (NN) for CESM1 Large Ensemble Simulations
 
  - Copied introductory section from NN_Training_Rewrite.py on 2023.03.20
@@ -29,10 +28,8 @@ Updated Procedure:
                 12) Test the model, compute accuracy by class
                 ---- ---- ---- ---- ---- ---- ---- ---- ---- ---- -
                 13) Save the model and output
-
 Created on Mon Mar 20 21:34:32 2023
 @author: gliu
-
 """
 
 import sys
@@ -72,11 +69,11 @@ from amv import proc
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020"
+expdir              = "FNN4_128_SingleVar_PIC"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames            = ["SSH",]       # Names of predictor variables
+varnames            = ["SSH","SST",]       # Names of predictor variables
 leads               = np.arange(0,25,3)    # Prediction Leadtimes
 runids              = np.arange(0,50,1)    # Which runs to do
 
@@ -119,8 +116,16 @@ ens            = eparams['ens']
 # Loads that that has been preprocessed by: ___
 
 # Load predictor and labels, lat/lon, cut region
-target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
-data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
+target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'],PIC=eparams["PIC"])
+data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True,PIC=eparams["PIC"])
+
+
+# Make sure land-ice mask is consistent across variables
+mask_allvar = np.sum(data,(0,1,2))
+mask_allvar[~np.isnan(mask_allvar)] = 1
+# if debug:
+#     plt.pcolormesh(mask_allvar),plt.colorbar(),plt.title("Land Ice Mask")
+data *= mask_allvar[None,None,None,:,:]
 
 # Subset predictor by ensemble, remove NaNs, and get sizes
 data                           = data[:,0:ens,...]      # Limit to Ens
