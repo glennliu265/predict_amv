@@ -17,28 +17,35 @@ Created on Thu Mar  2 21:40:28 2023
 import numpy as np
 import xarray as xr
 
-def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None):
+def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=False):
     """
     Load target for AMV prediction, as calculated from the script: 
          [prepare_regional_targets.py]
+    Loads PiC data from the script [prep_CESM1_PIC.py]
     Inputs:
         datpath [STR]  : Path to the dataset. Default is "../../CESM_data/"
         region  [STR]  : Region over which Index was calculated over (3-letter code). Default is None, whole basin
         detrend [BOOL] : Set to True if data was detrended. Default is False
         regrid  [STR]  : Regridding Option. Default is the default grid.
+        PIC     [BOOL] : Set to True to load CESM-PIC Data
     Output:
         target  [ARRAY: ENS x Year] : Target index values
     """
     if datpath is None:
         datpath = "../../CESM_data/"
-    # Load CESM Target
-    if region is None:
-        target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
-    else:
-        target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
+    if PIC is False: # Load Historical Period
+        # Load CESM Target
+        if region is None:
+            target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
+        else:
+            target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
+    elif PIC is True:
+        print("Loading PIC. WARNING: Regional indices not yet supported. Loading region=None or NAT")
+        fn     = "CESM1-PIC_label_%s_amv_index_detrend%i_regrid%s.npy" % ("NAT",detrend,"CESM1")
+        target = np.load("../../CESM_data/CESM1_PIC/%s" % (fn))[None,:] # Add extra ens dimension
     return target
 
-def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False):
+def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False,PIC=False):
     """
     Load inputs for AMV prediction, as calculated from the script:
         
@@ -55,13 +62,20 @@ def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_l
     if datpath is None:
         datpath = "../../CESM_data/"
     for v,varname in enumerate(varnames):
-        ds        = xr.open_dataset('%sCESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (datpath,varname,detrend,regrid))
+        if PIC is True: # Load CESM-PiControl Run
+            ncname = '%s/CESM1_PIC/CESM1-PIC_%s_NAtl_0400_2200_bilinear_detrend%i_regrid%s.nc' % (datpath,varname,detrend,"CESM1")
+        else:
+            ncname = '%sCESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (datpath,varname,detrend,regrid)
+        ds        = xr.open_dataset(ncname)
         ds        = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
         outdata   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
+        print(outdata.shape)
         if v == 0:
             data = outdata.copy()
         else:
             data = np.concatenate([data,outdata],axis=0)
+    if PIC is True:
+        data = data[:,None,...] # Add extra singleton "ensemble" dimension
     if return_latlon:
         return data, ds.lat.values,ds.lon.values
     return data
