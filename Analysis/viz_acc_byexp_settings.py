@@ -293,3 +293,252 @@ inexps   = [exp0,exp1,exp2,] # Put in experiments here...
 compname = "%s_SingleVar" % dataset_name# CHANGE THIS for each new comparison
 quartile = True
 
+
+# --------------------------------------------------------
+#%% NN Script Rewrite Comparison
+# --------------------------------------------------------
+exp0 = {"expdir"        : "FNN4_128_SingleVar"   , # Directory of the experiment
+        "searchstr"     :  "*SST*"               , # Search/Glob string used for pulling files
+        "expname"       : "SST_Original"       , # Name of the experiment (Short)
+        "expname_long"  : "SST (Original Script)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "r"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+exp1 = {"expdir"        : "FNN4_128_Singlevar_Rewrite" , # Directory of the experiment
+        "searchstr"     :  "*SST*", # Search/Glob string used for pulling files
+        "expname"       : "SST_Rewrite"           , # Name of the experiment (Short)
+        "expname_long"  : "SST (Rewrite)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "r"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        }
+
+exp2 = {"expdir"        : "FNN4_128_SingleVar"   , # Directory of the experiment
+        "searchstr"     :  "*SSH*"               , # Search/Glob string used for pulling files
+        "expname"       : "SSH_Original"       , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Original Script)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "b"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        }
+
+exp3 = {"expdir"        : "FNN4_128_Singlevar_Rewrite" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "b"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        }
+
+
+inexps                          = [exp0,exp1,exp2,exp3] # Put in experiments here...
+compname                        = "NN_Script_Rewrite"# CHANGE THIS for each new comparison
+#expdict_master["NN_Script_Rewrite"] = inexps
+
+# --------------------------------------------------------
+#%% Cross Validation Analysis
+# --------------------------------------------------------
+
+nfolds = 4
+inexps = []
+
+vcolors = ["r","b"]
+markers = ["d","o","x","+"]
+lss     = ["dashed","solid","dotted","dashdot"]
+
+for v,vname in enumerate(['SST','SSH']):
+    for k in range(nfolds):
+        exp = {"expdir"         : "FNN4_128_Singlevar_CV"      , # Directory of the experiment
+                "searchstr"     :  "*%s*kfold%02i*" % (vname,k), # Search/Glob string used for pulling files
+                "expname"       : "%s_fold%02i" % (vname,k)    , # Name of the experiment (Short)
+                "expname_long"  : "%s (fold=%02i)" % (vname,k)   , # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[v]                    , # Color for plotting
+                "marker"        : markers[k]                   , # Marker for plotting
+                "ls"            : lss[k]               , # Linestyle for plotting
+                }
+        inexps.append(exp)
+compname                        = "FNN4_128_CV_SSH_SST"# CHANGE THIS for each new comparison
+
+leads = np.arange(0,26,3)
+
+# ---------------------------------------------------
+# %% Updated Cross Validation with consistent samples
+# ---------------------------------------------------
+nfolds = 4
+inexps = []
+
+vcolors = ["r","b"]
+markers = ["d","o","x","+"]
+lss     = ["dashed","solid","dotted","dashdot"]
+
+for v,vname in enumerate(['SST','SSH']):
+    for k in range(nfolds):
+        exp = {"expdir"         : "FNN4_128_Singlevar_CV_consistent"      , # Directory of the experiment
+                "searchstr"     :  "*%s*kfold%02i*" % (vname,k), # Search/Glob string used for pulling files
+                "expname"       : "%s_fold%02i" % (vname,k)    , # Name of the experiment (Short)
+                "expname_long"  : "%s (fold=%02i)" % (vname,k)   , # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[v]                    , # Color for plotting
+                "marker"        : markers[k]                   , # Marker for plotting
+                "ls"            : lss[k]               , # Linestyle for plotting
+                }
+        inexps.append(exp)
+compname                        = "FNN4_128_CV_consistent_SSH_SST"# CHANGE THIS for each new comparison
+
+leads = np.arange(0,26,3)
+
+# ----------------------------
+#%% CESM1 SingleVar Comparison
+# ----------------------------
+
+expdir   = "FNN4_128_SingleVar_Rerun100"
+allpred       = ("SST","SSS","PSL","SSH")
+apcolors      = ("r","limegreen","pink","darkblue")
+
+"""
+"CESM2"
+"IPSL-CM6A-LR"
+"CanESM5"
+"MIROC6"
+"ACCESS-ESM1-5"
+"""
+inexps = []
+for p,pred in enumerate(allpred):
+    
+    exp0 = {"expdir"        : expdir, # Directory of the experiment
+            "searchstr"     :  "*%s*"  % pred              , # Search/Glob string used for pulling files
+            "expname"       : pred       , # Name of the experiment (Short)
+            "expname_long"  : pred   , # Long name of the experiment (for labeling on plots)
+            "c"             : apcolors[p]                    , # Color for plotting
+            "marker"        : "o"                    , # Marker for plotting
+            "ls"            : "solid"               , # Linestyle for plotting
+            }
+    
+    inexps.append(exp0)
+
+quartile = False
+leads    = np.arange(0,26,1)
+detrend  = False
+
+
+# --------------------------------------------------
+# %% Compare particular predictor across experiments for wrtiten version
+# --------------------------------------------------
+
+
+exp2 = {"expdir"        : "FNN4_128_SingleVar"   , # Directory of the experiment
+        "searchstr"     :  "*SSH*"               , # Search/Glob string used for pulling files
+        "expname"       : "SSH_Original"       , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Original Script)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "b"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+exp3 = {"expdir"        : "FNN4_128_SingleVar_Rewrite" , # Directory of the experiment
+        "searchstr"     :  "*SSH*",                      # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite"           ,      # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite)"   ,            # Long name of the experiment (for labeling on plots)
+        "c"             : "orange"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+exp4 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "r"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+exp5 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_redEp"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, Reduce Epochs)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "magenta"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+
+exp6 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_redEp_redBS"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, Reduce Epochs and Batch Size)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "limegreen"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+
+exp7 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_no_val" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_no_val"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, No Validation)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "cyan"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+exp8 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_no_val_8020"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, No Validation 80-20)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "yellow"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+inexps   = (exp2,exp3,exp4,exp5,exp6,exp7,exp8)
+compname = "Rewrite"
+quartile = False
+leads    = np.arange(0,26,3)
+detrend  = False
+no_vals  = [d['no_val'] for d in inexps]
+
+# --------------------------------------------------------
+#%% CESM PIC vs HTR
+# --------------------------------------------------------
+
+
+inexps   = []
+vcolors  = ["r","b"]
+markers  = ["d","o","d","o"]
+lss      = ["dashed","solid","dashed","solid"]
+exps     = ["FNN4_128_detrend","FNN4_128_SingleVar_PIC"]
+expnames = ["Historical Detrended","PiControl"]
+
+
+for v,vname in enumerate(['SST','SSH']):
+    for exp in range(2):
+        
+        
+        exp = {"expdir"         : exps[exp]     , # Directory of the experiment
+                "searchstr"     :  "*%s*" % (vname), # Search/Glob string used for pulling files
+                "expname"       : "%s_%s" % (exps,vname), # Name of the experiment (Short)
+                "expname_long"  : "%s (%s)" % (expnames[exp],vname)   , # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[v]                    , # Color for plotting
+                "marker"        : markers[exp]                   , # Marker for plotting
+                "ls"            : lss[exp]               , # Linestyle for plotting
+                "no_val"        : False,  # Whether or not there is a validation dataset
+                }
+        
+        inexps.append(exp)
+        
+compname                        = "FNN4_128_HTR_v_PiC"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,3)
+quartile                        = False
+detrend                         = True
+no_vals                         = [False,True,False,True]
+

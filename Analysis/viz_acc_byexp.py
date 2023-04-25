@@ -25,9 +25,9 @@ sys.path.append(cwd+"/../")
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 sys.path.append("../")
 
-
 import viz,proc
 import amvmod as am # Import amv module for predict amv
+import amv_dataloader as dl
 #%% Import common parameters from file
 
 import predict_amv_params as pparams
@@ -43,6 +43,7 @@ class_colors        = pparams.class_colors
 
 # Import other information
 leads               = np.arange(0,26,1)#pparams.leads
+
 cmip6_names         = pparams.cmip6_names
 cmip6_colors        = pparams.cmip6_colors
 cmip6_markers       = pparams.cmip6_markers
@@ -134,13 +135,149 @@ for v,varname in enumerate(varnames):
     inexps.append(exp)
 
 compname = "%s_SingleVar_comparison" % expname# CHANGE THIS for each new comparison
-#%%
 
-# MIROC6, Exact Thresholds, Limit 1920 - 2005
+# ---------------------------------------------------
+# %% Updated Cross Validation with consistent samples
+# ---------------------------------------------------
+nfolds = 4
+inexps = []
+
+vcolors = ["r","b"]
+markers = ["d","o","x","+"]
+lss     = ["dashed","solid","dotted","dashdot"]
+
+for v,vname in enumerate(['SST','SSH']):
+    for k in range(nfolds):
+        exp = {"expdir"         : "FNN4_128_Singlevar_CV_consistent"      , # Directory of the experiment
+                "searchstr"     :  "*%s*kfold%02i*" % (vname,k), # Search/Glob string used for pulling files
+                "expname"       : "%s_fold%02i" % (vname,k)    , # Name of the experiment (Short)
+                "expname_long"  : "%s (fold=%02i)" % (vname,k)   , # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[v]                    , # Color for plotting
+                "marker"        : markers[k]                   , # Marker for plotting
+                "ls"            : lss[k]               , # Linestyle for plotting
+                }
+        inexps.append(exp)
+compname                        = "FNN4_128_CV_consistent_SSH_SST"# CHANGE THIS for each new comparison
+
+quartile = False
+leads    = np.arange(0,26,3)
+detrend  = False
+
+# --------------------------------------------------
+# %% Compare particular predictor across experiments for wrtiten version
+# --------------------------------------------------
+
+exp2 = {"expdir"        : "FNN4_128_SingleVar"   , # Directory of the experiment
+        "searchstr"     :  "*SSH*"               , # Search/Glob string used for pulling files
+        "expname"       : "SSH_Original"       , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Original Script)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "b"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+exp3 = {"expdir"        : "FNN4_128_Singlevar_Rewrite" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "orange"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
 
 
+exp4 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "r"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+exp5 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_redEp"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, Reduce Epochs)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "magenta"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
 
 
+exp6 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_redEp_redBS"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, Reduce Epochs and Batch Size)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "limegreen"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+
+exp7 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_no_val" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_no_val"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, No Validation)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "cyan"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+exp8 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_newest_no_val_8020"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite Newest, No Validation 80-20)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "yellow"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+inexps   = (exp2,exp3,exp4,exp5,exp6,exp7,exp8)
+compname = "Rewrite"
+quartile = False
+leads    = np.arange(0,26,3)
+detrend  = False
+no_vals  = [d['no_val'] for d in inexps]
+
+#%% PIC vs HTR
+
+
+inexps   = []
+vcolors  = ["r","b"]
+markers  = ["d","o","d","o"]
+lss      = ["dashed","solid","dashed","solid"]
+exps     = ["FNN4_128_detrend","FNN4_128_SingleVar_PIC"]
+expnames = ["Historical Detrended","PiControl"]
+
+for v,vname in enumerate(['SST','SSH']):
+    for exp in range(2):
+        
+        
+        exp = {"expdir"         : exps[exp]     , # Directory of the experiment
+                "searchstr"     :  "*%s*" % (vname), # Search/Glob string used for pulling files
+                "expname"       : "%s_%s" % (exps,vname), # Name of the experiment (Short)
+                "expname_long"  : "%s (%s)" % (expnames[exp],vname)   , # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[v]                    , # Color for plotting
+                "marker"        : markers[exp]                   , # Marker for plotting
+                "ls"            : lss[exp]               , # Linestyle for plotting
+                "no_val"        : False,  # Whether or not there is a validation dataset
+                }
+        
+        inexps.append(exp)
+        
+compname                        = "FNN4_128_HTR_v_PiC"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,3)
+quartile                        = False
+detrend                         = True
+no_vals                         = [True,False,True,False]
 
 
 #%% [X] --------------- E N D    U S E R    I N P U T-------------------------------
@@ -168,7 +305,7 @@ for ex in range(nexps):
 """
 
 # Make the experiment dictionary
-expdict = am.make_expdict(flists,leads)
+expdict = am.make_expdict(flists,leads,no_val=no_vals)
 
 # Gather some dimension information for plotting
 # if isinstance(quartile,list): #Different Threshold Types
@@ -195,13 +332,20 @@ if isinstance(expdict['classacc'],list):
 totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict)
 #%% Load the persistence baseline
 
-fpath = "../Data/Metrics/"
-fnp ="leadtime_testing_ALL_AMVClass3_PersistenceBaseline_1before_nens40_maxlead24_detrend0_noise0_nsample400_limitsamples1_ALL_nsamples1.npz"
+# fpath = "../Data/Metrics/"
+# fnp ="leadtime_testing_ALL_AMVClass3_PersistenceBaseline_1before_nens40_maxlead24_detrend%i_noise0_nsample400_limitsamples1_ALL_nsamples1.npz" % detrend
 
-ldp = np.load(fpath+fnp,allow_pickle=True)#.f#.arr_0
+# ldp = np.load(fpath+fnp,allow_pickle=True)#.f#.arr_0
 
-persaccclass = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
-persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
+# persaccclass = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
+# persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
+
+# persleads    = np.arange(0,26,3)
+
+
+persleads,persaccclass,persacctotal = dl.load_persistence_baseline("CESM1",datpath=None,return_npfile=False,region=None,quantile=False,
+                              detrend=True,limit_samples=True,nsamples=None,repeat_calc=1,ens=42)
+
 
 # ------------------------
 #%% Do some visualizations
@@ -209,7 +353,8 @@ persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
 
 # General plotting options
 lwall      = 2.5
-darkmode   = True
+darkmode   = False
+alpha      = 0.05
 
 if darkmode:
     plt.style.use('dark_background')
@@ -230,7 +375,7 @@ for c in range(3):
     ax = axs[c]
     ax.set_title("%s" %(classes[c]),fontsize=16,)
     ax.set_xlim([0,24])
-    ax.set_xticks(leads)
+    ax.set_xticks(persleads)
     ax.set_ylim([0,1])
     ax.set_yticks(np.arange(0,1.25,.25))
     ax.grid(True,ls='dotted')
@@ -250,12 +395,12 @@ for c in range(3):
                 plotacc = classacc[i,:,:,c].mean(0)
                 
         else:
-            
+        
             if plotmax:
                 plotacc = classacc[i,:,:,c].max(0)
             else:
                 plotacc = classacc[i,:,:,c].mean(0)
-        
+            
         # Calculate some statistics
         mu        = classacc[i,:50,:,c].mean(0)
         sigma     = classacc[i,:50,:,c].std(0)
@@ -268,11 +413,10 @@ for c in range(3):
         ax.plot(leads,mu,color=col,marker=mrk,alpha=1.0,lw=2.5,label=lbl,zorder=9,ls=ls)
         if add_conf:
             if plotconf:
-                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.2,color=col,zorder=1,label="")
+                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=col,zorder=-9,label="")
             else:
-                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=col,zorder=1)
-        
-    ax.plot(leads,persacctotal,color=dfcol,label="Persistence",ls="dashed")
+                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=col,zorder=1)
+    ax.plot(persleads,persaccclass[:,c],color=dfcol,label="Persistence",ls="dashed")
     ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
     
     ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color='k')
@@ -280,34 +424,29 @@ for c in range(3):
     if c == 0:
         ax.set_ylabel("Accuracy")
     if c == 1:
-        ax.legend(ncol=2,fontsize=10)
+        ax.legend(ncol=2,fontsize=8)
         ax.set_xlabel("Prediction Lead (Years)")
     
 #plt.suptitle(expname)
 savename = "%sExperiment_Intercomparison_byclass_plotmax%i_%s.png"% (figpath,plotmax,compname)
 plt.savefig(savename,dpi=200,bbox_inches="tight",transparent=True)
 
-
-
 #%% Get counts of each class...
 
-
-classcounts_all = np.zeros((nexps,nleads,nclasses,nruns))
+classcounts_all = np.zeros((nexps,nleads,nclasses,nruns)) # [experiment, lead, class, run]
+predcounts_all  = np.zeros((nexps,nleads,nclasses,nruns))
 for d in range(nexps):
-    
     for l in range(nleads):
          # [runs]
-        
         for r in range(nruns):
             
-            samples = ylabs[d][r,l]
-            
+            samples      = ylabs[d][r][l] # The actual counts
+            samples_pred = ypred[d][r][l] # The predicted counts
             for c in range(nclasses):
-            
                 classcounts_all[d,l,c,r] += (samples == c).sum()
+                predcounts_all[d,l,c,r] += (samples_pred == c).sum()
 
 #%% Visualize distributions by class and leadtime
-
 
 # General plotting options
 lwall      = 2.5
@@ -375,11 +514,7 @@ for c in range(3):
 savename = "%sExperiment_Intercomparison_ClassCount_%s.png"% (figpath,compname)
 plt.savefig(savename,dpi=200,bbox_inches="tight",transparent=True)
 
-
-
-
-
-
+#%%
 
 #%% Unorganized Below --------------------------------------------------------------------------
 #%% For a given predictor, visualize the distribution in accuracies
@@ -575,6 +710,10 @@ for v in range(nvar):
     plt.savefig(savename,dpi=200,bbox_inches='tight',transparent=True)
     #ax.set_title("")
 
+#%% Cross Cross Validation Experiments. Quantify the cross-fold variance
+
+
+
 #%% In this section below, we make some comparisons of skill by experiment...
 
 #%% Sort by accuracies
@@ -584,3 +723,16 @@ for v in range(nvar):
 plotvar = classacc[v,:,l,c]
 fig,ax = plt.subplots(1,1)
 
+
+
+#%% Invetigating shuffled indices
+
+shuffids_pred = shuffids[0] # [predictor][run][lead,sample]
+
+# It seems that for a given leadtime, the indices of samples used are the same
+r = 4
+id_run0 = shuffids_pred[r][0,:].astype(int)
+id_run1 = shuffids_pred[r][0,:].astype(int)
+plt.plot(id_run0-id_run1)
+
+# However, for the train/test/val split, the indices are different...
