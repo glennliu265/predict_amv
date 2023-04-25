@@ -35,10 +35,10 @@ sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/02_stochmo
 import scm
 
 # Indicate variable
-varname = "SST" # SSH
+varname = "SSH" # SSH
 
 # Indicate paths
-outpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CESM1-PIC"
+outpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/CESM1_PIC/"
 
 # Indicate crop selection
 bbox          = [-90,20,0,90] # Crop Selection
@@ -53,10 +53,14 @@ dataset_name = "CESM1-PIC"
 ystart       = "0400"
 yend         = "2200"
 
+
+
 # Define Preprocessing Function
 def preprocess(ds):
     ds        = proc.lon360to180_xr(ds)
     ds        = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+    ds        = proc.fix_febstart(ds)
+    
     return ds
 
 
@@ -149,6 +153,9 @@ elif varname == "SSH":
     
     # Load all variables into a dataset with time x lat x lon, flipped to lonW and
     # cropped to bbox
+    
+    # Extra cropping to reistrict to time period
+    ds_all = ds_all.sel(time=slice("%s-01-01"%ystart,"%s-12-31"%yend))
 
     #% Now perform preprocessing, as was done in "regrid_reanalysis_cesm1.py"
     
@@ -195,9 +202,9 @@ print("Saved data in %s" % outname)
 if varname == "SST":
     #%Calculate the Index
     ds_amv_reg = ds_normalized_out.sel(lon=slice(bbox_amv[0],bbox_amv[1]),lat=slice(bbox_amv[2],bbox_amv[3]))
-    amv_index  = (np.cos(np.pi*ds_amv_reg.lat/180) * ds_amv_reg[varname.upper()]).mean(dim=('lat','lon'))
-
-outname    = "%s%s_label_%s_amv_index_detrend%i_regridCESM1.npy" % (outpath,dataset_name,region_name,detrend)
-np.save(outname,amv_index)
-print("Saved target to %s" % outname)
+    amv_index  = (np.cos(np.pi*ds_amv_reg.lat/180) * ds_amv_reg).mean(dim=('lat','lon'))
+    
+    outname    = "%s/%s_label_%s_amv_index_detrend%i_regridCESM1.npy" % (outpath,dataset_name,region_name,detrend)
+    np.save(outname,amv_index)
+    print("Saved target to %s" % outname)
 
