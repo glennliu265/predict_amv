@@ -1790,9 +1790,12 @@ def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
         print("Using %i samples, the size of the smallest class" % (nsamples))
     
     # Select samples based on the longest leadtime. 
-    y_class,X,shuffidx_max = select_samples(nsamples,y_class,X,verbose=debug,shuffle=shuffle_class)
-    shuffidx_max           = shuffidx_max.astype(int) # There indices are w.r.t. the lagged data
-    
+    if nsamples == "ALL":
+        shuffidx_max = np.arange(0,y_class.shape[0]).astype(int)
+    else:
+        y_class,X,shuffidx_max = select_samples(nsamples,y_class,X,verbose=debug,shuffle=shuffle_class)
+        shuffidx_max           = shuffidx_max.astype(int) # There indices are w.r.t. the lagged data
+        
     # Get [absolute] linear indices for reference lead [lead], based on applied lead [leadmax]
     target_indices,target_refids = get_ensyr_linear(leadmax,shuffidx_max,
                 reflead=0,nens=nens,nyr=ntime,
