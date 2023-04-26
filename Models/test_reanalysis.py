@@ -5,8 +5,6 @@ Test selected networks on reanalysis
 
 - Works with reanalysis dataset preprocessed in 
 - 
-
-
     Copied upper section from test_predictor_uncertainty
 
 Created on Tue Apr  4 11:20:44 2023
@@ -37,7 +35,7 @@ from torch.utils.data import DataLoader, TensorDataset,Dataset
 #% Load custom packages and setup parameters
 # Import general utilities from amv module
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
-import proc
+import proc,viz
 
 
 # Import packages specific to predict_amv
@@ -420,6 +418,7 @@ for c in range(3):
     ax.set_ylabel("Accuracy")
     ax.set_yticks(np.arange(0,1.25,0.25))
     ax.set_title(classes[c])
+    ax.minorticks_on()
 figname = "%sReanalysis_Test_%s_Class_Acc.png" % (figpath,dataset_name)
 plt.savefig(figname,dpi=150)
 
@@ -429,11 +428,8 @@ idx_by_class,count_by_class = am.count_samples(None,target_class)
 
 class_str = "Class Count: AMV+ (%i) | Neutral (%i) | AMV- (%i)" % tuple(count_by_class)
 
-
 timeaxis = np.arange(0,re_target.shape[1]) + 1870
 fig,ax = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
-
-
 
 ax.plot(timeaxis,re_target.squeeze(),color="k",lw=2.5)
 ax.grid(True,ls="dashed")
@@ -441,16 +437,17 @@ ax.minorticks_on()
 
 for th in thresholds_in:
     ax.axhline([th],color="k",ls="dashed")
-
+ax.axhline([0],color="k",ls="solid",lw=0.5)
 ax.set_xlim([timeaxis[0],timeaxis[-1]])
 ax.set_title("HadISST NASST Index (1870-2022) \n%s" % (class_str))
-
+plt.savefig("%sHadISST_NASST.png" %(figpath),dpi=150,bbox_inches='tight')
 
 #%% Get correct indices for each class
 
 
 # y_predicted_all = [runs,lead,sample]
 # y_actual_all    = [lead,sample]
+
 correct_mask = []
 for l in range(len(leads)):
     lead = leads[l]
@@ -461,11 +458,6 @@ for l in range(len(leads)):
         i_class = (y_actual_all[l,:] == c)
         correct_mask_lead.append(i_correct*i_class)
     correct_mask.append(correct_mask_lead)
-    
-    
-    
-
-
 
 #%% Visualize relevance maps
 
@@ -475,6 +467,8 @@ nruns,nleads,nsamples_lead,nlat,nlon = relevances_all.shape
 
 plotleads        = [24,18,12,6,0]
 normalize_sample = 2
+
+plot_bbox        = [-80,0,0,60]
 
 cmax  = 1
 clvl = np.arange(-2.2,2.2,0.2)
@@ -499,12 +493,14 @@ for c in range(3):
         # Axis Formatting
         blabel = [0,0,0,0]
         if c == 0:
-            ax.set_title("%s-Year Lead" % (plotleads[l]))
+            ax.set_title("%s-Year Lead" % (plotleads[l]),fontsize=fsz_title)
         if l == 0:
             blabel[0] = 1
             ax.text(-0.15, 0.55, classes[c], va='bottom', ha='center',rotation='vertical',
                     rotation_mode='anchor',transform=ax.transAxes,fontsize=fsz_axlbl)
-        
+        ax = viz.add_coast_grid(ax,bbox=plot_bbox,blabels=blabel,fill_color="k")
+        ax = viz.label_sp(ii,ax=ax,fig=fig,alpha=0.8,fontsize=fsz_axlbl)
+            
         # Get correct predictions
         cmask = correct_mask[l][c].flatten()
         relevances_in = relevances_all[:,ilead,:,:,:]
@@ -535,7 +531,271 @@ for c in range(3):
         ax.clabel(cl,clvl[::2])
         
             
-        ax.coastlines()
-        ax.set_extent(bbox)
         ii+=1
+cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.025,pad=0.01)
+cb.set_label("Normalized Relevance",fontsize=fsz_axlbl)
+cb.ax.tick_params(labelsize=fsz_ticks)
+
+
+savename = "%sHadISSTClassComposites_LRP_%s_normalize%i_Outline.png" % (figpath,expdir,normalize_sample)
+if darkmode:
+    savename = proc.addstrtoext(savename,"_darkmode")
+plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
+
+#%% Make a scatterplot of the event distribution and 
+
+imodel = 6
+ilead  = 8
+msize  = 100
+timeaxis = np.arange(0,re_target.shape[1]) + 1870
+
+for imodel in range(50):
+    # Select the model
+    y_predicted_in = y_predicted_all[imodel,ilead,:]
+    y_actual_in    = y_actual_all[ilead,:]
+    re_target_in   = re_target[:,leads[ilead]:].squeeze()
+    id_correct     = (y_predicted_in == y_actual_in)
+    
+    
+    timeaxis_in = np.arange(leads[ilead],re_target.shape[1]) + 1870
+    
+    
+    
+    fig,ax = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
+    
+    # Plot the amv classes
+    for c in range(3):
+        
+        # Get the id for the class
+        id_class = (y_actual_in == c)
+        
+        id_right = id_class * id_correct
+        id_wrong = id_class * ~id_correct
+        
+        # Plot the correct ones
+        ax.scatter(timeaxis_in[id_right],re_target_in[id_right],s=msize,marker="o",color=class_colors[c],facecolors="None")
+        ax.scatter(timeaxis_in[id_wrong],re_target_in[id_wrong],s=msize,marker="x",color=class_colors[c])
+        
+    
+    # Plot the actual AMV Index
+    #ax.plot(timeaxis,re_target.squeeze(),color="k",lw=0.75,zorder=-9)
+    ax.grid(True,ls="dashed")
+    ax.minorticks_on()
+    
+    # Plot the Thresholds
+    for th in thresholds_in:
+        ax.axhline([th],color="k",ls="dashed")
+    ax.axhline([0],color="k",ls="solid",lw=0.5)
+    ax.set_xlim([timeaxis[0],timeaxis[-1]])
+    
+    class_str = "Class Acc: AMV+ (%.2f), Neutral (%.2f), AMV- (%.2f)" % (class_acc_all[imodel,ilead,0],
+                                                                         class_acc_all[imodel,ilead,1],
+                                                                         class_acc_all[imodel,ilead,2])
+    ax.set_title("HadISST NASST Index and Prediction Results (1870-2022) \nNetwork #%i, Lead = %i years \n %s" % (imodel+1,leads[ilead],class_str))
+    plt.savefig("%sHadISST_NASST_lead%02i_imodel%03i.png" %(figpath,leads[ilead],imodel,),dpi=150,bbox_inches='tight')
+
+
+
+
+#%% Function version of above
+def plot_scatter_predictions(imodel,ilead,y_predicted_all,y_actual_all,re_target,class_acc_all,msize=100,
+                             figsize=(12,4),class_colors=('salmon', 'gray', 'cornflowerblue')):
+    
+    
+    # Select the model
+    y_predicted_in = y_predicted_all[imodel,ilead,:]
+    y_actual_in    = y_actual_all[ilead,:]
+    re_target_in   = re_target[:,leads[ilead]:].squeeze()
+    id_correct     = (y_predicted_in == y_actual_in)
+    
+    timeaxis_in = np.arange(leads[ilead],re_target.shape[1]) + 1870
+    
+    fig,ax = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
+    
+    # Plot the amv classes
+    for c in range(3):
+        
+        # Get the id for the class
+        id_class = (y_actual_in == c)
+        
+        id_right = id_class * id_correct
+        id_wrong = id_class * ~id_correct
+        
+        # Plot the correct ones
+        ax.scatter(timeaxis_in[id_right],re_target_in[id_right],s=msize,marker="o",color=class_colors[c],facecolors="None")
+        ax.scatter(timeaxis_in[id_wrong],re_target_in[id_wrong],s=msize,marker="x",color=class_colors[c])
+        
+    
+    # Plot the actual AMV Index
+    #ax.plot(timeaxis,re_target.squeeze(),color="k",lw=0.75,zorder=-9)
+    ax.grid(True,ls="dashed")
+    ax.minorticks_on()
+    
+    # Plot the Thresholds
+    for th in thresholds_in:
+        ax.axhline([th],color="k",ls="dashed")
+    ax.axhline([0],color="k",ls="solid",lw=0.5)
+    ax.set_xlim([timeaxis[0],timeaxis[-1]])
+    
+    class_str = "Class Acc: AMV+ (%.2f), Neutral (%.2f), AMV- (%.2f)" % (class_acc_all[imodel,ilead,0],
+                                                                         class_acc_all[imodel,ilead,1],
+                                                                         class_acc_all[imodel,ilead,2])
+    return fig,ax
+
+    
+#%% MAKE A PLOT OF ABOVE, BUT WITH THE BEST performing model
+
+ilead   = -1
+id_best = total_acc_all[:,ilead].argmax()
+
+
+fig,ax = plot_scatter_predictions(id_best,ilead,y_predicted_all,y_actual_all,re_target,class_acc_all,msize=100,
+                             figsize=(12,4))
+
+ax.set_ylim([-1.5,1.5])
+ax.set_xlim([1890,2025])
+ax.set_title("HadISST NASST Index and Prediction Results (1870-2022) \nNetwork #%i, Lead = %i years \n %s" % (id_best+1,leads[ilead],class_str))
+plt.savefig("%sHadISST_NASST_lead%02i_imodel%03i.png" %(figpath,leads[ilead],imodel,),dpi=150,bbox_inches='tight')
+
+
+
+#%% Make a histogram
+
+
+# Visualize prediction count by year
+
+# Select the model
+#y_predicted_in = y_predicted_all[imodel,ilead,:]
+#y_actual_in    = y_actual_all[ilead,:]
+#re_target_in   = re_target[:,leads[ilead]:].squeeze()
+#id_correct     = (y_predicted_in == y_actual_in)
+
+
+count_by_year = np.zeros((ntime-leads[-1],nclasses))
+timeaxis_in   = np.arange(leads[ilead],re_target.shape[1])
+
+# Assumes leads are not shuffled
+for y in range(ntime-leads[ilead]):
+    y_pred_year = y_predicted_all[...,y]
+    
+    for c in range(3):
+        
+        count_by_year[y,c] = (y_pred_year == c).sum()
+
+#%% I was up to here
+    
+    
+    
+# for c in range(3):
+#     y_predicted_all == 
+#     y_predicted_all
+    
+    
+        
+fig,ax       = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
+
+
+for c in range(3):
+    label = classes[c]
+    #label = "%s (Test Acc = %.2f" % (classes[c],class_acc[c]*100)+"%)"
+    
+    ax.bar(timeaxis_in+1870,count_by_year[:,c],bottom=count_by_year[:,:c].sum(1),
+           label=label,color=class_colors[c],alpha=0.75,edgecolor="white")
+
+
+ax.set_ylabel("Frequency of Predicted Class")
+ax.set_xlabel("Year")
+ax.legend()
+ax.minorticks_on()
+ax.grid(True,ls="dotted")
+ax.set_xlim([1880,2025])
+ax.set_ylim([0,450])
+
+ax2 = ax.twinx()
+ax2.plot(timeaxis,re_target.squeeze(),color="k",label="HadISST NASST Index")
+ax2.set_ylabel("NASST Index ($\degree C$)")
+ax2.set_ylim([-1.3,1.3])
+for th in thresholds_in:
+    ax2.axhline([th],color="k",ls="dashed")
+ax2.axhline([0],color="k",ls="solid",lw=0.5)
+plt.savefig("%sHadISST_Prediction_Count_AllLeads.png"%figpath,dpi=150,bbox_inches="tight")
+#%% Try the above, but get prediction count for selected leadtimes
+# Q : Is there a systematic shift towards the selected leadtimes?
+selected_leads      = [0,6,12,18,24]
+nleads_sel          = len(selected_leads)
+
+count_by_year_leads = np.zeros((ntime-leads[-1],nclasses,nleads_sel))
+
+# Assumes leads are not shuffled
+for y in range(ntime-leads[ilead]):
+    
+    for ll in range(nleads_sel):
+        sel_lead_index = list(leads).index(selected_leads[ll])
+        y_pred_year = y_predicted_all[...,sel_lead_index,y]
+    
+        for c in range(3):
+            
+            count_by_year_leads[y,c,ll] = (y_pred_year == c).sum()
+
+
+#%% 
+fig,axs       = plt.subplots(3,1,constrained_layout=True,figsize=(16,8))
+
+
+
+lead_colors = ["lightsteelblue","cornflowerblue","royalblue","mediumblue","midnightblue"]
+for c in range(3):
+    ax = axs[c]
+    
+    for ll in range(nleads_sel):
+        ax.plot(timeaxis_in+1870,count_by_year_leads[:,c,ll],label="%02i-yr Lead" % selected_leads[ll],lw=1.5,c=lead_colors[ll])
+        
+    if c == 0:
+        ax.legend()
+    ax.set_title(classes[c])
+    
+    ax.set_xlabel("Year")
+    ax.minorticks_on()
+    ax.grid(True,ls="dashed")
+    
+    # label = "%s (Test Acc = %.2f" % (classes[c],class_acc[c]*100)+"%)"
+    # ax.bar(timeaxis_in+1870,count_by_year[:,c],bottom=count_by_year[:,:c].sum(1),
+    #        label=label,color=class_colors[c],alpha=0.75,edgecolor="k")
+    
+    ax.set_ylabel("Predicted Class Count")
+
+plt.savefig("%sHadISST_Class_Prediction_Frequency_byYear.png"%(figpath),dpi=150,bbox_inches="tight")
+#%%
+
+ax.set_title(title)
+ax.set_ylim([0,10])
+
+
+
+plot_mode = 0
+
+for plot_mode in range(2):
+    ax = axs[plot_mode]
+    ax = format_axis(ax,x=timeaxis)
+    if plot_mode == 0:
+        title = "Actual Class"
+    elif plot_mode == 1:
+        title = "Predicted Class"
+    testc = np.arange(0,3)
+    for c in range(3):
+        label = "%s (Test Acc = %.2f" % (class_names[c],class_acc[c]*100)+"%)"
+        if debug:
+            print("For c %i, sum of prior values is %s" % (c,testc[:c]))
+        ax.bar(timeaxis,count_by_year[:,c,plot_mode],bottom=count_by_year[:,:c,plot_mode].sum(1),
+               label=label,color=class_colors[c],alpha=0.75,edgecolor="k")
+    ax.set_title(title)
+    ax.set_ylim([0,10])
+    if plot_mode == 0:
+        ax.legend()
+plt.suptitle("AMV Class Distribution by Year (%s) \n %s" % (modelname,exp_titlestr))
+if savefig:
+    plt.savefig("%sClass_Distr_byYear_%s_lead%02i_nepochs%02i.png" % (figpath,varnames[v],lead,epoch_axis[-1]),dpi=150)
+
+
+#%%
 
