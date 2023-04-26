@@ -58,11 +58,12 @@ import amvmod as am
 
 #%% User Edits
 
-expdir             = "FNN4_128_SingleVar"
+varnames           = ["SST","SSH"]
+expdirs            = ["FNN4_128_detrend","FNN4_128_SingleVar_PIC"]
+no_vals            = [True,False]
+
+# Indicate shared parameters
 modelname          = "FNN4_128"
-varnames           = ["PSL","SSH"] 
-
-
 nmodels            = 50 # Specify manually how much to do in the analysis
 leads              = np.arange(0,26,3)
 
@@ -75,65 +76,101 @@ class_colors       = pparams.class_colors
 classes            = pparams.classes
 
 # Load some relevant parameters from [train_cesm1_params.py]
-eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
-ens                = eparams['ens']
+eparams_all = []
+for expdir in expdirs:
+    eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
+    eparams_all.append(eparams)
 
+ens_all            = [eparams['ens'] for eparams in eparams_all]
 checkgpu           = True
 
 #%% Load data (taken from train_NN_CESM1.py)
 
-# Load some variables for ease
 
-# Load predictor and labels, lat/lon, cut region
-target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
-data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
+# Load data into dictionaries
 
-# Create classes 
-# Set exact threshold value
-std1         = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
-if eparams['quantile'] is False:
-    thresholds_in = [-std1,std1]
-else:
-    thresholds_in = eparams['thresholds']
+indicts_all = []
+for exp in range(2):
+    eparams = eparams_all[exp]
+    ens     = ens_all[exp]
 
-# Classify AMV Events
-target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
-target_class = target_class.reshape(target.shape)
 
-# Subset predictor by ensemble, remove NaNs, and get sizes
-data                           = data[:,0:ens,...]      # Limit to Ens
-data[np.isnan(data)]           = 0                      # NaN Points to Zero
-nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
-inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
-nclasses = len(eparams['thresholds']) + 1
-nlead    = len(leads)
+    # Load predictor and labels, lat/lon, cut region
+    target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'],PIC=eparams['PIC'])
+    data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True,PIC=eparams['PIC'])
+    
+    # Create classes 
+    # Set exact threshold value
+    std1           = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
+    if eparams['quantile'] is False:
+        thresholds_in = [-std1,std1]
+    else:
+        thresholds_in = eparams['thresholds']
+    
+    # Classify AMV Events
+    target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
+    target_class = target_class.reshape(target.shape)
+    
+    # Subset predictor by ensemble, remove NaNs, and get sizes
+    data                           = data[:,0:ens,...]      # Limit to Ens
+    data[np.isnan(data)]           = 0                      # NaN Points to Zero
+    nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
+    inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
+    nclasses = len(eparams['thresholds']) + 1
+    nlead    = len(leads)
+    
+    input_dict = {
+        'target' : target,
+        'data'   : data,
+        'std1'   : std1,
+        'thresholds_in' : thresholds_in,
+        'target_class'  : target_class,
+        }
+    input_dicts_all.append(input_dict)
 
 #%% Load model weights (taken from LRP_LENS.py and viz_acc_byexp)
 
-modweights_byvar = [] # [variable][lead][runid][?]
-modlist_byvar    = []
-flists           = []
-for v,varname in enumerate(varnames):
+modweights_all = []
+modlist_all    = []
+flists_all     = []
+expdicts_all   = []
+
+for exp in range(2):
+    expdir = expdirs[exp]
+    no_val = no_vals[exp]
     
-    # Get the model weights
-    modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
-    modweights_byvar.append(modweights_lead)
-    modlist_byvar.append(modlist_lead)
+    modweights_byvar = [] # [variable][lead][runid][?]
+    modlist_byvar    = []
+    flists           = []
+    for v,varname in enumerate(varnames):
+        
+        # Get the model weights
+        modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
+        modweights_byvar.append(modweights_lead)
+        modlist_byvar.append(modlist_lead)
+        
+        
+        # Get list of metric files
+        search = "%s%s/Metrics/%s" % (datpath,expdir,"*%s*" % varname)
+        flist  = glob.glob(search)
+        flist  = [f for f in flist if "of" not in f]
+        flist.sort()
+        flists.append(flist)
+        print("Found %i files for %s using searchstring: %s" % (len(flist),varname,search))
     
+    # Get the shuffled indices
+    expdict = am.make_expdict(flists,leads,no_val=no_val)
     
-    # Get list of metric files
-    search = "%s%s/Metrics/%s" % (datpath,expdir,"*%s*" % varname)
-    flist  = glob.glob(search)
-    flist  = [f for f in flist if "of" not in f]
-    flist.sort()
-    flists.append(flist)
-    print("Found %i files for %s using searchstring: %s" % (len(flist),varname,search))
-    
-# Get the shuffled indices
-expdict = am.make_expdict(flists,leads)
+    # Save in broader list
+    expdicts_all.append(expdict)
+    flists_all.append(flists)
+    modlist_all.append(modlist_byvar)
+    modweights_all.append(modweights_byvar)
+
 
 # Unpack Dictionary
-totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict)
+# totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict)
+
 # shuffids [predictor][run][lead][nsamples]
 
 #%% An aside, examining class distribution for each run
