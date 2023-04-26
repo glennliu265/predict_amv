@@ -13,6 +13,15 @@ Created on Thu Apr  6 22:46:26 2023
 import matplotlib.pyplot as plt
 import numpy as np
 
+
+import cartopy.crs as ccrs
+
+import sys
+
+# Import my own custom module....
+sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
+import viz
+
 def format_acc_plot(leads,ax=None):
     if ax is None:
         ax = plt.gca()
@@ -54,6 +63,22 @@ def init_classacc_fig(leads,sp_titles=None):
             ax.set_xlabel("Prediction Leadtime (Years)")
     return fig,axs
     
+
+def init_ablation_maps(bbox_plot,figsize=(10,8),fill_color="k"):
+
+    fig,axs = plt.subplots(2,2,constrained_layout=True,
+                           subplot_kw={'projection':ccrs.PlateCarree()},figsize=figsize)
+    
+    for a in range(4):
+        ax = axs.flatten()[a]
+        blabel=[0,0,0,0]
+        
+        if a%2 == 0:
+            blabel[0] = 1
+        if a>1:
+            blabel[-1] = 1
+        ax = viz.add_coast_grid(ax,bbox=bbox_plot,fill_color=fill_color,blabels=blabel)
+    return fig,axs
     
     
 
