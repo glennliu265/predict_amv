@@ -44,7 +44,7 @@ from torch.utils.data import DataLoader, TensorDataset,Dataset
 
 #%% Load custom packages and setup parameters
 
-machine = 'stormtrack' # Indicate machine (see module packages section in pparams)
+machine = 'Astraeus' # Indicate machine (see module packages section in pparams)
 
 # Import packages specific to predict_amv
 cwd = os.getcwd()
@@ -264,7 +264,7 @@ for v,varname in enumerate(varnames):
                 # ----------------------
                 # 09. Select samples
                 # ----------------------
-                if (eparams['shuffle_trainsplit'] is False) or (l == 0):
+                if (eparams['shuffle_trainsplit'] is True) or (l == 0):
                     if eparams['nsamples'] is None: # Default: nsamples = smallest class
                         threscount = np.zeros(nclasses)
                         for t in range(nclasses):
@@ -272,7 +272,9 @@ for v,varname in enumerate(varnames):
                         eparams['nsamples'] = int(np.min(threscount))
                         print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
                     y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+                
                 else:
+                    
                     print("Select the pre-sampled indices")
                     shuffidx = sampled_idx[l-1]
                     y_class  = y_class[shuffidx,...]
