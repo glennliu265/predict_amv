@@ -34,7 +34,7 @@ import amv_dataloader as dl
 #%%
 # Set path to the data 
 mocpath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
-figpath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230308/"
+figpath      = pparams.figpath
 
 # Time_Period
 startyr      = 1920
@@ -51,7 +51,7 @@ leads        = np.arange(0,26,6)
 
 
 # Set predictor options
-varnames     = ["SSH","SST",]
+varnames     = ["SSH","SST","SSS","PSL"]
 detrend      = 0
 bbox         = pparams.bbox
 
@@ -101,11 +101,11 @@ for l in range(nleads):
 #%% Examine the AMOC regression patterns (ensemble mean)
 
 proj  = ccrs.PlateCarree()
-
-l = 2
+bbox_plot = [-80,0,20,63]
+l = 0
 mesh=True
-clvl=np.arange(-2.1,2.1,0.3)
-fig,axs = plt.subplots(1,nvars,figsize=(10,4),
+clvl=np.arange(-1.8,2,0.2)
+fig,axs = plt.subplots(1,nvars,figsize=(16,4),
                        subplot_kw={'projection':proj},constrained_layout=True,)
 
 
@@ -113,7 +113,11 @@ fig,axs = plt.subplots(1,nvars,figsize=(10,4),
 for v in range(nvars):
     ax      = axs.flatten()[v]
     plotvar = regr_maps[l,v,...].mean(0)
-    ax      = viz.add_coast_grid(ax,bbox=bbox,proj=ccrs.PlateCarree(),fill_color="k")
+    
+    blabel=[0,0,0,1]
+    if v == 0:
+        blabel[0] = 1
+    ax      = viz.add_coast_grid(ax,bbox=bbox_plot,proj=ccrs.PlateCarree(),fill_color="k",blabels=blabel)
     if mesh:
         pcm = ax.pcolormesh(lon,lat,plotvar,cmap="RdBu_r",vmin=clvl[0],vmax=clvl[-1])
     else:
@@ -121,7 +125,7 @@ for v in range(nvars):
     
     cb=fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.05,pad=0.01)
     ax.set_title(varnames[v])
-    cb.set_label("AMOC Regression ([Fluctuation per Sv of iAMOC])")
+    cb.set_label("AMOC Regression \n ([Fluctuation per Sv of iAMOC])")
 
 plt.savefig("%sAMOC_Regression_2var_amoclead%i_%s_Lead%02i.png" % (figpath,amoc_lead,coordinate,leads[l]),dpi=200,bbox_inches="tight")
 #%% Copied from viz_regional_predictability
