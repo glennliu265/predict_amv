@@ -166,8 +166,6 @@ FNN4_128_SingleVar
 
 Old Singlevar Script, prior to rewrite
 
-
-
 """
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
@@ -397,7 +395,6 @@ train_params_all[expname] = expdict.copy()
 
 #%% Sme as above, but remove validation set
 
-
 # # Create Experiment Directory (note that expname = expdir in the original script)
 expname                  = "FNN4_128_SingleVar_debug1_shuffle_all_no_val"
 
@@ -428,8 +425,6 @@ train_params_all[expname] = expdict.copy()
 FNN4_128_SingleVar_PIC
 
 Old Singlevar Script, but for PiC Data
-
-
 
 """
 
@@ -492,6 +487,22 @@ expdict['batch_size']    = 16                   # Pairs of predictions
 expdict['unfreeze_all']  = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 
+train_params_all[expname] = expdict.copy()
+
+#%% 2023.06.02 Trying to Debug Again
+"""
+
+FNN4_128_SingleVar_Rewrite_June
+
+Forgot what is going on, so I'm going to try again...
+
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_Rewrite_June" 
+
+# Copy dictionary from above
+expdict                  = train_params_all["FNN4_128_SingleVar"].copy()
 train_params_all[expname] = expdict.copy()
 
 """
