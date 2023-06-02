@@ -25,8 +25,6 @@ from tqdm import tqdm
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import proc,viz
 
-
-
 # Time_Period
 startyr         = 1920                  # Starting year
 endyr           = 2005                  # Ending year

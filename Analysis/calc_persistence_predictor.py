@@ -28,8 +28,6 @@ import cartopy.crs as ccrs
 from tqdm import tqdm
 import time
 import os
-
-
 import cmocean as cmo
 
 #%% Load custom packages

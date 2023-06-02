@@ -45,6 +45,7 @@ dataset_name   = "MIROC6"
 "MIROC6"
 "ACCESS-ESM1-5"
 """
+
 # LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
 gamma          = 0.1
 epsilon        = 0.1
@@ -87,8 +88,8 @@ proc.makedir(figpath)
 bbox          = pparams.bbox
 nn_param_dict = pparams.nn_param_dict
 
-leadticks25 = pparams.leadticks25
-leadticks24 = pparams.leadticks24
+leadticks25   = pparams.leadticks25
+leadticks24   = pparams.leadticks24
 
 #%% Load some other things
 
@@ -120,6 +121,7 @@ elif cmipver == 6:
     limit_time    = [1850,2014] # Set Dates here to limit the range of the variable
     ens           = 25
     regrid        = None
+
 
 quantile      = True
 thresholds    = [1/3,2/3]
