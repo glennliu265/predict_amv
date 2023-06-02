@@ -22,6 +22,8 @@ from torch import nn
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import matplotlib.pyplot as plt
 
+import cartopy.crs as ccrs
+
 #%% Load custom packages and setup parameters
 # Import general utilities from amv module
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
@@ -37,17 +39,19 @@ import amvmod as am
 
 # Load Predictor Information
 bbox          = pparams.bbox
-
+figpath       = pparams.figpath
+proc.makedir(figpath)
 # ============================================================
 #%% User Edits vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 # ============================================================
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir             = "FNN4_128_SingleVar_Rerun100"
+expdir             = "FNN4_128_detrend"#"FNN4_128_SingleVar_Rerun100"
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
+
 # Set some looping parameters and toggles
-varnames           = ["SST",]       # Names of predictor variables
+varnames           = ["SST","SSS","PSL","SSH"]       # Names of predictor variables
 leads              = np.arange(0,26,1)    # Prediction Leadtimes
 runids             = np.arange(0,1,1)    # Which runs to do
 
@@ -93,8 +97,16 @@ ens            = eparams['ens']
 target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
 data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
 
+# Make a mask
+consistent_mask                = np.isnan(np.sum(data,(0,1,2)))  # sav e mask
+limask = np.ones(consistent_mask.shape)
+limask[consistent_mask==1] = np.nan
+#consistent_mask[consistent_mask == 1] = np.nan
+#consistent_mask[consistent_mask == 0] = 1
+
 # Subset predictor by ensemble, remove NaNs, and get sizes
 data                           = data[:,0:ens,...]      # Limit to Ens
+
 data[np.isnan(data)]           = 0                      # NaN Points to Zero
 nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
 inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
@@ -123,7 +135,94 @@ nlead        = len(leads)
     predictors :: [channel x ens x year x lat x lon]
     labels     :: [ens x year]
 """
+
+#%% Check counts for longest leadtime
+
+target_class = am.make_classes(target[:,25:].flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
+am.count_samples(None,target_class)
+
+#%% Make a plot for AMV Prediction Draft
+
+e       = 36
+
+lead0   = 1940
+N       = 25
+
+startyr = 1920
+yrs     = np.arange(startyr,startyr+target.shape[1])
+
+# Get lead0 and leadN indices
+ipred   = np.where(yrs==lead0)[0][0]
+ilabel  = ipred+N
+lead1   = lead0+N
+xtk     = [lead0,lead1]
+xtklabs = (str(lead0) + "\n(lead=0)",str(lead1)+"\n(lead=%i)"%N) 
+
+
+
+fig,ax= plt.subplots(1,1,figsize=(8,3),constrained_layout=True)
+ax.plot(yrs,target[e,:],c="gray",label="Ensemble member %02i" % (e+1),lw=2.5)
+
+ax.spines[['right', 'top']].set_visible(False)
+
+ax.axhline([0],ls="dotted",color="k",lw=0.55)
+ax.axhline([-std1],ls="dashed",color="cornflowerblue",lw=0.75,label="")
+ax.axhline([std1],ls="dashed",color="red",lw=0.75,label="1$\sigma$")
+ax.legend(loc="lower center")
+ax.minorticks_on()
+ax.set_ylim([-1.25,1.25])
+ax.set_xlim([1935,1970])
+ax.set_ylabel("NASST Index ($\degree$C)")
+ax.set_xlabel("Time (Years)")
+
+# Plot sample leadtimes for prediction
+ax.set_xticks(xtk,labels=xtklabs) # Label lead 0 and lead N
+ax.scatter(lead0,target[e,ipred],marker=".",color="k",label="",
+        s=255,edgecolors="k",zorder=3,alpha=0.8) # Plot lead0
+ax.axvline([lead0],color="k",ls="dashed",lw=0.75,zorder=1)
+ax.scatter(lead1,target[e,ilabel],marker="X",color="cornflowerblue",label="",
+        s=230,edgecolors="k",zorder=3) # Plot lead0
+ax.axvline([lead1],color="k",ls="dashed",lw=0.75,zorder=1)
      
+savename = "%sNASST_Prediction_Example_Ens%i_Start%04i_lead%02i.svg" % (figpath,e+1,lead0,N)
+plt.savefig(savename,transparent=True,dpi=300)
+
+#%% Plot predictors at that time
+
+consistent_mask = np.sum(data,(0,1,2)) == 0
+
+use_contour = True
+nvars = len(varnames)
+vlims = [-2,2]
+vcmap = ["cmo.balance","cmo.delta","cmo.curl","PuOr_r"]
+varunits = [("normalized"),] * nvars
+for v in range(nvars):
+    
+    fig,ax = plt.subplots(1,1,subplot_kw={'projection':ccrs.PlateCarree(0)},
+                          constrained_layout=True,figsize=(4,3))
+    
+    ax.set_extent(bbox)
+    plotdata = data[v,e,ipred,:,:].copy() * limask
+    if use_contour:
+        pcm = ax.contourf(lon,lat,plotdata,levels=np.arange(-2.0,2.2,0.2),cmap=vcmap[v],extend="both")
+    else:
+        pcm = ax.pcolormesh(lon,lat,plotdata,vmin=vlims[0],vmax=vlims[1],cmap=vcmap[v])
+    viz.add_coast_grid(ax=ax,bbox=bbox,blabels=[0,0,0,0],fill_color="k")
+    ax.set_title("%s (normalized)" % (varnames[v]))
+    cb = fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.035,pad=0.02,
+                      ticks=[-2,-1,0,1,2])
+    #cb.ax.set_yticklabels(['< -1', '0', '> 1'])
+    #cb.set_label("%s (%s)" % (varnames[v],varunits[v]))
+    savename = "%sNASST_Prediction_Example_Ens%i_Start%04i_predictor%s.svg" % (figpath,e+1,lead0,varnames[v])
+    plt.savefig(savename,transparent=True,dpi=300)
+    
+    
+    
+    
+    
+
+
+
 #%% Add option to load existing runid?
 
 
