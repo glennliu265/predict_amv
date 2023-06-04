@@ -239,7 +239,17 @@ exp8 = {"expdir"        : "FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020" , 
         "no_val"        : False  # Whether or not there is a validation dataset
         }
 
-inexps   = (exp2,exp3,exp4,exp5,exp6,exp7,exp8)
+exp9 = {"expdir"        : "FNN4_128_Singlevar_Rewrite_June" , # Directory of the experiment
+        "searchstr"     :  "*SSH*", # Search/Glob string used for pulling files
+        "expname"       : "SSH_Rewrite_June"           , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Rewrite June)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "cornflowerblue"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : False  # Whether or not there is a validation dataset
+        }
+
+inexps   = (exp2,exp3,exp4,exp5,exp6,exp7,exp8,exp9)
 compname = "Rewrite"
 quartile = False
 leads    = np.arange(0,26,3)
@@ -425,7 +435,7 @@ for c in range(3):
     if c == 1:
         ax.legend(ncol=2,fontsize=8)
         ax.set_xlabel("Prediction Lead (Years)")
-    
+
 #plt.suptitle(expname)
 savename = "%sExperiment_Intercomparison_byclass_plotmax%i_%s.png"% (figpath,plotmax,compname)
 plt.savefig(savename,dpi=200,bbox_inches="tight",transparent=True)
