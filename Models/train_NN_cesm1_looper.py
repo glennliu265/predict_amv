@@ -72,7 +72,7 @@ from amv import proc
 
 
 test_parameter       = "percent_train"
-parameter_values     = np.arange(.30,100,.10)
+parameter_values     = np.arange(.30,1.00,.10)
 expdir_all           = "FNN4_128_Trainsize"
 
 # Get expdir names
