@@ -79,7 +79,7 @@ expdir_all           = "FNN4_128_Trainsize"
 expdirs = []
 nexps          = len(parameter_values)
 for ii in range(nexps):
-    expdirs.append("FNN4_128_SSH_%s_%02i" % (test_parameter,parameter_values[ii]))
+    expdirs.append("FNN4_128_SSH_%s_%02i" % (test_parameter,parameter_values[ii]*100))
 print(expdirs)
 
 # Get base experiment
