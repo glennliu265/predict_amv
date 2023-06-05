@@ -120,8 +120,6 @@ The Preprocessing Steps
     6. Remove Trend (if specified)
     7. Output in array ['ensemble','year','lat','lon']
     
-    
-    
     2. Crop the Data in Time (1920 - 2005)
     3. Crop to Region (*****NOTE: assumes degrees West = neg!)
     4. Concatenate each ensemble member
