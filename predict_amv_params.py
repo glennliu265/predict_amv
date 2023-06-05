@@ -25,7 +25,7 @@ mdict0 = {
     "machine"           : 0, # Name of the machine
     "amv_path"          : 0,# Path to amv module (with proc,viz)
     "datpath_raw_atm"   : 0, # Path to CESM1-LENS Atmospheric Variables
-    "datpath_raw_ocm"   : 0, # Path to CESM1-LENS Ocean Variables
+    "datpath_raw_ocn"   : 0, # Path to CESM1-LENS Ocean Variables
     "cesm2path"         : 0, # Path to CESM2 Data
     "lenspath"          : 0, # Large Ensemble Data (CMIP5)
     }
@@ -35,7 +35,7 @@ mdict1 = {
     "machine"           : "stormtrack", # Name of the machine
     "amv_path"          : "/home/glliu/00_Scripts/01_Projects/00_Commons/",# Path to amv module (with proc,viz)
     "datpath_raw_atm"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/atm/proc/tseries/monthly/", # Path to CESM1-LENS Atmospheric Variables
-    "datpath_raw_ocm"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/", # Path to CESM1-LENS Ocean Variables
+    "datpath_raw_ocn"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/", # Path to CESM1-LENS Ocean Variables
     "cesm2path"         : 0, # Path to CESM2 Data
     "lenspath"          : "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # Large Ensemble Data (CMIP5)
     }
@@ -45,7 +45,7 @@ mdict2 = {
     "machine"           : "Astraeus",
     "amv_path"          : "/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/",
     "datpath_raw_atm"   : 0, # Path to CESM1-LENS Atmospheric Variables
-    "datpath_raw_ocm"   : 0, # Path to CESM1-LENS Ocean Variables
+    "datpath_raw_ocn"   : 0, # Path to CESM1-LENS Ocean Variables
     "cesm2path"         : "/Users/gliu/Globus_File_Transfer/CESM2_LE/1x1/",
     "lenspath"          : 0, # Large Ensemble Data (CMIP5)
     }
