@@ -94,6 +94,7 @@ proj     = ccrs.PlateCarree()
 bbox     = [-80,0,0,65]
 plotbbox = [-80,0,0,62]
 amvbbox  = [-80,0,0,65]
+bbox_crop= [-90,20,0,90] 
 
 # Plotting (acc by leadtime)
 leadticks24 = np.arange(0,25,3)
