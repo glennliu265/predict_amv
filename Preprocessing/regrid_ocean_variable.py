@@ -30,24 +30,16 @@ import sys
 machine       = "stormtrack"
 
 # Indicate the Variable and Scenario
-vnames        = ["SSS","SSH",] # "HMXL"
+vnames        = ["SSH",] # "HMXL"
 mconfig       = "HTR" # 'HTR' or 'RCP85'
 
 # Indicate Regridding Options
-use_xesmf     = True        # Use xESMF for regridding. False = box average
-use_mfdataset = False       # Open all datasets at once (currently only works for PIC, boxavg)
 method        = "bilinear"  # regridding method
 reference_var = "LANDFRAC"  # Reference variable from CAM output
 
 # Indicate paths
 outpath       = "../../CESM_data/CESM1_Ocean_Regridded/"
 datpath       = None 
-
-# if machine == "stormtrack": # Adjust data path on stormtrack (hack fix...)
-#     if varname == "SSS":
-#         datpath   = "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/processed/ocn/proc/tseries/monthly/SSS/"
-#     else:
-#         datpath   = "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/%s/" % varname
 
 # ----------
 #%% Import Packages + Paths based on machine
@@ -113,7 +105,6 @@ ds_atm = loaders.load_htr(reference_var,1,datpath=datpath_atm)
 ds_atm = ds_atm.isel(time=0)
 lon    = ds_atm.lon.values
 lat    = ds_atm.lat.values
-
 ds_out = xr.Dataset({'lat':lat,'lon':lon})
 
 # ---------------------------------
@@ -141,7 +132,7 @@ for v in range(nvars):
         # Load the dataarray
         N = mnum[e]
         ds = loaders.load_htr(varname,N,datpath=datpath,atm=False)
-        ds = preprocess(ds)
+        ds = preprocess(ds.load())
         
         # Rename Latitude/Longitude to prepare for regridding
         ds = ds.rename({"TLONG": "lon", "TLAT": "lat"})
