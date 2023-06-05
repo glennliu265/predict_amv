@@ -505,6 +505,33 @@ expname                    = "FNN4_128_SingleVar_Rewrite_June"
 expdict                  = train_params_all["FNN4_128_SingleVar"].copy()
 train_params_all[expname] = expdict.copy()
 
+
+#%% 2023.06.02 Trying to Debug Again
+"""
+
+FNN4_128_SingleVar_Testing
+
+Forgot what is going on, so I'm going to try again...
+
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_Testing" 
+
+# Copy dictionary from above
+expdict                  = train_params_all["FNN4_128_SingleVar"].copy()
+
+# Set validation and test size
+expdict["percent_train"] = 0.60
+expdict["percent_val"]   = 0.10
+
+train_params_all[expname] = expdict.copy()
+
+
+
+
+
+
 """
 
 Some Notes on Parameters and subdivisions
