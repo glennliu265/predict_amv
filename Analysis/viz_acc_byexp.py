@@ -2,10 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 General NN accuracy visualization and evaluation.
-
    - Copied output based on viz_acc_by_predictor.py
-
-
 Created on Wed Jan 25 10:19:36 2023
 
 @author: gliu
@@ -325,6 +322,41 @@ detrend                         = False
 no_vals                         = [False,]*nexps 
 
 
+# -----------------------------------
+# %% Compare effect of validation size
+# -----------------------------------
+
+experiment_name     = "FNN4_128_Valsize"
+expdirs             = glob.glob(datpath+experiment_name+"/*")
+expdirs             = [os.path.basename(x) for x in expdirs]
+nexps               = len(expdirs)
+vname               = "SSH"
+
+
+vcolors = ["purple","cornflowerblue","gold","red"]
+
+inexps = []
+for exp in range(nexps):
+        expname       = expdirs[exp]
+        expdict = {"expdir"     : experiment_name + "/" + expname     , # Directory of the experiment
+                "searchstr"     :  "*%s*"   % (vname), # Search/Glob string used for pulling files
+                "expname"       : expname, # Name of the experiment (Short)
+                "expname_long"  : expname, # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[exp]                    , # Color for plotting
+                "marker"        : "x"                   , # Marker for plotting
+                "ls"            : "solid"               , # Linestyle for plotting
+                "no_val"        : False,  # Whether or not there is a validation dataset
+                }
+        
+        inexps.append(expdict)
+    
+compname                        = "FNN4_128_Valsize_SSH"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,3)
+quartile                        = False
+detrend                         = False
+no_vals                         = [False,]*nexps 
+
+
 
 #%% [X] --------------- E N D    U S E R    I N P U T-------------------------------
 
@@ -372,6 +404,7 @@ nclasses  = len(expdict['classacc'][0][0][0]) # Thresholds of classification
 
 # Convert classacc to np.array as it should now be uniform due to same leadtimes
 if isinstance(expdict['classacc'],list):
+    #print("Class Acc is a list due to differences in leadtimes")
     expdict['classacc'] = np.array(expdict['classacc'])
 
 # Unpack Dictionary
