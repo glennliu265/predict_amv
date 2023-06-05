@@ -9,6 +9,7 @@ Took upper section from [preproc_CESM1_LENS.py]
 Created on Thu May 25 12:16:28 2023
 
 @author: gliu
+
 """
 
 import numpy as np
@@ -28,12 +29,10 @@ modpath   = sys.path.append("/home/glliu/00_Scripts/01_Projects/00_Commons/")
 
 from amv import loaders,proc,viz
 
-
 #%% 
 
 # General Information
 nens = 42
-
 
 # Part 1 (Land/Ice Mask Creation)
 mask_sep    = True
@@ -88,6 +87,7 @@ for v in range(len(vnames)):
     maskvars.append(outvar)
 
 
+
 #%% Save the mean ice concentration
 
 icepath  = "/stormtrack/data3/glliu/01_Data/02_AMV_Project/02_stochmod/ICEFRAC/"
@@ -96,6 +96,13 @@ landpath = "/stormtrack/data3/glliu/01_Data/02_AMV_Project/02_stochmod/LANDFRAC/
 meanicefrac = maskvars[0].mean(1)
 savename    = "%sCESM1LE_HTR_ICEFRAC_mean.nc" % icepath
 proc.numpy_to_da(meanicefrac,np.arange(1,43),lat,lon,"ICEFRAC",savenetcdf=savename)
+
+#%% Save the maxice concentration
+
+maxicefrac = maskvars[0].max(1)
+savename    = "%sCESM1LE_HTR_ICEFRAC_max.nc" % icepath
+proc.numpy_to_da(maxicefrac,np.arange(1,43),lat,lon,"ICEFRAC",savenetcdf=savename)
+print(savename)
 
 #%% Make and check the masks (for ICEFRAC and LANDFRAC)
 
