@@ -120,7 +120,8 @@ elif experiment_name == "FNN4_128_Valsize":
     
     # Set Loop Options
     test_parameters  = ["percent_train","percent_val"]
-    parameter_values = [[.50,]*4 , np.arange(.10,.50,.10)]
+    #parameter_values = [[.50,]*4 , np.arange(.10,.50,.10)]
+    parameter_values = [[.60,]*3+[.7,]*2+[.8,],[.3,.2,.1]+[.2,.1]+[.1],]
     
     # Get base experiment
     # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
