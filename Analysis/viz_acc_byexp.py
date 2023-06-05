@@ -288,6 +288,43 @@ quartile                        = False
 detrend                         = True
 no_vals                         = [True,False,True,False]
 
+# -----------------------------------
+# %% Compare effect of training size
+# -----------------------------------
+
+test_parameter       = "percent_train"
+parameter_values     = np.arange(.30,1.00,.10)
+expdir_all           = "FNN4_128_Trainsize"
+nexps                = len(parameter_values)
+vname                = "SSH"
+
+vcolors = ["r","b","magenta","cyan","gold","k","cornflowerblue","gray"]
+
+vcolors = ["violet","b","cornflowerblue","limegreen","gold","k","red","magenta"]
+
+inexps = []
+for exp in range(nexps):
+        expname       = "FNN4_128_%s_%s_%s" % (vname,test_parameter,int(parameter_values[exp]*100))
+        expname_label = "percent_train_%02i" % int(parameter_values[exp]*100)
+        expdict = {"expdir"     : expdir_all + "/" + expname     , # Directory of the experiment
+                "searchstr"     :  "*%s*"   % (vname), # Search/Glob string used for pulling files
+                "expname"       : expname_label, # Name of the experiment (Short)
+                "expname_long"  : expname_label, # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[exp]                    , # Color for plotting
+                "marker"        : "x"                   , # Marker for plotting
+                "ls"            : "solid"               , # Linestyle for plotting
+                "no_val"        : False,  # Whether or not there is a validation dataset
+                }
+        
+        inexps.append(expdict)
+    
+compname                        = "FNN4_128_Trainsize_SSH"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,3)
+quartile                        = False
+detrend                         = False
+no_vals                         = [False,]*nexps 
+
+
 
 #%% [X] --------------- E N D    U S E R    I N P U T-------------------------------
 
