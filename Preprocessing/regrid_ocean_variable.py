@@ -30,7 +30,7 @@ import sys
 machine       = "stormtrack"
 
 # Indicate the Variable and Scenario
-vnames        = ["SSH",] # "HMXL"
+vnames        = ["BSF","HMXL"] # "HMXL"
 mconfig       = "HTR" # 'HTR' or 'RCP85'
 
 # Indicate Regridding Options
