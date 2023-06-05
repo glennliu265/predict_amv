@@ -180,7 +180,7 @@ vdict4 = {
     }
 
 indicts_vars      = [vdict1,vdict2,vdict3,vdict4]
-indicts_vars_keys = [d["varbane"] for d in indicts_vars]
+indicts_vars_keys = [d["varname"] for d in indicts_vars]
 vars_dict         = dict(zip(indicts_vars_keys,indicts_vars))
 
 #%% LENs Parameters
