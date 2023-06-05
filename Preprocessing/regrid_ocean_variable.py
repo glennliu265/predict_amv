@@ -154,7 +154,7 @@ for v in range(nvars):
         daproc = regridder(ds) # Need to input dataarray
         
         # Save
-        savename = "%s%s/%s_%s_%s_regridded_ens%02i.nc" % (outpath,varname,varname,
+        savename = "%s%s_%s_%s_regridded_ens%02i.nc" % (outpath,varname,
                                                   mconfig,method,e+1)
         daproc.to_netcdf(savename,
                          encoding={varname: {'zlib': True}})
