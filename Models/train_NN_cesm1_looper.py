@@ -270,7 +270,7 @@ for ex in range(nexps):
     print("Looping for Experiment :: %s" % (loop_names[ex]))
     
     # Make Directory
-    outpath = "../../CESM_data/" + experiment_name + "/" + expdir
+    outpath = "../../CESM_data/" + experiment_name + "/" + expdir + "/"
     proc.makedir(outpath)
     for fn in ("Metrics","Models","Figures"):
         proc.makedir(outpath+fn)
