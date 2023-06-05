@@ -81,7 +81,7 @@ def load_result(fn,debug=False,load_dict=False):
         return ld,vnames
     return output,vnames
 
-def load_metrics_byrun(flist,leads,debug=False,runmax=None,no_val=True):
+def load_metrics_byrun(flist,leads,debug=False,runmax=None,no_val=True,use_dict=True):
     """
     Given a list of metric files [flist] and leadtimes for each training run,
     Load the output and append.
@@ -99,22 +99,36 @@ def load_metrics_byrun(flist,leads,debug=False,runmax=None,no_val=True):
     ylabsm    = [] # Actual Class
     shuffidsm = [] # Shuffled Indices
     for i in range(nruns): # Load for [nruns] files
-        output,vnames = load_result(flist[i],debug=debug)
+        output,vnames = load_result(flist[i],debug=debug,load_dict=True)
+        output_ori,vnames_ori = load_result(flist[i],debug=debug)
         # if len(output[4]) > len(leads):
         #     print("Selecting Specific Leads!")
         #     output = [out[leads] for out in output]
-        if no_val:
-            totalm.append(output[4])
-            classm.append(output[5])
-            ypredm.append(output[6])
-            ylabsm.append(output[7])
-            shuffidsm.append(output[8])
+        if use_dict: # no_val has no use in this case
+            totalm.append(output['total_acc'])
+            classm.append(output['acc_by_class'])
+            ypredm.append(output['yvalpred'])
+            ylabsm.append(output['yvallabels'])
+            shuffidsm.append(output['sampled_idx'])
         else:
-            totalm.append(output[6])
-            classm.append(output[7])
-            ypredm.append(output[8])
-            ylabsm.append(output[9])
-            shuffidsm.append(output[10])
+            if no_val:
+                totalm.append(output_ori[4])
+                classm.append(output_ori[5])
+                ypredm.append(output_ori[6])
+                ylabsm.append(output_ori[7])
+                shuffidsm.append(output_ori[8])
+                if debug: # Check to make sure they are the same
+                    for iii in range(4,9,1):
+                        print(np.all(output[vnames[iii]][0] == output_ori[iii][0]))
+            else:
+                totalm.append(output_ori[6])
+                classm.append(output_ori[7])
+                ypredm.append(output_ori[8])
+                ylabsm.append(output_ori[9])
+                shuffidsm.append(output_ori[10])
+                if debug: # Check to make sure they are the same
+                    for iii in range(6,11,1):
+                        print(np.all(output[vnames[iii]][0] == output_ori[iii][0]))
         print("\tLoaded %s, %s, %s, and %s for run %02i" % (vnames[4],vnames[5],vnames[6],vnames[7],i))
     return totalm,classm,ypredm,ylabsm,shuffidsm,vnames
     
@@ -174,6 +188,7 @@ def make_expdict(flists,leads,no_val=True):
     for k,key in enumerate(dictkeys):
         expdict[key] = outputs[k] # Removed np.array(output[k])
     return expdict
+
 
 def retrieve_lead(shuffidx,lead,nens,tstep):
     """
@@ -1556,7 +1571,8 @@ def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0,return
         # Add modulo accounting for offset
         pct_rng = np.array([cumulative_pct+offset,cumulative_pct+pct+offset])%1
         if (pct_rng[0] == pct_rng[1]):# and (p >0):
-            print("Exceeded max percentage on segment [%s], Skipping..."%segments[p])
+            if debug:
+                print("Exceeded max percentage on segment [%s], Skipping..."%segments[p])
             continue
         # Add ranges to account for endpoints
         shift_flag=False # True: Offset shifts the chunk beyond 100%, 4 points required
@@ -1604,7 +1620,7 @@ def train_test_split(X,y,percent_train,percent_val=0,debug=False,offset=0,return
 
 def prep_traintest_classification(data,target,lead,thresholds,percent_train,
                                   ens=None,tstep=None,
-                                  quantile=False,return_ic=False):
+                                  quantile=False,return_ic=False,return_indices=False):
     """
     Parameters
     ----------
@@ -1664,13 +1680,18 @@ def prep_traintest_classification(data,target,lead,thresholds,percent_train,
         y_val_ic   = y_class_ic[int(np.floor(percent_train*nsamples)):,:]
     
     # Test/Train Split
-    X_subsets,y_subsets = train_test_split(X,y_class,percent_train,percent_val=0,debug=False)
-    X_train,X_val = X_subsets
-    y_train,y_val = y_subsets
+    split_output = train_test_split(X,y_class,percent_train,percent_val=0,
+                                           debug=False,return_indices=return_indices)
     
+    X_train,X_val = split_output[0]
+    y_train,y_val = split_output[1]
+    
+    output=[X_train,X_val,y_train,y_val]
     if return_ic:
-        return X_train,X_val,y_train,y_val,y_train_ic,y_val_ic
-    return X_train,X_val,y_train,y_val
+        output = output + [y_train_ic,y_val_ic]
+    if return_indices:
+        output = output + split_output[2]
+    return output
 
 def get_ensyr(id_val,lead,ens=40,tstep=86,percent_train=0.8,get_train=False):
     # Get ensemble and year of reshaped valdation indices (or training if get_train=True)
@@ -1901,6 +1922,61 @@ def get_ensyr_linear(lead,linearids,
         return ref_linearids,refids[ref_linearids]
     else:
         return ref_linearids
+
+def retrieve_ensyr_shuffid(lead,shuffid_in,percent_train,percent_val=0,
+                           offset=0,ens=42,nyr=86,debug=False):
+    """
+    Retrieve the linear indices, ensemble, and year labels given a set
+    of shuffled indices from select_sample, accounting for offset and leadtimes.
+    Generally works with shuffid output from older NN_training script
+    
+    Parameters
+    ----------
+    lead : INT. Leadtime applied in units of provided time axis.
+    shuffid_in : ARRAY. Shuffled indices to subset, select, and retrieve indices from.
+    percent_train : NUMERIC. % data used for training
+    percent_val : NUMERIC. % data used for validation. optional, default is 0.
+    offset : NUMERIC. Offset to shift train.test.val split optional, default is 0.
+    ens : INT. Number of ensemble members to include optional, The default is 42.
+    nyr : INT, Numer of years to include. optional, the default is 86.
+
+    Returns
+    -------
+    shuffid_split : LIST of ARRAYS [train/test/val][samples]
+        Shuffids partitioned into each set
+    refids_linear_split : LIST of ARRAYS [train/test/val][samples]
+        Corresponding linear indices to unlagged data (ens x year)
+    refids_label_split : LIST of ARRAYS  [train/test/val][samples,[ens,yr]]
+        Ensemble and Year arrays for each of the corresponding splits
+    
+    Dependencies: train_test_split, get_ensyr_linear
+    """
+    
+    # Apply Train/Test/Validation Split, accounting for offset
+    dummyX                  = shuffid_in[:,None]
+    dumX,dumY,split_indices = train_test_split(dummyX,dummyX,
+                                               percent_train,percent_val=percent_val,
+                                               debug=debug,offset=offset,return_indices=True)
+    shuffid_split           = [shuffid_in[split_id] for split_id in split_indices]
+
+    # Get the actual ens and year (and corresponding linear id)
+    refids_label_split  = []
+    refids_linear_split = []
+    for ii in range(len(shuffid_split)):
+        shuffi = shuffid_split[ii].astype(int)
+        
+        ref_linearids,refids_label=get_ensyr_linear(lead,shuffi,
+                      reflead=0,nens=ens,nyr=nyr,
+                      apply_lead=True,ref_lead=True,
+                      return_labels=True,debug=debug,return_counterpart=False)
+        
+        # Convert to Array
+        refids_label = np.array([[rf[0],rf[1]] for rf in refids_label]) # [sample, [ens,yr]]
+        
+        # Append
+        refids_linear_split.append(ref_linearids)
+        refids_label_split.append(refids_label)
+    return shuffid_split,refids_linear_split,refids_label_split
 
 #def data_loader(varname=None,datpath=None):
 ## Added LRP Functions
