@@ -184,7 +184,7 @@ def load_limask(datpath=None,maskname=None,bbox=None):
     if datpath is None:
         datpath = "../../CESM_data/"
     if maskname is None:
-        maskname = "CESM1LE_htr_limask_pacificmask_enssum_lon-90to20_lat0to90.nc"
+        maskname = "CESM1LE_HTR_limask_pacificmask_enssum_lon-90to20_lat0to90.nc"
     ds = xr.open_dataset(datpath+maskname)
     if bbox is not None:
         ds = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))

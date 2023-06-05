@@ -21,7 +21,7 @@ Procedure:
     (3) Sums across ensemble members
     (4) Remove Pacific Points
     (5) Save Output as DataArray [1 x Lat x Lon]
-            ex: "CESM_Data/Masks/CESM1LE_htr_limask_pacificmask_enssum_lon-90to20_lat0to90.nc
+            ex: "CESM_Data/Masks/CESM1LE_HTR_limask_pacificmask_enssum_lon-90to20_lat0to90.nc
 
 Created on Mon Jun  5 08:35:38 2023
 @author: gliu
@@ -57,7 +57,7 @@ save_max        = True                     # Output max concentration for debugg
 
 # General Information
 nens            = 42    # Number of ensemble members to process
-mconfig         = "htr" # Scenario, where htr=Historical, rcp85=RCP 8.5 
+mconfig         = "HTR" # Scenario, where htr=Historical, rcp85=RCP 8.5 
 
 # Other Toggles
 debug           = True  # Set to True to see debugging plots
@@ -89,10 +89,10 @@ bbox_crop    = pparams.bbox_crop
 # ----------
 
 # Set Ensemble Member Names and Restrict to the common period
-if mconfig == "rcp85":
+if mconfig == "RCP85":
     mnum    = np.concatenate([np.arange(1,36),np.arange(101,106)])
     ntime = 1140
-elif mconfig == "htr":
+elif mconfig == "HTR":
     mnum    = np.concatenate([np.arange(1,36),np.arange(101,108)])
     ntime = 1032
 
