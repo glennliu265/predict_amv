@@ -66,31 +66,97 @@ from amv import proc
 #%% User Edits vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 # ============================================================
 
-# >> Exp 1. Test sensitivity to training size
-
-# Set loop options
 
 
-test_parameter       = "percent_train"
-parameter_values     = np.arange(.30,1.00,.10)
-expdir_all           = "FNN4_128_Trainsize"
 
-# Get expdir names
-expdirs = []
-nexps          = len(parameter_values)
-for ii in range(nexps):
-    expdirs.append("FNN4_128_SSH_%s_%02i" % (test_parameter,parameter_values[ii]*100))
-print(expdirs)
+# Indicate the experiment name
+experiment_name = "FNN4_128_Valsize"
+"""
+Available Experiments:
+    FNN_128_Trainsize  :  Test Training set size (no validation)
+    FNN_128_Valsize    :  Test Validation set size
 
-# Get base experiment
-# Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir_base              = "FNN4_128_SingleVar_Rewrite_June"
-eparams_base             = train_cesm_params.train_params_all[expdir_base] # Load experiment parameters
+
+"""
+
+
+
+
+
+# -------------------------------------------
+# >> Exp 1. Test sensitivity to training size (FNN4_128_Trainsize)
+# -------------------------------------------
+if experiment_name == "FNN4_128_Trainsize":
+    
+    # Set loop options
+    test_parameter       = "percent_train"
+    parameter_values     = np.arange(.30,1.00,.10)
+    
+    # Get expdir names
+    expdirs = []
+    nexps          = len(parameter_values)
+    for ii in range(nexps):
+        expdirs.append("FNN4_128_SSH_%s_%02i" % (test_parameter,parameter_values[ii]*100))
+    print(expdirs)
+    
+    # Get base experiment
+    # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
+    expdir_base              = "FNN4_128_SingleVar_Rewrite_June"
+    eparams_base             = train_cesm_params.train_params_all[expdir_base] # Load experiment parameters
+    
+    # Create experiment directionaries
+    eparams_exp = []
+    loop_names  = []
+    for ii in range(nexps):
+        test_value              = parameter_values[ii]
+        eparams                 = eparams_base.copy()
+        eparams[test_parameter] = test_value
+        eparams_exp.append(eparams.copy())
+        loop_names.append("Test Parameter: %s, Test Value: %s" % (test_parameter,test_value))
+        #print("Looping experiment for paramter %s, value %s" % (test_parameter,str(test_value)))
+    
+    
+elif experiment_name == "FNN4_128_Valsize":
+    
+    # Set Loop Options
+    test_parameters  = ["percent_train","percent_val"]
+    parameter_values = [[.50,]*4 , np.arange(.10,.50,.10)]
+    
+    # Get base experiment
+    # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
+    expdir_base              = "FNN4_128_SingleVar_Rewrite_June"
+    eparams_base             = train_cesm_params.train_params_all[expdir_base] # Load experiment parameters
+    
+    # Set expdir names and get parameter dictionaries
+    nexps       = len(parameter_values[0])
+    expdirs     = []
+    eparams_exp = []
+    loop_names  = []
+    for ii in range(nexps):
+        
+        # Set experiment directory and name
+        expname = "train%02i_val%02i" % (parameter_values[0][ii]*100,parameter_values[1][ii]*100)
+        expdirs.append(expname)
+        loop_names.append(expname)
+        print(expdirs)
+        
+        # Copy and set experiment dictionary
+        eparams                 = eparams_base.copy()
+        n_test_params = len(test_parameters)
+        for it in range(n_test_params):
+            eparams[test_parameters[it]] = parameter_values[it][ii]
+        eparams_exp.append(eparams.copy())
+        
+#
+# Shared parameters by all experiments
+#
 
 # Set some looping parameters and toggles
 varnames            = ["SSH",]       # Names of predictor variables
 leads               = np.arange(0,25,3)    # Prediction Leadtimes
 runids              = np.arange(0,50,1)    # Which runs to do
+
+
 
 # Other toggles
 checkgpu            = True                 # Set to true to check if GPU is availabl
@@ -199,16 +265,15 @@ predictor_refids --> array of the predictor refids
 for ex in range(nexps):
     
     # Get Experiment Information and set dictionary
-    expdir     = expdirs[ex]
-    test_value = parameter_values[ex]
-    eparams    = eparams_base.copy()
-    eparams[test_parameter] = test_value
-    print("Looping experiment for paramter %s, value %s" % (test_parameter,str(test_value)))
+    expdir      = expdirs[ex]
+    eparams     = eparams_exp[ex] # Get parameter dictionary
+    print("Looping for Experiment :: %s" % (loop_names[ex]))
     
     # Make Directory
-    proc.makedir("../../CESM_data/"+expdir_all+"/"+expdir)
+    outpath = "../../CESM_data/" + experiment_name + "/" + expdir
+    proc.makedir(outpath)
     for fn in ("Metrics","Models","Figures"):
-        proc.makedir("../../CESM_data/"+expdir+"/"+fn)
+        proc.makedir(outpath+fn)
     
     # ------------------------------------------------------------
     # % Looping for runid
@@ -340,11 +405,11 @@ for ex in range(nexps):
                 # 13. Save the model and metrics
                 # ------------------------------
                 if savemodel:
-                    modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
+                    modout = "%s/Models/%s_%s_lead%02i_classify.pt" %(outpath,expname,varname,lead)
                     torch.save(model.state_dict(),modout)
                 
                 # Save Metrics
-                savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
+                savename = outpath+"Metrics"+outname
                 np.savez(savename,**{
                           'train_loss'     : train_loss_grid,
                           'test_loss'      : test_loss_grid,
