@@ -112,7 +112,76 @@ percent_train = 0.8
 
 
 
+#%% CESM1 Variable Dictionary/Profiles
 
+vdict0 = {
+    "varname"     : 0, #Name of the variable
+    "other_names" : 0, # Other Names
+    "vnames_plot" : 0, # plotting name
+    "longname"    : 0, # Long Name
+    "realm"       : 0, # Atm or Ocn
+    "units"       : 0, # Units
+    "color"       : 0, # Variable Color
+    "marker"      : 0, # Marker for plotting
+    "linestyle"   : 0, # Line Style
+    "datpath"     : 0,  # Location of variable
+    }
+
+vdict1 = {
+    "varname"     : "SST"           , #Name of the variable
+    "other_names" : ['sst','ts','TS'], # Other 
+    "vnames_plot" : "SST", # plotting name
+    "longname"    : "Sea Surface Temperature", # Long Name
+    "realm"       : "atm"           , # Atm or Ocn
+    "units"       : "$\degree$C"    , # Units
+    "color"       : "r", # Variable Color
+    "marker"      : "o", # Marker for plotting
+    "linestyle"   : "solid", # Line Style
+    "rawpath"     : None, # Location of variable, None for CESM1-Raw
+    }
+
+vdict2 = {
+    "varname"     : "SSH", #Name of the variable
+    "other_names" : ["ssh"], # Other Names
+    "vnames_plot" : "SSH", # plotting name
+    "longname"    : "Sea Surface Height", # Long Name
+    "realm"       : "ocn", # Atm or Ocn
+    "units"       : "cm", # Units
+    "color"       : "dodgerblue", # Variable Color
+    "marker"      : "o", # Marker for plotting
+    "linestyle"   : "solid", # Line Style
+    "datpath"     : "../../CESM_data/CESM1_Ocean_Regridded/",  # Location of variable
+    }
+
+vdict3 = {
+    "varname"     : "SSS", #Name of the variable
+    "other_names" : ["sss"], # Other Names
+    "vnames_plot" : "SSS", # plotting name
+    "longname"    : "Sea Surface Salinity", # Long Name
+    "realm"       : "ocn", # Atm or Ocn
+    "units"       : "psu", # Units
+    "color"       : "limegreen", # Variable Color
+    "marker"      : "o", # Marker for plotting
+    "linestyle"   : "solid", # Line Style
+    "datpath"     : "../../CESM_data/CESM1_Ocean_Regridded/",  # Location of variable
+    }
+
+vdict4 = {
+    "varname"     : "PSL", #Name of the variable
+    "other_names" : ["psl","slp","SLP"], # Other Names
+    "vnames_plot" : "SLP", # plotting name
+    "longname"    : "Sea Level Pressure", # Long Name
+    "realm"       : "atm", # Atm or Ocn
+    "units"       : "mb", # Units
+    "color"       : "gold", # Variable Color
+    "marker"      : "o", # Marker for plotting
+    "linestyle"   : "solid", # Line Style
+    "datpath"     : None,  # Location of variable
+    }
+
+indicts_vars      = [vdict1,vdict2,vdict3,vdict4]
+indicts_vars_keys = [d["varbane"] for d in indicts_vars]
+vars_dict         = dict(zip(indicts_vars_keys,indicts_vars))
 
 #%% LENs Parameters
 
@@ -151,8 +220,6 @@ cm6_vars = {}
 cm6_keys = {}
 
 cmip6_dict = {}
-
-
 
 #%% Same as above, but organize into a dictionary
 
@@ -264,6 +331,10 @@ simplecnn_dict={
 modelnames = ("FNN2"   , "FNN4_120"   , "FNN4_128"   , "simplecnn")
 indicts    = (FNN2_dict, FNN120_dict  , FNN128_dict  , simplecnn_dict)
 nn_param_dict = dict(zip(modelnames,indicts))
+
+#%%
+
+
 
 #%% Dictionary for reanalysis variable names
 
