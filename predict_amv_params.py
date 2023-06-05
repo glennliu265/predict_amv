@@ -15,9 +15,44 @@ from torch import nn
 
 #%% Project paths
 
-datpath       = "../../CESM_data/"
-figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230331/"
+datpath       = "../../CESM_data/" # Assumed to be in same directory as predict_amv repo
+figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230602/"
 
+#%% Module and (Raw) Data Paths
+
+# Added info from scm. 
+mdict0 = {
+    "machine"           : 0, # Name of the machine
+    "amv_path"          : 0,# Path to amv module (with proc,viz)
+    "datpath_raw_atm"   : 0, # Path to CESM1-LENS Atmospheric Variables
+    "datpath_raw_ocm"   : 0, # Path to CESM1-LENS Ocean Variables
+    "cesm2path"         : 0, # Path to CESM2 Data
+    "lenspath"          : 0, # Large Ensemble Data (CMIP5)
+    }
+
+# Stormtrack Server
+mdict1 = {
+    "machine"           : "stormtrack", # Name of the machine
+    "amv_path"          : "/home/glliu/00_Scripts/01_Projects/00_Commons/",# Path to amv module (with proc,viz)
+    "datpath_raw_atm"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/atm/proc/tseries/monthly/", # Path to CESM1-LENS Atmospheric Variables
+    "datpath_raw_ocm"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/", # Path to CESM1-LENS Ocean Variables
+    "cesm2path"         : 0, # Path to CESM2 Data
+    "lenspath"          : "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # Large Ensemble Data (CMIP5)
+    }
+
+# Astraeus Local
+mdict2 = {
+    "machine"           : "Astraeus",
+    "amv_path"          : "/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/",
+    "datpath_raw_atm"   : 0, # Path to CESM1-LENS Atmospheric Variables
+    "datpath_raw_ocm"   : 0, # Path to CESM1-LENS Ocean Variables
+    "cesm2path"         : "/Users/gliu/Globus_File_Transfer/CESM2_LE/1x1/",
+    "lenspath"          : 0, # Large Ensemble Data (CMIP5)
+    }
+
+machine_path_dicts = (mdict1,mdict2,)
+machine_names      = [d["machine"] for d in machine_path_dicts]
+machine_paths      = dict(zip(machine_names,machine_path_dicts))
 #%% Regions (Bounding Boxes and Names)
 regions       = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")
 rcolors       = ("k","b",'r',"orange")
@@ -46,7 +81,8 @@ varnames_long = ("Temperature","Salinity","Pressure","Barotropic Streamfunction"
                  "Sea Surface Height","Mixed-Layer Depth",
                  "Upper Ocean Heat Content","Upper Ocean Salt Content")
 vunits        = ("$\degree$C","psu","mb","cm","Sv","cm","$J\,m^{-2}$","$J\,m^{-2}$")
-varcolors     = ("r","violet","yellow","darkblue","dodgerblue","cyan","lightcoral","orchid")
+varcolors          = ("r","violet","gold","darkblue","dodgerblue","cyan","lightcoral","orchid")
+varcolors_dark     = ("r","violet","gold","darkblue","dodgerblue","cyan","lightcoral","orchid")
 varmarker     = ("o","d","x","v","^","*","1","2")
 
 # Class Names and colors
@@ -73,35 +109,7 @@ thresholds    = [-1,1]
 quantile      = False
 percent_train = 0.8
 
-#%% module packages
 
-# Added info from scm. 
-mdict0 = {
-    "machine"      : 0, # Name of the machine
-    "amv_path"     : 0,# Path to amv module (with proc,viz)
-    "cesm2path"    : 0, # Path to CESM2 Data
-    "lenspath"     : 0, # Large Ensemble Data (CMIP5)
-
-    }
-
-mdict1 = {
-    "machine"      : "stormtrack", # Name of the machine
-    "amv_path"     : "/home/glliu/00_Scripts/01_Projects/00_Commons/",# Path to amv module (with proc,viz)
-    "cesm2path"    : 0, # Path to CESM2 Data
-    "lenspath"     : "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # Large Ensemble Data (CMIP5)
-
-    }
-
-mdict2 = {
-    "machine"      : "Astraeus",
-    "amv_path"     : "/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/",
-    "cesm2path"    : "/Users/gliu/Globus_File_Transfer/CESM2_LE/1x1/",
-    "lenspath"     : 0, # Large Ensemble Data (CMIP5)
-    }
-
-machine_path_dicts = (mdict1,mdict2,)
-machine_names      = [d["machine"] for d in machine_path_dicts]
-machine_paths      = dict(zip(machine_names,machine_path_dicts))
 
 
 
@@ -256,6 +264,19 @@ modelnames = ("FNN2"   , "FNN4_120"   , "FNN4_128"   , "simplecnn")
 indicts    = (FNN2_dict, FNN120_dict  , FNN128_dict  , simplecnn_dict)
 nn_param_dict = dict(zip(modelnames,indicts))
 
+#%% Dictionary for reanalysis variable names
+
+had_dict = {
+    'dataset_name' : 'HadISST',
+    'sst'          : 'sst',
+    'lat'          : 'latitude',
+    'lon'          : 'longitude',
+    'ystart'       : 1870
+    }
+
+indicts          = (had_dict,)
+reanalysis_names = [d['dataset_name'] for d in indicts]
+reanalysis_dict  = dict(zip(reanalysis_names,indicts))
 #%%
 # # Darkmode Settings
 # darkmode  = True
