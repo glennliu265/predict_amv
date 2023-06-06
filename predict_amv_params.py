@@ -140,6 +140,19 @@ vdict1 = {
     "rawpath"     : None, # Location of variable, None for CESM1-Raw
     }
 
+vdict15 = {
+    "varname"     : "TS"           , #Name of the variable
+    "other_names" : ['sst','ts','sst'], # Other 
+    "vnames_plot" : "SST", # plotting name
+    "longname"    : "Sea Surface Temperature", # Long Name
+    "realm"       : "atm"           , # Atm or Ocn
+    "units"       : "$\degree$C"    , # Units
+    "color"       : "r", # Variable Color
+    "marker"      : "o", # Marker for plotting
+    "linestyle"   : "solid", # Line Style
+    "rawpath"     : None, # Location of variable, None for CESM1-Raw
+    }
+
 vdict2 = {
     "varname"     : "SSH", #Name of the variable
     "other_names" : ["ssh"], # Other Names
@@ -179,7 +192,7 @@ vdict4 = {
     "datpath"     : None,  # Location of variable
     }
 
-indicts_vars      = [vdict1,vdict2,vdict3,vdict4]
+indicts_vars      = [vdict1,vdict15,vdict2,vdict3,vdict4]
 indicts_vars_keys = [d["varname"] for d in indicts_vars]
 vars_dict         = dict(zip(indicts_vars_keys,indicts_vars))
 
