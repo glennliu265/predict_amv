@@ -137,7 +137,7 @@ vdict1 = {
     "color"       : "r", # Variable Color
     "marker"      : "o", # Marker for plotting
     "linestyle"   : "solid", # Line Style
-    "rawpath"     : None, # Location of variable, None for CESM1-Raw
+    "datpath"     : None, # Location of variable, None for CESM1-Raw
     }
 
 vdict15 = {
@@ -150,7 +150,7 @@ vdict15 = {
     "color"       : "r", # Variable Color
     "marker"      : "o", # Marker for plotting
     "linestyle"   : "solid", # Line Style
-    "rawpath"     : None, # Location of variable, None for CESM1-Raw
+    "datpath"     : None, # Location of variable, None for CESM1-Raw
     }
 
 vdict2 = {
