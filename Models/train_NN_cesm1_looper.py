@@ -70,14 +70,13 @@ from amv import proc
 
 
 # Indicate the experiment name
-experiment_name = "FNN_128_Batchsize"
+experiment_name = "FNN4_128_NumEpochs"
 """
 Available Experiments:
-    FNN_128_Trainsize  :  Test Training set size (no validation)
-    FNN_128_Valsize    :  Test Validation set size
+    FNN4_128_Trainsize  :  Test Training set size (no validation)
+    FNN4_128_Valsize    :  Test Validation set size
     FNN_128_Batchsize  :  Test Mini Batch Size
-
-
+    FNN4_128_NumEpochs  :  Test Number of Epochs
 """
 
 # -------------------------------------------
@@ -165,6 +164,37 @@ elif experiment_name == "FNN_128_Batchsize":
         
         # Set experiment directory and name
         expname = "batchsize%03i" % (parameter_values[0][ii])
+        expdirs.append(expname)
+        loop_names.append(expname)
+        print(expdirs)
+        #
+        # Copy and set experiment dictionary
+        eparams                 = eparams_base.copy()
+        n_test_params = len(test_parameters)
+        for it in range(n_test_params):
+            eparams[test_parameters[it]] = parameter_values[it][ii]
+        eparams_exp.append(eparams.copy())
+elif experiment_name == "FNN4_128_NumEpochs":
+    
+    # Set Loop Options
+    test_parameters  = ["max_epochs","early_stop"]
+    #parameter_values = [[.50,]*4 , np.arange(.10,.50,.10)]
+    parameter_values = [list(np.arange(10,110,10))*2,(3,)*10 + (10,)*10]
+    
+    # Get base experiment
+    # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
+    expdir_base              = "FNN4_128_SingleVar_Testing"
+    eparams_base             = train_cesm_params.train_params_all[expdir_base] # Load experiment parameters
+    
+    # Set expdir names and get parameter dictionaries
+    nexps       = len(parameter_values[0])
+    expdirs     = []
+    eparams_exp = []
+    loop_names  = []
+    for ii in range(nexps):
+        
+        # Set experiment directory and name
+        expname = "earlystop%02i_maxepochs%02i" % (parameter_values[1][ii],parameter_values[0][ii])
         expdirs.append(expname)
         loop_names.append(expname)
         print(expdirs)
