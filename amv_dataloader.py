@@ -47,7 +47,7 @@ def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=Fals
         target = np.load("../../CESM_data/CESM1_PIC/%s" % (fn))[None,:] # Add extra ens dimension
     return target
 
-def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False,PIC=False):
+def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False,PIC=False,newpath=True):
     """
     Load inputs for AMV prediction, as calculated from the script:
         
@@ -62,7 +62,10 @@ def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_l
     
     """
     if datpath is None:
-        datpath = "../../CESM_data/"
+        if newpath:
+            datpath = "../../CESM_data/Predictors/"
+        else:
+            datpath = "../../CESM_data/"
     for v,varname in enumerate(varnames):
         if PIC is True: # Load CESM-PiControl Run
             ncname = '%s/CESM1_PIC/CESM1-PIC_%s_NAtl_0400_2200_bilinear_detrend%i_regrid%s.nc' % (datpath,varname,detrend,"CESM1")
