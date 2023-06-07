@@ -206,7 +206,7 @@ vdict5 = {
     "datpath"     : "../../CESM_data/CESM1_Ocean_Regridded/",  # Location of variable
     }
 
-vdict5 = {
+vdict6 = {
     "varname"     : "HMXL", #Name of the variable
     "other_names" : ["HMXL"], # Other Names
     "vnames_plot" : "MLD", # plotting name
@@ -219,7 +219,7 @@ vdict5 = {
     "datpath"     : "../../CESM_data/CESM1_Ocean_Regridded/",  # Location of variable
     }
 
-indicts_vars      = [vdict1,vdict15,vdict2,vdict3,vdict4]
+indicts_vars      = [vdict1,vdict15,vdict2,vdict3,vdict4,vdict5,vdict6]
 indicts_vars_keys = [d["varname"] for d in indicts_vars]
 vars_dict         = dict(zip(indicts_vars_keys,indicts_vars))
 
