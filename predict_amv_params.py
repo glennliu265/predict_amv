@@ -192,6 +192,33 @@ vdict4 = {
     "datpath"     : None,  # Location of variable
     }
 
+
+vdict5 = {
+    "varname"     : "BSF", #Name of the variable
+    "other_names" : ["bsf"], # Other Names
+    "vnames_plot" : "BSF", # plotting name
+    "longname"    : "Barotropic Streamfunction", # Long Name
+    "realm"       : "ocn", # Atm or Ocn
+    "units"       : "Sv", # Units
+    "color"       : "purple", # Variable Color
+    "marker"      : "o", # Marker for plotting
+    "linestyle"   : "solid", # Line Style
+    "datpath"     : "../../CESM_data/CESM1_Ocean_Regridded/",  # Location of variable
+    }
+
+vdict5 = {
+    "varname"     : "HMXL", #Name of the variable
+    "other_names" : ["HMXL"], # Other Names
+    "vnames_plot" : "MLD", # plotting name
+    "longname"    : "Mixed Layer Depth", # Long Name
+    "realm"       : "ocn", # Atm or Ocn
+    "units"       : "cm", # Units
+    "color"       : "violet", # Variable Color
+    "marker"      : "o", # Marker for plotting
+    "linestyle"   : "solid", # Line Style
+    "datpath"     : "../../CESM_data/CESM1_Ocean_Regridded/",  # Location of variable
+    }
+
 indicts_vars      = [vdict1,vdict15,vdict2,vdict3,vdict4]
 indicts_vars_keys = [d["varname"] for d in indicts_vars]
 vars_dict         = dict(zip(indicts_vars_keys,indicts_vars))
