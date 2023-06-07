@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 #%%
 
-def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=False):
+def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=False,newpath=True):
     """
     Load target for AMV prediction, as calculated from the script: 
          [prepare_regional_targets.py]
@@ -34,13 +34,21 @@ def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=Fals
         target  [ARRAY: ENS x Year] : Target index values
     """
     if datpath is None:
-        datpath = "../../CESM_data/"
+        if newpath:
+            datpath = "../../CESM_data/Targets/"
+        else:
+            datpath = "../../CESM_data/"
     if PIC is False: # Load Historical Period
         # Load CESM Target
-        if region is None:
-            target = np.load('../../CESM_data/CESM_label_amv_index_detrend%i_regrid%s.npy'% (detrend,regrid))
+        if newpath:
+            if region is None:
+                region = "NAT"
+            target = np.load('%sCESM1LE_label_%s_NASST_index_detrend%i_regrid%s.npy'% (datpath,region,detrend,regrid))
         else:
-            target = np.load('../../CESM_data/CESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (region,detrend,regrid))
+            if region is None:
+                target = np.load('%sCESM_label_amv_index_detrend%i_regrid%s.npy'% (datpath,detrend,regrid))
+            else:
+                target = np.load('%sCESM_label_%s_amv_index_detrend%i_regrid%s.npy'% (datpath,region,detrend,regrid))
     elif PIC is True:
         print("Loading PIC. WARNING: Regional indices not yet supported. Loading region=None or NAT")
         fn     = "CESM1-PIC_label_%s_amv_index_detrend%i_regrid%s.npy" % ("NAT",detrend,"CESM1")
@@ -185,7 +193,7 @@ def load_limask(datpath=None,maskname=None,bbox=None):
     mask     : ARRAY[Lat,Lon], Mask where 1=Ocean, NaN=Land,Ice,Pacific
     """
     if datpath is None:
-        datpath = "../../CESM_data/"
+        datpath = "../../CESM_data/Masks/"
     if maskname is None:
         maskname = "CESM1LE_HTR_limask_pacificmask_enssum_lon-90to20_lat0to90.nc"
     ds = xr.open_dataset(datpath+maskname)
