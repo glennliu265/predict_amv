@@ -8,8 +8,10 @@ Prepare data by variable (for ML Prediction)
 - Merges by ensemble and computes ensemble average
 - Deseasons, Detrends, Normalizes, and optionally Regrids
 
-
-Output Files: (located at "../../CESM_data/Predictors")
+  Works with regridded ocean data preprocessed by [regrid_ocean_variables.ppy]
+  or with raw CESM1-LE atmospheric variables.
+  
+Output Files: (located at "../../CESM_data/Predictors"). Example Names:
     Ens Avg            : CESM1LE_SSS_FULL_HTR_bilinear_ensavg_1920to2005.nc
     Concatenated Data  : CESM1LE_SSS_NAtl_19200101_20050101_bilinear.nc
     Mean and Stdev     : CESM1LE_SSS_nfactors_detrend0_regridNone.npy
@@ -57,11 +59,17 @@ import sys
 # -----------------------------------------------------------------------------
 
 stall         = time.time()
-
 machine       = "stormtrack"
 
 # Dataset Information
-varname       = "SSS"
+varname       = "HMXL"
+
+if varname == "TS":
+    rename_flag       = True
+    varname_new   = "SST" # New variable name, will replace varname after Part 1... (MAKE SURE TO CHANGE THIS
+else:
+    rename_flag       = False
+    
 mconfig       = "FULL_HTR"
 method        = "bilinear" # regridding method for POP ocean data
 
@@ -69,7 +77,7 @@ method        = "bilinear" # regridding method for POP ocean data
 detrend       = False # Detrending is currently not applied
 regrid        = None  # Set to desired resolution. Set None for no regridding.
 regrid_step   = True  # Set to true if regrid indicates the stepsize rather than total dimension size..
-save_concat   = True  # Set to true to save the concatenated dataset
+save_concat   = False  # Set to true to save the concatenated dataset
 load_concat   = False # Set to true to load concatenated data
 
 # Cropping Options
@@ -102,14 +110,18 @@ from amv import loaders,proc
 # Get data path for raw CESM1 output
 atm = True # Assume variables are raw unless otherwise specified
 if datpath is None:
-    vdict = pparams.vars_dict[varname]
-    if vdict['datpath'] is None:
+    if varname in pparams.vars_dict.keys():
+        vdict = pparams.vars_dict[varname]
+        if vdict['datpath'] is None:
+            datpath = machine_paths['datpath_raw_atm'] # Process from Raw CESM1 Atmopsheric Data
+        else:
+            atm     = False
+            datpath = vdict['datpath'] # Used datpath specified in variable dictionary
+            # This is usually "../../CESM_data/CESM1_Ocean_Regridded/" for ocn variables
+            # And another unique path for Net Heat Flux (TBD)
+    else: # Assume it is an atmospheric variable
         datpath = machine_paths['datpath_raw_atm'] # Process from Raw CESM1 Atmopsheric Data
-    else:
-        atm     = False
-        datpath = vdict['datpath'] # Used datpath specified in variable dictionary
-        # This is usually "../../CESM_data/CESM1_Ocean_Regridded/" for ocn variables
-        # And another unique path for Net Heat Flux (TBD)
+    
 
 # Get experiment bounding box for preprocessing
 if bbox is None:
@@ -120,9 +132,14 @@ if bbox is None:
 # -----------------------------------------------------------------------------
 
 if atm: # Load from raw CESM1-LE files
-    nclist = glob.glob("%s*%s*.nc" % (datpath,varname))
-    
-    # Do some further processing?
+
+    if "HTR" in mconfig:
+        scenario_str = "b.e11.B20TRC5CNBDRD*"
+    elif "RCP85" in mconfig:
+        scenario_str = "b.e11.BRCP85C5CNBDRD"
+        
+    nclist = glob.glob("%s%s/%s%s*.nc" % (datpath,varname,scenario_str,varname))
+    nclist = [nc for nc in nclist if "OIC" not in nc]
     
 else:
     nclist = glob.glob("%s*%s*.nc" % (datpath,varname))
@@ -157,7 +174,7 @@ for e in tqdm(range(nens)): # Process by ens. member
     # 1. Correct time if needed, then crop to range ******
     ds = proc.fix_febstart(ds)
     ds = ds.sel(time=slice("%s-01-01"%(ystart),"%s-12-31"%(yend)))
-    ds = ds.load()
+    ds = ds[varname].load()
     
     # 2. Flip longitude and crop to region ******
     if np.any(ds.lon.values > 180): # F
@@ -169,7 +186,16 @@ for e in tqdm(range(nens)): # Process by ens. member
     if e == 0:
         ds_all = dsreg.copy()
     else:
-        ds_all = xr.concat([ds_all,dsreg],dim="ensemble")
+        ds_all = xr.concat([ds_all,dsreg],dim="ensemble",join='override')
+
+
+# Rename variable if set
+if rename_flag:
+    ds_all = ds_all.rename(varname_new)
+    varname=varname_new
+    
+    
+    
 
 # Set encoding dictionary
 encoding_dict = {varname : {'zlib': True}} 
@@ -213,7 +239,7 @@ Based on procedure in prepare_training_validation_data.py
 """
 
 if load_concat: # Load data if option is set
-    ds_all = xr.open_dataset(outname_concat).load()
+    ds_all = xr.open_dataset(outname_concat)[varname].load()
 
 # --------------------------------
 # Deseason and take annual average
@@ -234,7 +260,7 @@ if detrend:
 mu            = ds_all_anom.mean()
 sigma         = ds_all_anom.std()
 ds_normalized = (ds_all_anom - mu)/sigma
-np.save('%sCESM1LE_%s_nfactors_detrend%i_regrid%s.npy' % (outpath,varname,detrend,regrid),(mu.to_array().values,sigma.to_array().values))
+np.save('%sCESM1LE_%s_nfactors_detrend%i_regrid%s.npy' % (outpath,varname,detrend,regrid),(mu.values,sigma.values))
 
 
 # ------------------------
@@ -275,6 +301,5 @@ encoding_dict = {varname : {'zlib': True}}
 outname       = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s_detrend%i_regrid%s.nc" % (outpath,varname,ystart,yend,method,detrend,regrid)
 ds_normalized_out.to_netcdf(outname,encoding=encoding_dict)
 print("Saved output tp %s in %.2fs!" % (outname,time.time()-st))
-
 
 print("Completed processing %s in %.2fs!" % (varname,time.time()-stall))
