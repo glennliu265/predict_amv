@@ -14,7 +14,6 @@ Prepare data by variable (for ML Prediction)
 Output Files: (located at "../../CESM_data/Predictors"). Example Names:
     Ens Avg            : CESM1LE_SSS_FULL_HTR_bilinear_ensavg_1920to2005.nc
     Concatenated Data  : CESM1LE_SSS_NAtl_19200101_20050101_bilinear.nc
-    Mean and Stdev     : CESM1LE_SSS_nfactors_detrend0_regridNone.npy
     Predictor          : CESM1LE_SSS_NAtl_19200101_20051201_bilinear_detrend0_regridNone.nc
     
 For the given large ensemble dataset/variable, perform the following:
@@ -32,9 +31,8 @@ For the given large ensemble dataset/variable, perform the following:
     -------
     1. Calculate Monthly Anomalies + Annual Average
     2. Remove trend (if specified)
-    3. Normalize data
-    4. Perform regridding (if option is set)
-    5. Output in array ['ensemble','year','lat','lon']
+    3. Perform regridding (if option is set)
+    4. Output in array ['ensemble','year','lat','lon']
     
 Copies sections from:
     - prep_mld_PIC.py (stochmod repo)
@@ -62,14 +60,8 @@ stall         = time.time()
 machine       = "stormtrack"
 
 # Dataset Information
-varname       = "HMXL"
+varnames      = ["TS","SSH","SSS","PSL","FSNS","FLNS","FSNS","LHFLX","SHFLX","TAUX","TAUY","BSF","HMXL"]
 
-if varname == "TS":
-    rename_flag       = True
-    varname_new   = "SST" # New variable name, will replace varname after Part 1... (MAKE SURE TO CHANGE THIS
-else:
-    rename_flag       = False
-    
 mconfig       = "FULL_HTR"
 method        = "bilinear" # regridding method for POP ocean data
 
@@ -86,8 +78,8 @@ ystart        = 1920 # Start year
 yend          = 2005 # End year
 
 # Data Path
-datpath       = None
-outpath       = "../../CESM_data/Predictors/"
+datpath_manual = None # Manually set datpath
+outpath        = "../../CESM_data/Predictors/"
 
 # Other Toggles
 debug         = True # Set to True for debugging flat
@@ -107,199 +99,209 @@ machine_paths = pparams.machine_paths[machine]
 sys.path.append(machine_paths['amv_path'])
 from amv import loaders,proc
 
-# Get data path for raw CESM1 output
-atm = True # Assume variables are raw unless otherwise specified
-if datpath is None:
-    if varname in pparams.vars_dict.keys():
-        vdict = pparams.vars_dict[varname]
-        if vdict['datpath'] is None:
-            datpath = machine_paths['datpath_raw_atm'] # Process from Raw CESM1 Atmopsheric Data
-        else:
-            atm     = False
-            datpath = vdict['datpath'] # Used datpath specified in variable dictionary
-            # This is usually "../../CESM_data/CESM1_Ocean_Regridded/" for ocn variables
-            # And another unique path for Net Heat Flux (TBD)
-    else: # Assume it is an atmospheric variable
-        datpath = machine_paths['datpath_raw_atm'] # Process from Raw CESM1 Atmopsheric Data
-    
-
 # Get experiment bounding box for preprocessing
 if bbox is None:
     bbox  = pparams.bbox_crop
 
-# -----------------------------------------------------------------------------
-#%% Get list of netcdfs
-# -----------------------------------------------------------------------------
+nvars = len(varnames)
 
-if atm: # Load from raw CESM1-LE files
-
-    if "HTR" in mconfig:
-        scenario_str = "b.e11.B20TRC5CNBDRD*"
-    elif "RCP85" in mconfig:
-        scenario_str = "b.e11.BRCP85C5CNBDRD"
+#%% Start variable loop
+for v in range(nvars):
+    
+    varname = varnames[v]
+    
+    if varname == "TS":
+        rename_flag   = True
+        varname_new   = "SST" # New variable name,
+    elif varname == "PSL":
+        rename_flag   = True
+        varname_new   = "SLP"
+    else:
+        rename_flag       = False
+    
+    # Get data path for raw CESM1 output
+    atm = True # Assume variables are raw unless otherwise specified
+    if datpath_manual is None:
+        if varname in pparams.vars_dict.keys():
+            vdict = pparams.vars_dict[varname]
+            if vdict['datpath'] is None:
+                datpath = machine_paths['datpath_raw_atm'] # Process from Raw CESM1 Atmopsheric Data
+            else:
+                atm     = False
+                datpath = vdict['datpath'] # Used datpath specified in variable dictionary
+                # This is usually "../../CESM_data/CESM1_Ocean_Regridded/" for ocn variables
+                # And another unique path for Net Heat Flux (TBD)
+        else: # Assume it is an atmospheric variable
+            datpath = machine_paths['datpath_raw_atm'] # Process from Raw CESM1 Atmopsheric Data
+    else:
+        datpath = datpath_manual
         
-    nclist = glob.glob("%s%s/%s%s*.nc" % (datpath,varname,scenario_str,varname))
-    nclist = [nc for nc in nclist if "OIC" not in nc]
     
-else:
-    nclist = glob.glob("%s*%s*.nc" % (datpath,varname))
-nclist.sort()
-nens     = len(nclist)
-print("Found %i files!" % (nens))
-if debug:
-    print(*nclist,sep="\n")
 
-# -----------------------------------------------------------------------------
-#%% Preprocessing: Concatenation + Cropping (Part 1)
-# -----------------------------------------------------------------------------
-
-"""
------------------------
-The Preprocessing Steps
------------------------
-    Part 1-- : Merging and subsetting data
-         Takes 5m24s (_) for ocn (atm) dataset (versus 30m without loading ds)
-    1. Crop the Data in Time (1920 - 2005)
-    2. Crop to Region (*****NOTE: assumes degrees West = neg!)
-    3. Concatenate to ensemble member
-    4. Intermediate Save Option
-"""
-
-# 
-for e in tqdm(range(nens)): # Process by ens. member
     
-    # Load into dataset
-    ds = xr.open_dataset(nclist[e])
+    # -----------------------------------------------------------------------------
+    #%% Get list of netcdfs
+    # -----------------------------------------------------------------------------
     
-    # 1. Correct time if needed, then crop to range ******
-    ds = proc.fix_febstart(ds)
-    ds = ds.sel(time=slice("%s-01-01"%(ystart),"%s-12-31"%(yend)))
-    ds = ds[varname].load()
+    if atm: # Load from raw CESM1-LE files
     
-    # 2. Flip longitude and crop to region ******
-    if np.any(ds.lon.values > 180): # F
-        ds = proc.lon360to180_xr(ds)
-        print("Flipping Longitude (includes degrees west)")
-    dsreg = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
-    
-    # 3. Concatenate to ensemble ******
-    if e == 0:
-        ds_all = dsreg.copy()
+        if "HTR" in mconfig:
+            scenario_str = "b.e11.B20TRC5CNBDRD*"
+        elif "RCP85" in mconfig:
+            scenario_str = "b.e11.BRCP85C5CNBDRD"
+            
+        nclist = glob.glob("%s%s/%s%s*.nc" % (datpath,varname,scenario_str,varname))
+        nclist = [nc for nc in nclist if "OIC" not in nc]
+        
     else:
-        ds_all = xr.concat([ds_all,dsreg],dim="ensemble",join='override')
-
-
-# Rename variable if set
-if rename_flag:
-    ds_all = ds_all.rename(varname_new)
-    varname=varname_new
+        nclist = glob.glob("%s*%s*.nc" % (datpath,varname))
+    nclist.sort()
+    nens     = len(nclist)
+    print("Found %i files!" % (nens))
+    if debug:
+        print(*nclist,sep="\n")
+    
+    # -----------------------------------------------------------------------------
+    #%% Preprocessing: Concatenation + Cropping (Part 1)
+    # -----------------------------------------------------------------------------
+    
+    """
+    -----------------------
+    The Preprocessing Steps
+    -----------------------
+        Part 1-- : Merging and subsetting data
+             Takes 5m24s (_) for ocn (atm) dataset (versus 30m without loading ds)
+        1. Crop the Data in Time (1920 - 2005)
+        2. Crop to Region (*****NOTE: assumes degrees West = neg!)
+        3. Concatenate to ensemble member
+        4. Intermediate Save Option
+    """
+    
+    # 
+    for e in tqdm(range(nens)): # Process by ens. member
+        
+        # Load into dataset
+        ds = xr.open_dataset(nclist[e])
+        
+        # 1. Correct time if needed, then crop to range ******
+        ds = proc.fix_febstart(ds)
+        ds = ds.sel(time=slice("%s-01-01"%(ystart),"%s-12-31"%(yend)))
+        ds = ds[varname].load()
+        
+        # 2. Flip longitude and crop to region ******
+        if np.any(ds.lon.values > 180): # F
+            ds = proc.lon360to180_xr(ds)
+            print("Flipping Longitude (includes degrees west)")
+        dsreg = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+        
+        # 3. Concatenate to ensemble ******
+        if e == 0:
+            ds_all = dsreg.copy()
+        else:
+            ds_all = xr.concat([ds_all,dsreg],dim="ensemble",join='override')
     
     
+    # Rename variable if set
+    if rename_flag:
+        ds_all = ds_all.rename(varname_new)
+        varname=varname_new
+        
+        
+        
     
-
-# Set encoding dictionary
-encoding_dict = {varname : {'zlib': True}} 
-
-# Get rid of additional dimensions
-if "z_t" in ds_all.dims:
-    ds_all = ds_all.squeeze()
-    ds_all = ds_all.drop_vars('z_t')
-    ds_all  = ds_all
-
-# Transpose to [ens x time x lat x lon]
-ds_all  = ds_all.transpose('ensemble','time','lat','lon')
-
-# Compute and save the ensemble average
-ensavg = ds_all.mean('ensemble')
-outname = "%sCESM1LE_%s_%s_%s_ensavg_%sto%s.nc" % (outpath,varname,mconfig,method,ystart,yend)
-ensavg.to_netcdf(outname,encoding=encoding_dict)
-
-# Save Dataset
-outname_concat = "%sCESM1LE_%s_NAtl_%s0101_%s0101_%s.nc" % (outpath,varname,ystart,yend,method)
-if save_concat:
-    ds_all.to_netcdf(outname_concat,encoding=encoding_dict)
-    print("Merged data in %.2fs" % (time.time()-stall))
-
-
-# -------
-# %% Part 2 Processing (Deseason Normalization, Regridding)
-# -------
-
-"""
--------
-Part 2-- : Deseason, Detrend, Normalize, Regrid
--------
-Based on procedure in prepare_training_validation_data.py
-** does not apply land mask!
-    1. Calculate Monthly Anomalies + Annual Average
-    2. Remove trend (if specified)
-    3. Normalize data
-    4. Perform regridding (if option is set)
-    5. Output in array ['ensemble','year','lat','lon']
-"""
-
-if load_concat: # Load data if option is set
-    ds_all = xr.open_dataset(outname_concat)[varname].load()
-
-# --------------------------------
-# Deseason and take annual average
-# --------------------------------
-st = time.time() # 38.21 sec
-ds_all_anom = (ds_all.groupby('time.month') - ds_all.groupby('time.month').mean('time')).groupby('time.year').mean('time')
-print("Deseasoned in %.2fs!" % (time.time()-st))
-
-# -------
-# Detrend
-# -------
-if detrend:
-    ds_all_anom = ds_all_anom - ds_all_anom.mean('ensemble')
-
-# -------------------------
-# Normalize and standardize
-# -------------------------
-mu            = ds_all_anom.mean()
-sigma         = ds_all_anom.std()
-ds_normalized = (ds_all_anom - mu)/sigma
-np.save('%sCESM1LE_%s_nfactors_detrend%i_regrid%s.npy' % (outpath,varname,detrend,regrid),(mu.values,sigma.values))
-
-
-# ------------------------
-# Regrid, if option is set 
-# ------------------------
-if regrid is not None:
-    print("Data will be regridded to %i degree resolution." % regrid)
-    # Prepare Latitude/Longitude
-    lat = ds_normalized.lat
-    lon = ds_normalized.lon
-    if regrid_step:
-        lat_out = np.arange(lat[0],lat[-1]+regrid,regrid)
-        lon_out = np.arange(lon[0],lon[-1]+regrid,regrid)
+    # Set encoding dictionary
+    encoding_dict = {varname : {'zlib': True}} 
+    
+    # Get rid of additional dimensions
+    if "z_t" in ds_all.dims:
+        ds_all = ds_all.squeeze()
+        ds_all = ds_all.drop_vars('z_t')
+        ds_all  = ds_all
+    
+    # Transpose to [ens x time x lat x lon]
+    ds_all  = ds_all.transpose('ensemble','time','lat','lon')
+    
+    # Compute and save the ensemble average
+    ensavg = ds_all.mean('ensemble')
+    outname = "%sCESM1LE_%s_%s_%s_ensavg_%sto%s.nc" % (outpath,varname,mconfig,method,ystart,yend)
+    ensavg.to_netcdf(outname,encoding=encoding_dict)
+    
+    # Save Dataset
+    outname_concat = "%sCESM1LE_%s_NAtl_%s0101_%s0101_%s.nc" % (outpath,varname,ystart,yend,method)
+    if save_concat:
+        ds_all.to_netcdf(outname_concat,encoding=encoding_dict)
+        print("Merged data in %.2fs" % (time.time()-stall))
+    
+    
+    # -------
+    # %% Part 2 Processing (Deseason Normalization, Regridding)
+    # -------
+    
+    """
+    -------
+    Part 2-- : Deseason, Detrend, Normalize, Regrid
+    -------
+    Based on procedure in prepare_training_validation_data.py
+    ** does not apply land mask!
+        1. Calculate Monthly Anomalies + Annual Average
+        2. Remove trend (if specified)
+        3. Perform regridding (if option is set)
+        4. Output in array ['ensemble','year','lat','lon']
+    """
+    
+    if load_concat: # Load data if option is set
+        ds_all = xr.open_dataset(outname_concat)[varname].load()
+    
+    # --------------------------------
+    # Deseason and take annual average
+    # --------------------------------
+    st = time.time() # 38.21 sec
+    ds_all_anom = (ds_all.groupby('time.month') - ds_all.groupby('time.month').mean('time')).groupby('time.year').mean('time')
+    print("Deseasoned in %.2fs!" % (time.time()-st))
+    
+    # -------
+    # Detrend
+    # -------
+    if detrend:
+        ds_all_anom = ds_all_anom - ds_all_anom.mean('ensemble')
+    
+    
+    # ------------------------
+    # Regrid, if option is set 
+    # ------------------------
+    if regrid is not None:
+        print("Data will be regridded to %i degree resolution." % regrid)
+        # Prepare Latitude/Longitude
+        lat = ds_all_anom.lat
+        lon = ds_all_anom.lon
+        if regrid_step:
+            lat_out = np.arange(lat[0],lat[-1]+regrid,regrid)
+            lon_out = np.arange(lon[0],lon[-1]+regrid,regrid)
+        else:
+            lat_out = np.linspace(lat[0],lat[-1],regrid)
+            lon_out = np.linspace(lon[0],lon[-1],regrid)
+        
+        # Make Regridder
+        ds_out    = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
+        regridder = xe.Regridder(ds_all_anom, ds_out, 'nearest_s2d')
+    
+        # Regrid
+        ds_out = regridder( ds_all_anom.transpose('ensemble','year','lat','lon') )
     else:
-        lat_out = np.linspace(lat[0],lat[-1],regrid)
-        lon_out = np.linspace(lon[0],lon[-1],regrid)
+        print("Data will not be regridded.")
+        ds_out = ds_all_anom.transpose('ensemble','year','lat','lon')
+        
+    # ---------------
+    # Save the output
+    # ---------------
+    st = time.time() #387 sec
+    if varname != varname.upper():
+        print("Capitalizing variable name.")
+        ds_out = ds_out.rename({varname:varname.upper()})
+        varname = varname.upper()
+    encoding_dict = {varname : {'zlib': True}} 
+    outname       = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s_detrend%i_regrid%s.nc" % (outpath,varname,ystart,yend,method,detrend,regrid)
+    ds_out.to_netcdf(outname,encoding=encoding_dict)
+    print("Saved output tp %s in %.2fs!" % (outname,time.time()-st))
     
-    # Make Regridder
-    ds_out    = xr.Dataset({'lat': (['lat'], lat_out), 'lon': (['lon'], lon_out) })
-    regridder = xe.Regridder(ds_normalized, ds_out, 'nearest_s2d')
-
-    # Regrid
-    ds_normalized_out = regridder( ds_normalized.transpose('ensemble','year','lat','lon') )
-else:
-    print("Data will not be regridded.")
-    ds_normalized_out = ds_normalized.transpose('ensemble','year','lat','lon')
-    
-    
-# ---------------
-# Save the output
-# ---------------
-st = time.time() #387 sec
-if varname != varname.upper():
-    print("Capitalizing variable name.")
-    ds_normalized_out = ds_normalized_out.rename({varname:varname.upper()})
-    varname = varname.upper()
-encoding_dict = {varname : {'zlib': True}} 
-outname       = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s_detrend%i_regrid%s.nc" % (outpath,varname,ystart,yend,method,detrend,regrid)
-ds_normalized_out.to_netcdf(outname,encoding=encoding_dict)
-print("Saved output tp %s in %.2fs!" % (outname,time.time()-st))
-
-print("Completed processing %s in %.2fs!" % (varname,time.time()-stall))
+    print("Completed processing %s in %.2fs!" % (varname,time.time()-stall))
