@@ -24,16 +24,17 @@ Update: 2023.06.06 -> Works with new output from prep_data_byvariable
 
 import numpy as np
 import xarray as xr
-import xesmf as xe
+import matplotlib.pyplot as plt
 import sys
 
 # ------------
 #%% User Edits
 # ------------
 
-machine = "stormtrack"
+machine = "Astraeus"
 detrend = False # Detrending is currently not applied
 regrid  = None # Set to desired resolution. Set None for no regridding.
+norm    = False # Set to true to normalize SST over selecting bounding box prior to computing the index
 
 datpath  = "../../CESM_data/Predictors/" # Path to SST data processed by prep_data_byvariable.py
 maskpath = "../../CESM_data/Masks/"
@@ -62,11 +63,10 @@ bbox_ST     = pparams.bbox_ST#[-80,-10,20,40]
 bbox_TR     = pparams.bbox_TR#[-75,-15,10,20]
 bbox_NA     = pparams.bbox_NA#[-80,0 ,0,65]
 regions     = pparams.regions
-bboxes      = (bbox_SP,bbox_ST,bbox_TR,bbox_NA,) # Bounding Boxes
-   # regionlong  = pparams.regionlong
-    #regionlong  = ("Subpolar","Subtropical","Tropical","North Atlantic","Subtropical (East)","Subtropical (West)",)
-    
-    
+print(regions)
+bboxes      = (bbox_NA,bbox_SP,bbox_ST,bbox_TR,) # Bounding Boxes
+
+debug       = False
 #
 #%%
 
@@ -87,11 +87,33 @@ sst_ds = sst_ds * limask[None,None,...]
 # Calculate the AMV Index (Area weighted average)
 # -----------------------------------------------
 for b,bb in enumerate(bboxes):
+    
+    
     sst_out_reg = sst_ds.sel(lon=slice(bb[0],bb[1]),lat=slice(bb[2],bb[3]))
+    if norm: # Normalize SST data over selection region prior to calculation
+        mu,std           = np.nanmean(sst_out_reg),np.nanstd(sst_out_reg)
+        sst_out_reg      = (sst_out_reg - mu)/std 
+    
     amv_index   = (np.cos(np.pi*sst_out_reg.lat/180) * sst_out_reg).mean(dim=('lat','lon'))
-    savename = '%sCESM1LE_label_%s_NASST_index_detrend%i_regrid%s.npy' % (outpath,regions[b],detrend,regrid)
+    savename = '%sCESM1LE_label_%s_NASST_index_detrend%i_regrid%s_norm%i.npy' % (outpath,regions[b],
+                                                                                 detrend,regrid,norm)
     np.save(savename,amv_index[:,:])
     print("Saved Region %s ([%s]) as %s" % (regions[b],bb,savename))
+    
+    
+    # Check effect of normalization
+    if debug:
+        mu,std           = np.nanmean(sst_out_reg),np.nanstd(sst_out_reg)
+        sst_out_reg_norm = (sst_out_reg - mu)/std 
+        amv_index_norm   = (np.cos(np.pi*sst_out_reg_norm.lat/180) * sst_out_reg_norm).mean(dim=('lat','lon'))
+        
+        fig,ax = plt.subplots(1,1)
+        ax.plot(amv_index.mean('ensemble'),label="Unnormalized Index (%s)" % (regions[b]),color="k")
+        ax.plot(amv_index_norm.mean('ensemble'),label="Normalized Index (%s)" % (regions[b]),color="orange")
+        ax.legend()
+        plt.savefig("%sAMV_Index_Normalization_Comparison_%s.png" % (pparams.figpath,regions[b]),dpi=150)
+        
+        
 
 
 
