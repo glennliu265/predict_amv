@@ -19,7 +19,7 @@ from tqdm import tqdm
 
 #%%
 
-def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=False,newpath=True):
+def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=False,newpath=True,norm=True):
     """
     Load target for AMV prediction, as calculated from the script: 
          [prepare_regional_targets.py]
@@ -30,6 +30,7 @@ def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=Fals
         detrend [BOOL] : Set to True if data was detrended. Default is False
         regrid  [STR]  : Regridding Option. Default is the default grid.
         PIC     [BOOL] : Set to True to load CESM-PIC Data
+        norm    [BOOL] : Set to True to use Index calculated from SST normalized over the region. 
     Output:
         target  [ARRAY: ENS x Year] : Target index values
     """
@@ -43,7 +44,7 @@ def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=Fals
         if newpath:
             if region is None:
                 region = "NAT"
-            target = np.load('%sCESM1LE_label_%s_NASST_index_detrend%i_regrid%s.npy'% (datpath,region,detrend,regrid))
+            target = np.load('%sCESM1LE_label_%s_NASST_index_detrend%i_regrid%s_norm%i.npy'% (datpath,region,detrend,regrid,norm))
         else:
             if region is None:
                 target = np.load('%sCESM_label_amv_index_detrend%i_regrid%s.npy'% (datpath,detrend,regrid))
