@@ -627,6 +627,25 @@ expdict['percent_val']   = 0.00
 
 train_params_all[expname] = expdict.copy()
 
+#%% 2023.06.08 Rerun with new parameters, test normalization
+"""
+
+FNN4_128_SingleVar_Norm1
+
+Copy above, but with normalization in index
+
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_Norm1"
+
+# Copy dictionary from above
+expdict                   = train_params_all["FNN4_128_SingleVar_Norm0"].copy()
+
+# Set new parameters
+expdict['norm']           = True
+train_params_all[expname] = expdict.copy()
+
 """
 
 Some Notes on Parameters and subdivisions
