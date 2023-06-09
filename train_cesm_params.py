@@ -66,6 +66,7 @@ expdict['region']          = None     # Region of AMV Index (not yet implemented
 expdict['season']          = None     # Season of AMV Index (not yet implemented)
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
+expdict['norm']            = True     # Indicate if target was normalized
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -181,6 +182,7 @@ expdict['region']          = None     # Region of AMV Index (not yet implemented
 expdict['season']          = None     # Season of AMV Index (not yet implemented)
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
+expdict['norm']            = True     # Indicate if target was normalized
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -272,6 +274,7 @@ expdict['region']          = None     # Region of AMV Index (not yet implemented
 expdict['season']          = None     # Season of AMV Index (not yet implemented)
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
+expdict['norm']            = True     # Indicate if target was normalized
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -441,6 +444,7 @@ expdict['region']          = None     # Region of AMV Index (not yet implemented
 expdict['season']          = None     # Season of AMV Index (not yet implemented)
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
+expdict['norm']            = True     # Indicate if target was normalized
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = True     # Use PiControl Data
 
@@ -502,7 +506,7 @@ Forgot what is going on, so I'm going to try again...
 expname                    = "FNN4_128_SingleVar_Rewrite_June" 
 
 # Copy dictionary from above
-expdict                  = train_params_all["FNN4_128_SingleVar"].copy()
+expdict                   = train_params_all["FNN4_128_SingleVar"].copy()
 train_params_all[expname] = expdict.copy()
 
 
@@ -519,18 +523,109 @@ Forgot what is going on, so I'm going to try again...
 expname                    = "FNN4_128_SingleVar_Testing" 
 
 # Copy dictionary from above
-expdict                  = train_params_all["FNN4_128_SingleVar"].copy()
+expdict                    = train_params_all["FNN4_128_SingleVar"].copy()
 
 # Set validation and test size
-expdict["percent_train"] = 0.60
-expdict["percent_val"]   = 0.10
+expdict["percent_train"]   = 0.60
+expdict["percent_val"]     = 0.10
 
 train_params_all[expname] = expdict.copy()
 
 
 
 
+#%% 2023.06.06 Rerun
+"""
 
+FNN4_128_SingleVar_PaperRun
+
+Old Singlevar Script, prior to rewrite
+
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_PaperRun"
+expdict                    = {}
+
+# ---------------------------------
+# (1) Data Preprocessing Parameters
+# ---------------------------------
+expdict['detrend']         = 0        # True if the target was detrended
+#expdict['varnames']        = ["SST","SSH",] # Names of predictor variables
+expdict['region']          = None     # Region of AMV Index (not yet implemented)
+expdict['season']          = None     # Season of AMV Index (not yet implemented)
+expdict['lowpass']         = False    # True if the target was low-pass filtered
+expdict['regrid']          = None     # Regrid option of data
+expdict['norm']            = True     # Indicate if target was normalized
+expdict['mask']            = True     # True for land-ice masking
+expdict["PIC"]             = False    # Use PiControl Data
+
+# ---------------------------------
+# (2) Subsetting Parameters
+# ---------------------------------
+# Data subsetting
+expdict['ens']               = 42      # Number of ensemble members to limit to
+expdict['ystart']            = 1920    # Start year of processed dataset
+expdict['yend']              = 2005    # End year of processed dataset
+expdict['bbox']              = pparams.bbox #  Bounding box for data
+
+# Label Determination
+expdict['quantile']          = False   # Set to True to use quantiles
+expdict['thresholds']        = [-1,1]  # Thresholds (standard deviations, or quantile values) 
+
+# Test/Train/Validate and Sampling
+expdict['nsamples']           = 300     # Number of samples from each class to train with. None = size of minimum class
+expdict['percent_train']      = 0.90    # Training percentage
+expdict['percent_val']        = 0.00    # Validation Percentage
+expdict['shuffle_class']      = True              # Set to True to sample DIFFERENT subsets prior to class subsetting
+expdict['shuffle_trainsplit'] = True             # Set to False to maintain same set for train/test/val split
+
+# Cross Validation Options
+expdict['cv_loop']         = False    # Repeat for cross-validation
+expdict['cv_offset']       = 0       # Set cv option. Default is test size chunk
+
+# ---------------------------------
+# (2) ML Parameters
+# ---------------------------------
+
+# Network Hyperparameters
+expdict['netname']        = "FNN4_128"           # Key for Architecture Hyperparameters
+expdict['loss_fn']        = nn.CrossEntropyLoss()# Loss Function (nn.CrossEntropyLoss())
+expdict['opt']            = ['Adam',1e-3,0]      # [Optimizer Name, Learning Rate, Weight Decay]
+expdict['use_softmax']    = False                # Set to true to change final layer to softmax
+expdict['reduceLR']       = False                # Set to true to use LR scheduler
+expdict['LRpatience']     = False                # Set patience for LR scheduler
+
+# Regularization and Training
+expdict['early_stop']     = 5                    # Number of epochs where validation loss increases before stopping
+expdict['max_epochs']     = 50                   # Maximum # of Epochs to train for
+expdict['batch_size']     = 16                   # Pairs of predictions
+expdict['unfreeze_all']   = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
+
+train_params_all[expname] = expdict.copy()
+
+
+
+#%% 2023.06.08 Rerun with new parameters, test normalization
+"""
+
+FNN4_128_SingleVar_Norm0
+
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_Norm0"
+
+# Copy dictionary from above
+expdict                   = train_params_all["FNN4_128_SingleVar"].copy()
+
+# Set new parameters
+expdict['norm']          = False
+expdict['ens']           = 30    # Rest for testing
+expdict['percent_train'] = 0.90
+expdict['percent_val']   = 0.00 
+
+train_params_all[expname] = expdict.copy()
 
 """
 
