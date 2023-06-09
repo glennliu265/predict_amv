@@ -44,6 +44,10 @@ import torch
 from tqdm import tqdm
 import copy
 
+import sys
+sys.path.append("..")
+import amv_dataloader as dl
+
 #%% Metrics and Analysis ----
 
 def load_result(fn,debug=False,load_dict=False):
@@ -2625,5 +2629,118 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
         }
     return out_dict
         
+def normalize_ds(ds):
+    std,mu = np.nanstd(ds),np.nanmean(ds) 
+    print("Standard deviation is %.2e, Mean is %.2e"% (std,mu))
+    return std,mu
+
+
+#%% More Wrapper Functions
+
+def prepare_predictors_target(varnames,eparams,debug=False,
+                           return_target_values=False,
+                           return_nfactors=False):
+    """ Prepares predictors and target. Works with output from:
+        [prep_data_byvariable, make_landice_mask, prepare_regional_targets]
+        Does the following:
+        1. Loads predictors and target
+        2. Applies land ice mask
+        3. Normalize data
+        4. Change NaNs to zero
+        5. Get Threshold Values
+        6. Subset to ensemble
+        7. Make classes
         
+        Inputs:
+            eparams  [DICT]             : Parameter dictionary, set in train_cesm_parameters.
+            varnames [LIST]             : List of variable names to load.
+            debug    [BOOL]             : True to print debugging messages.
+            return_target_values [BOOL] : True to return target values (in addition to class).
+            return_nfactors [BOOL]      : True to return normalization factors (mu and sigma)
+        Returns:
+            data           [ARRAY : channel x ens x year x lat x lon] : Normalized + Masked Predictors
+            target_class   [ARRAY : ens x year] : Target with corresponding class numbers
+            thresholds_in  [LIST] : Threshold values for classification
+            target         [ARRAY : ens x year] : Target with actual values (if return_target_values is True)
+            nfactors_byvar [DICT : [varname][mean or std]] : Normalization factors used
+        """
+    # ------------------
+    # 1. Load predictor and labels, lat/lon, cropped to region, eparams['detrend','region','norm']
+    # ------------------
+    target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'],newpath=True,norm=eparams['norm'])
+    data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True,newpath=True)
+    
+    # ------------------
+    # 2. Load land-ice mask and apply, eparams['mask']
+    # ------------------
+    if eparams['mask']:
+        limask                         = dl.load_limask(bbox=eparams['bbox'])
+        data                           = data * limask[None,None,None,:,:]  # NaN Points to Zero
+    
+    # ------------------
+    # 3. Normalize data eparams['norm']
+    # ------------------
+    nchannels        = data.shape[0]
+    # * Note, doing this for each channel, but in reality, need to do for all channels
+    nfactors_byvar = {} # Dictionary of normalization factors
+    for ch in range(nchannels):
+        std_var      = np.nanstd(data[ch,...])
+        mu_var       = np.nanmean(data[ch,...])
+        data[ch,...] = (data[ch,...] - mu_var)/std_var
+        nfactors = {}
+        nfactors['mean']  = mu_var
+        nfactors['std']   = std_var
+        nfactors_byvar[varnames[ch]] = nfactors.copy()
+        
+    if debug:
+        [print(normalize_ds(data[d,...])) for d in range(4)]
+    
+    # ------------------
+    # 4. Change nan points to zero
+    # ------------------
+    data[np.isnan(data)] = 0 
+    
+    # ------------------
+    # 5. Set exact threshold value, eparams['thresholds']
+    # ------------------
+    std1         = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
+    if eparams['quantile'] is False:
+        thresholds_in = [-std1,std1]
+    else:
+        thresholds_in = eparams['thresholds']
+    
+    # ------------------
+    # 6. Subset predictor and get dimensions, eparams['ens']
+    # ------------------
+    data   = data[:,0:eparams['ens'],...]
+    target = target[0:eparams['ens'],:]
+    
+    # ------------------
+    # 7. Classify AMV Events
+    # ------------------
+    target_class = make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
+    target_class = target_class.reshape(target.shape)
+    if debug:
+        target_class = make_classes(target[:,25:].flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
+        count_samples(None,target_class)
+    
+    # Output
+    load_dict = {
+        'data'          : data,
+        'target_class'  : target_class,
+        'thresholds_in' : thresholds_in,
+        'lat'           : lat,
+        'lon'           : lon,
+        }
+    
+    if return_target_values:
+        load_dict['target'] = target
+    if return_nfactors:
+        load_dict['nfactors_byvar'] = nfactors_byvar
+    return load_dict
+    
+    
+
+    
+
         
