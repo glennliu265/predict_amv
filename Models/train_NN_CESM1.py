@@ -119,7 +119,6 @@ ens            = eparams['ens']
 target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'],PIC=eparams["PIC"])
 data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True,PIC=eparams["PIC"])
 
-
 # Make sure land-ice mask is consistent across variables
 mask_allvar = np.sum(data,(0,1,2))
 mask_allvar[~np.isnan(mask_allvar)] = 1
@@ -130,6 +129,7 @@ data *= mask_allvar[None,None,None,:,:]
 # Subset predictor by ensemble, remove NaNs, and get sizes
 data                           = data[:,0:ens,...]      # Limit to Ens
 data[np.isnan(data)]           = 0                      # NaN Points to Zero
+
 nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
 inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
 

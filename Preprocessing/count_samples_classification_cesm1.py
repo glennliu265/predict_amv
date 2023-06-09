@@ -46,12 +46,11 @@ proc.makedir(figpath)
 # ============================================================
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir             = "FNN4_128_detrend"#"FNN4_128_SingleVar_Rerun100"
+expdir             = "FNN4_128_SingleVar_PaperRun"#"FNN4_128_SingleVar_Rerun100"
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
-
 # Set some looping parameters and toggles
-varnames           = ["SST","SSS","PSL","SSH"]       # Names of predictor variables
+varnames           = ["SST","SSS","SLP","SSH"]       # Names of predictor variables
 leads              = np.arange(0,26,1)    # Prediction Leadtimes
 runids             = np.arange(0,1,1)    # Which runs to do
 
@@ -90,26 +89,39 @@ else:
 
 # Load some variables for ease
 ens            = eparams['ens']
+norm           = eparams['norm']
 
 # Loads that that has been preprocessed by: ___
 
 # Load predictor and labels, lat/lon, cut region
-target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
-data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
+target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'],newpath=True,norm=norm)
+data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True,newpath=True)
 
-# Make a mask
-consistent_mask                = np.isnan(np.sum(data,(0,1,2)))  # sav e mask
-limask = np.ones(consistent_mask.shape)
-limask[consistent_mask==1] = np.nan
-#consistent_mask[consistent_mask == 1] = np.nan
-#consistent_mask[consistent_mask == 0] = 1
+# Make a mask and apply
+limask                         = dl.load_limask(bbox=eparams['bbox'])
+data                           = data * limask[None,None,None,:,:]  # NaN Points to Zero
 
+# Normalize data
+nchannels = data.shape[0]
+# *** Note, doing this for each channel, but in reality, need to do for all channels
+for ch in range(nchannels):
+    std_var = np.nanstd(data[ch,...])
+    mu_var = np.nanmean(data[ch,...])
+    data[ch,...] = (data[ch,...] - mu_var)/std_var
+[print(am.normalize_ds(data[d,...])) for d in range(4)]
+
+# Change nan points to zero
+data[np.isnan(data)] = 0 
 # Subset predictor by ensemble, remove NaNs, and get sizes
-data                           = data[:,0:ens,...]      # Limit to Ens
 
-data[np.isnan(data)]           = 0                      # NaN Points to Zero
-nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
-inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
+# Subset predictor, get dimensions
+data                           = data[:,0:ens,...]                  # Limit to Ens
+target                         = target[0:ens,:]
+nchannels,nens,ntime,nlat,nlon = data.shape                         # Ignore year and ens for now...
+inputsize                      = nchannels*nlat*nlon                # Compute inputsize to remake FNN
+
+for i in range(4):
+    plt.figure(),plt.pcolormesh(data[i,1,2,...]),plt.colorbar()
 
 # ------------------------------------------------------------
 # %% 03. Determine the AMV Classes
