@@ -56,7 +56,7 @@ def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=Fals
         target = np.load("../../CESM_data/CESM1_PIC/%s" % (fn))[None,:] # Add extra ens dimension
     return target
 
-def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False,PIC=False,newpath=True):
+def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False,PIC=False,newpath=True,debug=False):
     """
     Load inputs for AMV prediction, as calculated from the script:
         
@@ -83,7 +83,8 @@ def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_l
         ds        = xr.open_dataset(ncname)
         ds        = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
         outdata   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
-        print(outdata.shape)
+        if debug:
+            print(outdata.shape)
         if v == 0:
             data = outdata.copy()
         else:
