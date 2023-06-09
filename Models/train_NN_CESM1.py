@@ -14,9 +14,8 @@ Current Structure:
 
 Updated Procedure:
     01) Create Experiment Directory
-    02) Load Data
-    03) Determine (and make) AMV Classes based on selected thresholds
-    04) Loop by Predictor...
+    02) Load Data, Determine (and make) AMV Classes based on selected thresholds
+    03) Loop by Predictor...
         05) Loop by runid (train [nr] networks)...
             06) Preallocate variables and set experiment output name
             07) Loop by Leadtime...
@@ -69,11 +68,11 @@ from amv import proc
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "FNN4_128_SingleVar_Rewrite_June"
+expdir              = "FNN4_128_SingleVar_Norm0"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames            = ["SSH","SST",]       # Names of predictor variables
+varnames            = ["SSH",]       # Names of predictor variables
 leads               = np.arange(0,25,3)    # Prediction Leadtimes
 runids              = np.arange(0,50,1)    # Which runs to do
 
@@ -90,6 +89,7 @@ eparams['runids']   = runids
 # ============================================================
 # End User Edits ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # ============================================================
+
 # ------------------------------------------------------------
 # %% 01. Check for existence of experiment directory and create it
 # ------------------------------------------------------------
@@ -107,61 +107,32 @@ else:
     device = torch.device('cpu')
 
 # ----------------------------------------------
-#%% 02. Data Loading...
+#%% 02. Data Loading, Classify Targets
 # ----------------------------------------------
 
-# Load some variables for ease
-ens            = eparams['ens']
+# Load data + target
+load_dict    = am.prepare_predictors_target(varnames,eparams,return_nfactors=True)
+data         = load_dict['data']
+target_class = load_dict['target_class']
 
-# Loads that that has been preprocessed by: ___
-
-# Load predictor and labels, lat/lon, cut region
-target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'],PIC=eparams["PIC"])
-data,lat,lon   = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True,PIC=eparams["PIC"])
-
-# Make sure land-ice mask is consistent across variables
-mask_allvar = np.sum(data,(0,1,2))
-mask_allvar[~np.isnan(mask_allvar)] = 1
-# if debug:
-#     plt.pcolormesh(mask_allvar),plt.colorbar(),plt.title("Land Ice Mask")
-data *= mask_allvar[None,None,None,:,:]
-
-# Subset predictor by ensemble, remove NaNs, and get sizes
-data                           = data[:,0:ens,...]      # Limit to Ens
-data[np.isnan(data)]           = 0                      # NaN Points to Zero
-
-nchannels,nens,ntime,nlat,nlon = data.shape             # Ignore year and ens for now...
+# Get necessary sizes
+nchannels,nens,ntime,nlat,nlon = data.shape             
 inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
+nclasses                       = len(eparams['thresholds'])+1
+nlead                          = len(leads)
 
-# ------------------------------------------------------------
-# %% 03. Determine the AMV Classes
-# ------------------------------------------------------------
-
-# Set exact threshold value
-std1         = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
-if eparams['quantile'] is False:
-    thresholds_in = [-std1,std1]
-else:
-    thresholds_in = eparams['thresholds']
-
-# Classify AMV Events
-target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
-target_class = target_class.reshape(target.shape)
-
-# Get necessary dimension sizes/values
-nclasses     = len(eparams['thresholds'])+1
-nlead        = len(leads)
+# Debug messages
+if debug:
+    print("Loaded data of size: %s" % (str(data.shape)))
 
 """
 # Output: 
-    predictors :: [channel x ens x year x lat x lon]
-    labels     :: [ens x year]
-"""     
-
+    predictors       :: [channel x ens x year x lat x lon]
+    target_class     :: [ens x year]
+"""
 # ----------------------------------------------------
 # %% Retrieve a consistent sample if the option is set
 # ----------------------------------------------------
-
 
 if eparams["shuffle_trainsplit"] is False:
     print("Pre-selecting indices for consistency")
@@ -171,6 +142,7 @@ if eparams["shuffle_trainsplit"] is False:
     
     target_indices,target_refids,predictor_indices,predictor_refids = output_sample
 else:
+    print("Indices will be shuffled for each training iteration")
     target_indices     = None
     predictor_indices  = None
     target_refids      = None
@@ -198,9 +170,9 @@ print("\tLeadtimes      : %i to %i" % (leads[0],leads[-1]))
 print("\tRunids         : %i to %i" % (runids[0],runids[-1]))
 print("\tMax Epochs     : " + str(eparams['max_epochs']))
 print("\tEarly Stop     : " + str(eparams['early_stop']))
-print("\t# Ens. Members : "+ str(ens))
-print("\tDetrend        : "+ str(eparams['detrend']))
-print("\tShuffle        : "+ str(eparams['shuffle_trainsplit']))
+print("\t# Ens. Members : " + str(eparams['ens']))
+print("\tDetrend        : " + str(eparams['detrend']))
+print("\tShuffle        : " + str(eparams['shuffle_trainsplit']))
 
 # ------------------------
 # 04. Loop by predictor...
@@ -223,7 +195,7 @@ for v,varname in enumerate(varnames):
                    "nens%02i_maxlead%02i_"\
                    "detrend%i_run%02i_"\
                    "quant%i_res%s" % (nclasses,eparams['netname'],eparams['max_epochs'],
-                                         ens,leads[-1],eparams['detrend'],runid,
+                                         eparams['ens'],leads[-1],eparams['detrend'],runid,
                                          eparams['quantile'],eparams['regrid']))
         
         # Preallocate Evaluation Metrics...
@@ -259,7 +231,7 @@ for v,varname in enumerate(varnames):
                 # 08. Apply lead/lag to data
                 # --------------------------
                 # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-                X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=ens,tstep=ntime)
+                X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
                 
                 # ----------------------
                 # 09. Select samples
