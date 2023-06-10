@@ -621,7 +621,7 @@ expdict                   = train_params_all["FNN4_128_SingleVar"].copy()
 
 # Set new parameters
 expdict['norm']          = False
-expdict['ens']           = 30    # Rest for testing
+expdict['ens']           = 32    # Rest for testing
 expdict['percent_train'] = 0.90
 expdict['percent_val']   = 0.00 
 
