@@ -564,7 +564,7 @@ expdict["PIC"]             = False    # Use PiControl Data
 # (2) Subsetting Parameters
 # ---------------------------------
 # Data subsetting
-expdict['ens']               = 42      # Number of ensemble members to limit to
+expdict['ens']               = 32      # Number of ensemble members to limit to
 expdict['ystart']            = 1920    # Start year of processed dataset
 expdict['yend']              = 2005    # End year of processed dataset
 expdict['bbox']              = pparams.bbox #  Bounding box for data
@@ -599,12 +599,10 @@ expdict['LRpatience']     = False                # Set patience for LR scheduler
 # Regularization and Training
 expdict['early_stop']     = 5                    # Number of epochs where validation loss increases before stopping
 expdict['max_epochs']     = 50                   # Maximum # of Epochs to train for
-expdict['batch_size']     = 16                   # Pairs of predictions
+expdict['batch_size']     = 32                   # Pairs of predictions
 expdict['unfreeze_all']   = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 train_params_all[expname] = expdict.copy()
-
-
 
 #%% 2023.06.08 Rerun with new parameters, test normalization
 """

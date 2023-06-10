@@ -68,13 +68,13 @@ from amv import proc
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "FNN4_128_SingleVar_Norm0"
+expdir              = "FNN4_128_SingleVar_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames            = ["SSH",]       # Names of predictor variables
-leads               = np.arange(0,25,3)    # Prediction Leadtimes
-runids              = np.arange(0,50,1)    # Which runs to do
+varnames            = ["SSH","SST","SSS","SLP","NHFLX"]       # Names of predictor variables
+leads               = np.arange(0,26,1)    # Prediction Leadtimes
+runids              = np.arange(0,100,1)    # Which runs to do
 
 # Other toggles
 checkgpu            = True                 # Set to true to check if GPU is availabl
@@ -98,8 +98,7 @@ allstart = time.time()
 proc.makedir("../../CESM_data/"+expdir)
 for fn in ("Metrics","Models","Figures"):
     proc.makedir("../../CESM_data/"+expdir+"/"+fn)
-    
-    
+
 # Check if there is gpu
 if checkgpu:
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -111,9 +110,9 @@ else:
 # ----------------------------------------------
 
 # Load data + target
-load_dict    = am.prepare_predictors_target(varnames,eparams,return_nfactors=True)
-data         = load_dict['data']
-target_class = load_dict['target_class']
+load_dict                      = am.prepare_predictors_target(varnames,eparams,return_nfactors=True)
+data                           = load_dict['data']
+target_class                   = load_dict['target_class']
 
 # Get necessary sizes
 nchannels,nens,ntime,nlat,nlon = data.shape             
