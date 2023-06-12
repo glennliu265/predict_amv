@@ -9,7 +9,8 @@ Prepare data by variable (for ML Prediction)
 - Deseasons, Detrends, Normalizes, and optionally Regrids
 
   Works with regridded ocean data preprocessed by [regrid_ocean_variables.ppy]
-  or with raw CESM1-LE atmospheric variables.
+  or with raw CESM1-LE atmospheric variables. Note that detrending step
+  has been moved to [prep_detrended_predictor] script.
   
 Output Files: (located at "../../CESM_data/Predictors"). Example Names:
     Ens Avg            : CESM1LE_SSS_FULL_HTR_bilinear_ensavg_1920to2005.nc
@@ -30,9 +31,8 @@ For the given large ensemble dataset/variable, perform the following:
     Part 2-- : Deseason, Detrend, Normalize, Regrid
     -------
     1. Calculate Monthly Anomalies + Annual Average
-    2. Remove trend (if specified)
-    3. Perform regridding (if option is set)
-    4. Output in array ['ensemble','year','lat','lon']
+    2. Perform regridding (if option is set)
+    3. Output in array ['ensemble','year','lat','lon']
     
 Copies sections from:
     - prep_mld_PIC.py (stochmod repo)
@@ -66,7 +66,6 @@ mconfig       = "FULL_HTR"
 method        = "bilinear" # regridding method for POP ocean data
 
 # Processing Options
-detrend       = False # Detrending is currently not applied
 regrid        = None  # Set to desired resolution. Set None for no regridding.
 regrid_step   = True  # Set to true if regrid indicates the stepsize rather than total dimension size..
 save_concat   = False  # Set to true to save the concatenated dataset (!! before annual anomaly calculation)
@@ -241,9 +240,8 @@ for v in range(nvars):
     Based on procedure in prepare_training_validation_data.py
     ** does not apply land mask!
         1. Calculate Monthly Anomalies + Annual Average
-        2. Remove trend (if specified)
-        3. Perform regridding (if option is set)
-        4. Output in array ['ensemble','year','lat','lon']
+        2. Perform regridding (if option is set)
+        3. Output in array ['ensemble','year','lat','lon']
     """
     
     if load_concat: # Load data if option is set
@@ -255,13 +253,6 @@ for v in range(nvars):
     st = time.time() # 38.21 sec
     ds_all_anom = (ds_all.groupby('time.month') - ds_all.groupby('time.month').mean('time')).groupby('time.year').mean('time')
     print("Deseasoned in %.2fs!" % (time.time()-st))
-    
-    # -------
-    # Detrend
-    # -------
-    if detrend:
-        ds_all_anom = ds_all_anom - ds_all_anom.mean('ensemble')
-    
     
     # ------------------------
     # Regrid, if option is set 
@@ -297,7 +288,7 @@ for v in range(nvars):
         ds_out = ds_out.rename({varname:varname.upper()})
         varname = varname.upper()
     encoding_dict = {varname : {'zlib': True}} 
-    outname       = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s_detrend%i_regrid%s.nc" % (outpath,varname,ystart,yend,method,detrend,regrid)
+    outname       = "%sCESM1LE_%s_NAtl_%s0101_%s1201_%s_detrend0_regrid%s.nc" % (outpath,varname,ystart,yend,method,regrid)
     ds_out.to_netcdf(outname,encoding=encoding_dict)
     print("Saved output tp %s in %.2fs!" % (outname,time.time()-st))
     
