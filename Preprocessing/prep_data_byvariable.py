@@ -69,7 +69,8 @@ method        = "bilinear" # regridding method for POP ocean data
 detrend       = False # Detrending is currently not applied
 regrid        = None  # Set to desired resolution. Set None for no regridding.
 regrid_step   = True  # Set to true if regrid indicates the stepsize rather than total dimension size..
-save_concat   = False  # Set to true to save the concatenated dataset
+save_concat   = False  # Set to true to save the concatenated dataset (!! before annual anomaly calculation)
+save_ensavg   = False # Set to true to save ensemble average (!! before annual anomaly calculation)
 load_concat   = False # Set to true to load concatenated data
 
 # Cropping Options
@@ -136,9 +137,6 @@ for v in range(nvars):
     else:
         datpath = datpath_manual
         
-    
-
-    
     # -----------------------------------------------------------------------------
     #%% Get list of netcdfs
     # -----------------------------------------------------------------------------
@@ -205,9 +203,7 @@ for v in range(nvars):
     if rename_flag:
         ds_all = ds_all.rename(varname_new)
         varname=varname_new
-        
-        
-        
+    
     
     # Set encoding dictionary
     encoding_dict = {varname : {'zlib': True}} 
@@ -222,9 +218,10 @@ for v in range(nvars):
     ds_all  = ds_all.transpose('ensemble','time','lat','lon')
     
     # Compute and save the ensemble average
-    ensavg = ds_all.mean('ensemble')
-    outname = "%sCESM1LE_%s_%s_%s_ensavg_%sto%s.nc" % (outpath,varname,mconfig,method,ystart,yend)
-    ensavg.to_netcdf(outname,encoding=encoding_dict)
+    if save_ensavg:
+        ensavg = ds_all.mean('ensemble')
+        outname = "%sCESM1LE_%s_%s_%s_ensavg_%sto%s.nc" % (outpath,varname,mconfig,method,ystart,yend)
+        ensavg.to_netcdf(outname,encoding=encoding_dict)
     
     # Save Dataset
     outname_concat = "%sCESM1LE_%s_NAtl_%s0101_%s0101_%s.nc" % (outpath,varname,ystart,yend,method)
