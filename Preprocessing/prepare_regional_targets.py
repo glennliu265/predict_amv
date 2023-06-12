@@ -31,10 +31,10 @@ import sys
 #%% User Edits
 # ------------
 
-machine = "Astraeus"
-detrend = False # Detrending is currently not applied
-regrid  = None # Set to desired resolution. Set None for no regridding.
-norm    = False # Set to true to normalize SST over selecting bounding box prior to computing the index
+machine  = "stormtrack"
+detrend  = True # Detrending is currently not applied
+regrid   = None # Set to desired resolution. Set None for no regridding.
+norm     = True # Set to true to normalize SST over selecting bounding box prior to computing the index
 
 datpath  = "../../CESM_data/Predictors/" # Path to SST data processed by prep_data_byvariable.py
 maskpath = "../../CESM_data/Masks/"
@@ -88,7 +88,6 @@ sst_ds = sst_ds * limask[None,None,...]
 # -----------------------------------------------
 for b,bb in enumerate(bboxes):
     
-    
     sst_out_reg = sst_ds.sel(lon=slice(bb[0],bb[1]),lat=slice(bb[2],bb[3]))
     if norm: # Normalize SST data over selection region prior to calculation
         mu,std           = np.nanmean(sst_out_reg),np.nanstd(sst_out_reg)
@@ -112,10 +111,6 @@ for b,bb in enumerate(bboxes):
         ax.plot(amv_index_norm.mean('ensemble'),label="Normalized Index (%s)" % (regions[b]),color="orange")
         ax.legend()
         plt.savefig("%sAMV_Index_Normalization_Comparison_%s.png" % (pparams.figpath,regions[b]),dpi=150)
-        
-        
-
-
 
 
 

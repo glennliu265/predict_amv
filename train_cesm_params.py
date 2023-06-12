@@ -604,6 +604,25 @@ expdict['unfreeze_all']   = True                 # Set to true to unfreeze all l
 
 train_params_all[expname] = expdict.copy()
 
+#%% 2023.06.06 Rerun
+"""
+
+FNN4_128_SingleVar_PaperRun_detrended
+
+Same as above, but with detrended data
+
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_PaperRun_detrended"
+
+# Copy dictionary from above
+expdict                   = train_params_all["FNN4_128_SingleVar_PaperRun"].copy()
+
+# Set custom/new params
+expdict['detrend']        = 1
+train_params_all[expname] = expdict.copy()
+
 #%% 2023.06.08 Rerun with new parameters, test normalization
 """
 
