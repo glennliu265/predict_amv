@@ -22,7 +22,7 @@ import sys
 # ------------
 
 machine  = "stormtrack"
-varnames = ["SST","SSH","SSS","PSL","NHFLX","BSF","HMXL"]
+varnames = ["SLP","NHFLX","BSF","HMXL"] # "SST","SSH","SSS",
 datpath  = "../../CESM_data/Predictors/" # Path to SST data processed by prep_data_byvariable.py
 
 # Information to access file "[datpath]CESM1LE_[varname]_NAtl_[ystart]0101_[yend]1201_[method]_detrend0_regrid[regrid].nc"
@@ -33,9 +33,8 @@ regrid   = None # Set to desired resolution. Set None for no regridding.
 
 
 # Other settings
-recalc_ensavg = True # If False, looks for file: "[datpath]CESM1LE_[varname]_FULL_HTR_[method]_ensavg_[ystart]to[yend].nc}
-save_ensavg   = False # If True, save recalculated ensemble average
-
+save_ensavg   = False # If True, save recalculated ensemble average to : "[datpath]CESM1LE_[varname]_FULL_HTR_[method]_ensavg_[ystart]to[yend].nc}
+debug         = True
 # -----------------------------------------------------------------------------
 #%% Import Packages + Paths based on machine
 # -----------------------------------------------------------------------------
@@ -52,20 +51,9 @@ machine_paths = pparams.machine_paths[machine]
 sys.path.append(machine_paths['amv_path'])
 from amv import loaders,proc
 
-# Get experiment bounding box for preprocessing
-bbox_crop   = pparams.bbox_crop
-bbox_SP     = pparams.bbox_SP#[-60,-15,40,65]
-bbox_ST     = pparams.bbox_ST#[-80,-10,20,40]
-bbox_TR     = pparams.bbox_TR#[-75,-15,10,20]
-bbox_NA     = pparams.bbox_NA#[-80,0 ,0,65]
-regions     = pparams.regions
-print(regions)
-bboxes      = (bbox_NA,bbox_SP,bbox_ST,bbox_TR,) # Bounding Boxes
-debug       = False
-
-#
-# %%
-#
+# -----------------------------------------------------------------------------
+#%% Main Script
+# -----------------------------------------------------------------------------
 
 nvars = len(varnames)
 for v in range(nvars):
@@ -75,19 +63,30 @@ for v in range(nvars):
     ncname  = "%sCESM1LE_%s_NAtl_%i0101_%i1201_%s_detrend0_regrid%s.nc" % (datpath,varname,ystart,yend,method,regrid)
     ds      = xr.open_dataset(ncname).load() 
     
-    # Load in (or recalculate + optionally save) the ensemble average
-    ncname_ensavg = "%sCESM1LE_%s_FULL_HTR_%s_ensavg_%sto%s.nc" % (datpath,varname,method,ystart,yend)
-    if recalc_ensavg:
-        print("Re-calculculating the Ensemble Average for %s!" % (varname))
-        ds_ensavg = ds.mean('ensemble')
-        if save_ensavg:
-            exists_flag = proc.checkfile(ncname_ensavg)
-            if exists_flag:
-                print("Since file exists new ensavg calculation will not be saved.")
-            else:
-                encoding_dict = {varname:{'zlib':True}}
-                ds_ensavg.to_netcdf(ncname_ensavg,encoding=encoding_dict)
-                print("Saved new ensavg calculation.")
-    else:
-        ds_ensavg = xr.open_dataset(ncname_ensavg)
+    # Recalculate + optionally save the ensemble average
+    print("Calculating the Ensemble Average for %s!" % (varname))
+    ds_ensavg     = ds.mean('ensemble')
+    if save_ensavg:
+        ncname_ensavg = "%sCESM1LE_%s_FULL_HTR_%s_ensavg_%sto%s.nc" % (datpath,varname,method,ystart,yend)
+        encoding_dict = {varname:{'zlib':True}}
+        ds_ensavg.to_netcdf(ncname_ensavg,encoding=encoding_dict)
+        print("Saved new ensavg calculation as %s." % ncname_ensavg)
     
+    # Remove ensemble average and resave
+    ds_detrended = ds[varname] - ds_ensavg[varname]
+    
+    # Check differences
+    #assert np.all( (ds[varname] - ds_ensavg[varname]) == ds_detrended)
+    if debug:
+        lonf,latf = -30,50 # Chose random latlon to check
+        iyear,iens = 2,2
+        print("Checking values for %s" % varname)
+        print("\tOriginal value @ %.2f, %.2f      : %.3f" % (lonf,latf,ds[varname].sel(lon=lonf,lat=latf,method='nearest').isel(year=iyear,ensemble=iens)))
+        print("\tRemoved ensemble average was     : %.3f" % (ds_ensavg[varname].sel(lon=lonf,lat=latf,method='nearest').isel(year=iyear)))
+        print("\tFinal value is                   : %.3f" % (ds_detrended.sel(lon=lonf,lat=latf,method='nearest').isel(year=iyear,ensemble=iens)))
+        print("\tMaximum ensavg of new dataset is : %.3e" % (np.nanmax(ds_detrended.mean('ensemble'))))
+        
+    # Save file
+    ncname_out    = "%sCESM1LE_%s_NAtl_%i0101_%i1201_%s_detrend1_regrid%s.nc" % (datpath,varname,ystart,yend,method,regrid)
+    encoding_dict = {varname:{'zlib':True}}
+    ds_detrended.to_netcdf(ncname_out,encoding=encoding_dict)
