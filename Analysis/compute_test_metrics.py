@@ -5,6 +5,11 @@
 
 Compute Test Metrics
 
+ - Test Accuracy
+ - Loss by Epoch (Test)
+ - 
+
+
   - For a given experiment and variable, compute the test metrics
   - Save to an output file...
 
@@ -12,7 +17,6 @@ Compute Test Metrics
 
 @author: gliu
 """
-
 
 import numpy as np
 import sys
@@ -32,13 +36,10 @@ import time
 import os
 
 from torch.utils.data import DataLoader, TensorDataset,Dataset
-#%% Load some functions
 
-#% Load custom packages and setup parameters
-# Import general utilities from amv module
-sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
-import proc,viz
+#%% Load custom packages and setup parameters
 
+machine = 'stormtrack' # Indicate machine (see module packages section in pparams)
 
 # Import packages specific to predict_amv
 cwd = os.getcwd()
@@ -48,11 +49,315 @@ import train_cesm_params as train_cesm_params
 import amv_dataloader as dl
 import amvmod as am
 
+# Load Predictor Information
+bbox          = pparams.bbox
+
+# Import general utilities from amv module
+pkgpath = pparams.machine_paths[machine]['amv_path']
+sys.path.append(pkgpath)
+from amv import proc
 
 # Import LRP package
-lrp_path = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/ml_demo/Pytorch-LRP-master/"
+lrp_path = pparams.machine_paths[machine]['lrp_path']
 sys.path.append(lrp_path)
 from innvestigator import InnvestigateModel
+
+# Load ML architecture information
+nn_param_dict      = pparams.nn_param_dict
+
+
+# ============================================================
+#%% User Edits vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+# ============================================================
+
+# Set machine and import corresponding paths
+
+# Set experiment directory/key used to retrieve params from [train_cesm_params.py]
+expdir              = "FNN4_128_SingleVar_PaperRun_detrended"
+eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
+
+# Processing Options
+even_sample         = False
+
+# Get some paths
+datpath             = pparams.datpath
+dataset_name        = "CESM1"
+
+# Set some looping parameters and toggles
+varnames            = ["SSH","SST"]       # Names of predictor variables
+leads               = np.arange(0,26,1)    # Prediction Leadtimes
+runids              = np.arange(0,100,1)    # Which runs to do
+
+
+# LRP Parameters
+innexp         = 2
+innmethod      ='b-rule'
+innbeta        = 0.1
+
+
+# Other toggles
+checkgpu            = True                 # Set to true to check if GPU is availabl
+debug               = True                 # Set verbose outputs
+savemodel           = True                 # Set to true to save model weights
+
+# Save looping parameters into parameter dictionary
+eparams['varnames'] = varnames
+eparams['leads']    = leads
+eparams['runids']   = runids
+
+
+
+# ============================================================
+#%% Load the data 
+# ============================================================
+# Copied segment from train_NN_CESM1.py
+
+# Load data + target
+load_dict                      = am.prepare_predictors_target(varnames,eparams,return_nfactors=True,load_all_ens=True)
+data                           = load_dict['data']
+target_class                   = load_dict['target_class']
+
+
+# Pick just the testing set
+data                           = data[:,ens_test,...]
+target_class                   = target_class[ens_test,:]
+
+# Get necessary sizes
+nchannels,nens,ntime,nlat,nlon = data.shape             
+inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
+nclasses                       = len(eparams['thresholds'])+1
+nlead                          = len(leads)
+
+# Count Samples...
+am.count_samples(None,target_class)
+
+
+# -----------------------------------
+# %% Get some other needed parameters
+# -----------------------------------
+
+# Ensemble members
+ens_all        = np.arange(0,42)
+ens_train_val  = ens_all[:eparams['ens']]
+ens_test       = ens_all[eparams['ens']:]
+nens_test      = len(ens_test)
+
+#%% 
+
+"""
+
+General Procedure
+
+ 1. Load data and subset to test set
+ 2. Looping by variable...
+     3. Load the model weights and metrics
+     4. 
+     
+"""
+
+nvars = len(varnames)
+
+
+#for v in range(nvars):
+v       = 0
+nr      = 0
+runid   = runids[nr]
+l       = -1
+lead    = leads[l]
+# -------------------- Loop, but debug first
+
+vt      = time.time()
+varname = varnames[v]
+
+# ~~~~~~~
+#% 1. Load model weights + Metrics
+# ~~~~~~~
+# Get the model weights [lead][run]
+modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
+nmodels = len(modweights_lead[0])
+
+# Get list of metric files
+search = "%s%s/Metrics/%s" % (datpath,expdir,"*%s*" % varname)
+flist  = glob.glob(search)
+flist  = [f for f in flist if "of" not in f]
+flist.sort()
+print("Found %i files per lead for %s using searchstring: %s" % (len(flist),varname,search))
+
+#
+#% 2. Retrieve predictor and preallocate
+#
+lt = time.time()
+predictors            = data[[v],...] # Get selected predictor
+
+# Preallocate
+total_acc_all         = np.zeros((nmodels,nlead))
+class_acc_all         = np.zeros((nmodels,nlead,3)) # 
+
+relevances_all        = [] # [nlead][nmodel][sample x lat x lon]
+predictor_all         = [] # [nlead][sample x lat x lon]
+
+predictions_all       = [] # [nlead][nmodel][sample]
+targets_all           = [] # [nlead][sample]
+#
+#%% Loop by lead
+# Note: Since the testing sample is the same withheld set for the experiment, we can use leadtime as the outer loop.
+
+for l,lead in enumerate(leads):
+    
+    # -----------------------
+    # Loop by Leadtime...
+    # -----------------------
+    outname = "/Test_Metrics_%s_%s_evensample%i.npz" % (dataset_name,varname,even_sample)
+    
+    # ===================================
+    # I. Data Prep
+    # ===================================
+    
+    # IA. Apply lead/lag to data
+    # --------------------------
+    # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+    X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=nens_test,tstep=ntime)
+    
+    # ----------------------
+    # IB. Select samples
+    # ----------------------
+    _,class_count = am.count_samples(None,y_class)
+    if even_sample:
+        eparams['nsamples'] = int(np.min(class_count))
+        print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+        y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+    
+    
+    # ----------------------
+    # IC. Flatten inputs for FNN
+    # ----------------------
+    if "FNN" in eparams['netname']:
+        ndat,nchannels,nlat,nlon = X.shape
+        inputsize                = nchannels*nlat*nlon
+        outsize                  = nclasses
+        X_in                     = X.reshape(ndat,inputsize)
+    
+    # -----------------------------
+    # ID. Place data into a data loader
+    # -----------------------------
+    # Convert to Tensors
+    X_torch = torch.from_numpy(X_in.astype(np.float32))
+    y_torch = torch.from_numpy(y_class.astype(np.compat.long))
+    
+    # Put into pytorch dataloaders
+    test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
+    
+    # Preallocate
+    predictor_lead   = []
+    relevances_lead  = []
+    
+    predictions_lead = []
+    targets_lead     = []
+    
+    # --------------------
+    # 05. Loop by runid...
+    # --------------------
+    for nr,runid in tqdm(enumerate(runids)):
+        rt = time.time()
+        
+        # =====================
+        # II. Rebuild the model
+        # =====================
+        # Get the models (now by leadtime)
+        modweights = modweights_lead[l][nr]
+        modlist    = modlist_lead[l][nr]
+        
+        # Rebuild the model
+        pmodel = am.recreate_model(eparams['netname'],nn_param_dict,inputsize,nclasses,nlon=nlon,nlat=nlat)
+        
+        # Load the weights
+        pmodel.load_state_dict(modweights)
+        pmodel.eval()
+        
+        # =======================================================
+        # III. Test the model separately to get accuracy by class
+        # =======================================================
+        y_predicted,y_actual,test_loss = am.test_model(pmodel,test_loader,eparams['loss_fn'],
+                                                       checkgpu=checkgpu,debug=False)
+        lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=debug,verbose=False)
+        
+        # Save variables
+        total_acc_all[nr,l]   = lead_acc
+        class_acc_all[nr,l,:] = class_acc
+        predictions_lead.append(y_predicted)
+        if nr == 0:
+            targets_all.append(y_actual)
+        
+        # ===========================
+        # IV. Perform LRP
+        # ===========================
+        nsamples_lead = len(y_actual)
+        inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+                                          method=innmethod,
+                                          beta=innbeta)
+        model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
+        model_prediction                    = model_prediction.detach().numpy().copy()
+        sample_relevances                   = sample_relevances.detach().numpy().copy()
+        if "FNN" in eparams['netname']:
+            predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
+            sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
+        
+        # Save Variables
+        if nr == 0:
+            predictor_all.append(predictor_test) # Predictors are the same across model runs
+        relevances_lead.append(sample_relevances)
+        
+        # Clear some memory
+        del pmodel
+        torch.cuda.empty_cache()  # Save some memory
+        
+        #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+        # End Lead Loop >>>
+    relevances_all.append(relevances_lead)
+    predictions_all.append(predictions_lead)
+    print("\nCompleted training for %s lead %i of %i in %.2fs" % (varname,lead,leads[-1],time.time()-lt))
+    
+
+
+
+
+#%% Try saving
+
+
+"""
+
+predictors            = data[[v],...] # Get selected predictor
+total_acc_all         = np.zeros((nmodels,nlead))
+class_acc_all         = np.zeros((nmodels,nlead,3)) # 
+
+relevances_all        = []# [nmodel][nlead]
+predictor_all         = []# [nmodel][nlead]
+
+predictions_all       = []
+targets_all           = []
+
+
+Sizes:
+-rw-rw-r-- 1 glliu glliu  62K Jun 13 13:20 Test_Metrics_CESM1_SSH_evensample0_class_acc.npy
+-rw-rw-r-- 1 glliu glliu  15M Jun 13 13:23 Test_Metrics_CESM1_SSH_evensample0_predictions.npy
+-rw-rw-r-- 1 glliu glliu  32G Jun 13 13:23 Test_Metrics_CESM1_SSH_evensample0_predictors.npy
+-rw-rw-r-- 1 glliu glliu  32G Jun 13 13:21 Test_Metrics_CESM1_SSH_evensample0_relevances.npy
+-rw-rw-r-- 1 glliu glliu  15M Jun 13 13:23 Test_Metrics_CESM1_SSH_evensample0_targets.npy
+-rw-rw-r-- 1 glliu glliu  21K Jun 13 13:20 Test_Metrics_CESM1_SSH_evensample0_total_acc.npy
+
+"""
+
+
+save_vars      = [total_acc_all,class_acc_all,relevances_all,predictor_all,predictions_all,targets_all]
+save_vars_name = ["total_acc","class_acc","relevances","predictors","predictions","targets"]
+
+
+for sv in range(len(save_vars)):
+    outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_%s.npy" % (datpath,expdir,dataset_name,varname,even_sample,save_vars_name[sv])
+    np.save(outname,save_vars[sv],allow_pickle=True)
+#test_name = proc.addstrtoext(outname,"_"+save_vars_name[v])
+
+
 
 #%% User Edits
 
@@ -84,17 +389,6 @@ class_colors       = pparams.class_colors
 classes            = pparams.classes
 bbox               = pparams.bbox
 
-#eparams['shuffle_trainsplit'] = False # Turn off shuffling
-
-# Reanalysis dataset information
-dataset_name       = "HadISST"
-regrid             = "CESM1"
-
-
-# LRP Parameters
-innexp         = 2
-innmethod      ='b-rule'
-innbeta        = 0.1
 
 # Other toggles
 debug              = False
@@ -112,103 +406,9 @@ else:
     transparent      = False
 
 
-#%% Load the datasets
-
-# Load reanalysis datasets [channel x ensemble x year x lat x lon]
-re_data,re_lat,re_lon=dl.load_data_reanalysis(dataset_name,varname,bbox,
-                        detrend=detrend,regrid=regrid,return_latlon=True)
-
-# Load the target dataset
-re_target = dl.load_target_reanalysis(dataset_name,region_name,detrend=detrend)
-re_target = re_target[None,:] # ens x year
-
-# Do further preprocessing and get dimensions sizes
-re_data[np.isnan(re_data)]     = 0                      # NaN Points to Zero
-
-inputsize                      = nchannels*nlat*nlon
-
-#%% Load regular data... (as a comparison for debugging, can remove later)
-
-# Loads that that has been preprocessed by: ___
-
-# Load predictor and labels, lat/lon, cut region
-target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
-data,lat,lon   = dl.load_data_cesm([varname,],eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
-
-# Subset predictor by ensemble, remove NaNs, and get sizes
-data                           = data[:,ens_wh,...]      # Limit to Ens
-target = target[ens_wh,:]
-data[np.isnan(data)]           = 0                      # NaN Points to Zero
-nchannels,nens,ntime,nlat,nlon = data.shape
-#%% Make the classes from reanalysis data
-
-# Set exact threshold value
-std1         = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
-if eparams['quantile'] is False:
-    thresholds_in = [-std1,std1]
-else:
-    thresholds_in = eparams['thresholds']
-    
-thresholds_in  = [-.36,.36]
-
-# Classify AMV Events
-target_class = am.make_classes(target.flatten()[:,None],thresholds_in,
-                               exact_value=True,reverse=True,quantiles=eparams['quantile'])
-target_class = target_class.reshape(target.shape)
-
-# Get necessary dimension sizes/values
-nclasses     = len(eparams['thresholds'])+1
-nlead        = len(leads)
-
-"""
-# Output: 
-    predictors :: [channel x ens x year x lat x lon]
-    labels     :: [ens x year]
-"""     
-
-# ----------------------------------------------------
-# %% Retrieve a consistent sample if the option is set
-# ----------------------------------------------------
-
-
-if shuffle_trainsplit is False:
-    print("Pre-selecting indices for consistency")
-    output_sample = am.consistent_sample(data,target_class,leads,nsamples,leadmax=leads.max(),
-                          nens=len(ens_wh),ntime=ntime,
-                          shuffle_class=eparams['shuffle_class'],debug=False)
-    
-    target_indices,target_refids,predictor_indices,predictor_refids = output_sample
-else:
-    target_indices     = None
-    predictor_indices  = None
-    target_refids      = None
-    predictor_refids   = None
-
-
-"""
-Output
-
-shuffidx_target  = [nsamples*nclasses,]        - Indices of target
-predictor_refids = [nlead][nsamples*nclasses,] - Indices of predictor at each leadtime
-
-tref --> array of the target years
-predictor_refids --> array of the predictor refids
-"""
 
 
 
-#%% Load model weights 
-
-# Get the model weights
-modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
-
-# Get list of metric files
-search = "%s%s/Metrics/%s" % (datpath,expdir,"*%s*" % varname)
-flist  = glob.glob(search)
-flist  = [f for f in flist if "of" not in f]
-flist.sort()
-
-print("Found %i files per lead for %s using searchstring: %s" % (len(flist),varname,search))
 #%% 
 
 
@@ -219,153 +419,11 @@ print("Found %i files per lead for %s using searchstring: %s" % (len(flist),varn
 
 # Print Message
 
-
 # ------------------------
 # 04. Loop by predictor...
 # ------------------------
-vt                    = time.time()
-predictors            = data[[0],...] # Get selected predictor
-total_acc_all         = np.zeros((nmodels,nlead))
-class_acc_all         = np.zeros((nmodels,nlead,3)) # 
 
-relevances_all        = []
-predictor_all         = []
 
-if shuffle_trainsplit:
-    
-    y_actual_all      = []
-else:
-    
-    nsample_total     = len(target_indices)
-    y_predicted_all   = np.zeros((nmodels,nlead,nsample_total))
-    y_actual_all      = np.zeros((nlead,nsample_total))
-
-# --------------------
-# 05. Loop by runid...
-# --------------------
-for nr,runid in enumerate(runids):
-    rt = time.time()
-    
-    # Preallocate Evaluation Metrics...
-    # -----------------------
-    # 07. Loop by Leadtime...
-    # -----------------------
-    outname = "/leadtime_testing_%s_%s_ALL.npz" % (varname,dataset_name)
-    
-    predictor_lead = []
-    relevances_lead  = []
-    for l,lead in enumerate(leads):
-        
-        if target_indices is None:
-            # --------------------------
-            # 08. Apply lead/lag to data
-            # --------------------------
-            # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-            X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=ens,tstep=ntime)
-            
-            # ----------------------
-            # 09. Select samples
-            # ----------------------
-            if shuffle_trainsplit is False:
-                if eparams['nsamples'] is None: # Default: nsamples = smallest class
-                    threscount = np.zeros(nclasses)
-                    for t in range(nclasses):
-                        threscount[t] = len(np.where(y_class==t)[0])
-                    eparams['nsamples'] = int(np.min(threscount))
-                    print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
-                y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
-            else:
-                print("Select the sample samples")
-                shuffidx = sampled_idx[l-1]
-                y_class  = y_class[shuffidx,...]
-                X        = X[shuffidx,...]
-                am.count_samples(eparams['nsamples'],y_class)
-            shuffidx = shuffidx.astype(int)
-        else:
-            print("Using preselected indices")
-            pred_indices = predictor_indices[l]
-            nchan        = predictors.shape[0]
-            y_class      = target_class.reshape((ntime*nens,1))[target_indices,:]
-            X            = predictors.reshape((nchan,nens*ntime,nlat,nlon))[:,pred_indices,:,:]
-            X            = X.transpose(1,0,2,3) # [sample x channel x lat x lon]
-            shuffidx     = target_indices    
-        
-        # ----------------------
-        # Flatten inputs for FNN
-        # ----------------------
-        if "FNN" in eparams['netname']:
-            ndat,nchannels,nlat,nlon = X.shape
-            inputsize                = nchannels*nlat*nlon
-            outsize                  = nclasses
-            X_in                     = X.reshape(ndat,inputsize)
-        
-        # -----------------------------
-        # Place data into a data loader
-        # -----------------------------
-        # Convert to Tensors
-        X_torch = torch.from_numpy(X_in.astype(np.float32))
-        y_torch = torch.from_numpy(y_class.astype(np.compat.long))
-        
-        # Put into pytorch dataloaders
-        test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
-        
-        
-        #
-        # Rebuild the model
-        #
-        # Get the models (now by leadtime)
-        modweights = modweights_lead[l][nr]
-        modlist    = modlist_lead[l][nr]
-        
-        # Rebuild the model
-        pmodel = am.recreate_model(modelname,nn_param_dict,inputsize,nclasses,nlon=nlon,nlat=nlat)
-        
-        # Load the weights
-        pmodel.load_state_dict(modweights)
-        pmodel.eval()
-        
-        # ------------------------------------------------------
-        # Test the model separately to get accuracy by class
-        # ------------------------------------------------------
-        y_predicted,y_actual,test_loss = am.test_model(pmodel,test_loader,eparams['loss_fn'],
-                                                       checkgpu=checkgpu,debug=False)
-        
-        lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
-        
-        
-        
-        total_acc_all[nr,l]   = lead_acc
-        class_acc_all[nr,l,:] = class_acc
-        y_predicted_all[nr,l,:]   = y_predicted
-        y_actual_all[l,:] = y_actual
-        
-        #
-        # Perform LRP
-        #
-        nsamples_lead = len(shuffidx)
-        inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
-                                          method=innmethod,
-                                          beta=innbeta)
-        model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
-        model_prediction = model_prediction.detach().numpy().copy()
-        sample_relevances = sample_relevances.detach().numpy().copy()
-        if "FNN" in eparams['netname']:
-            predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
-            sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
-        predictor_lead.append(predictor_test)
-        relevances_lead.append(sample_relevances)
-        
-                
-        
-        # Clear some memory
-        del pmodel
-        torch.cuda.empty_cache()  # Save some memory
-        
-        print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
-        # End Lead Loop >>>
-    predictor_all.append(predictor_lead)
-    relevances_all.append(relevances_lead)
-    print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
     # End Runid Loop >>>
 #print("\nPredictor %s finished in %.2fs" % (varname,time.time()-vt))
 # End Predictor Loop >>>
