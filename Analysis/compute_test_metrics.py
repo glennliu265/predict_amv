@@ -319,7 +319,110 @@ for l,lead in enumerate(leads):
     
 
 
+#%% Composite the relevances (can look at single events later, it might actually be easier to write a separate script for that)
+# the purpose here is to get some quick, aggregate metrics
 
+# Need to add option to cull models...
+
+relevance_composites = np.zeros((nlead,nmodels,3,nlat,nlon)) * np.nan # [lead x model x class x lat x lon]
+relevance_variances  = relevance_composites.copy()                    # [lead x model x class x lat x lon]
+relevance_range      = relevance_composites.copy()                    # [lead x model x class x lat x lon]
+predictor_composites = np.zeros((nlead,3,nlat,nlon)) * np.nan         # [lead x class x lat x lon]
+predictor_variances  = predictor_composites.copy()                    # [lead x class x lat x lon]
+ncorrect_byclass     = np.zeros((nlead,nmodels,3))                # [lead x model x class
+
+for l in range(nlead):
+    
+    for nr in tqdm(range(nmodels)):
+        
+        predictions_model = predictions_all[l][nr] # [sample]
+        relevances_model  = relevances_all[l][nr]  # [sample x lat x lon]
+        
+        for c in range(3):
+            
+            # Get correct indices
+            class_indices                   = np.where(targets_all[l] == c)[0] # Sample indices of a particular class
+            correct_ids                     = np.where(targets_all[l][class_indices] == predictions_model[class_indices])
+            correct_pred_id                 = class_indices[correct_ids] # Correct predictions to composite over
+            ncorrect                        = len(correct_pred_id)
+            ncorrect_byclass[l,nr,c]        = ncorrect
+            
+            if ncorrect == 0:
+                continue # Set NaN to model without any results
+            # Make Composite
+            correct_relevances               =  relevances_model[correct_pred_id,...]
+            relevance_composites[l,nr,c,:,:] =  correct_relevances.mean(0)
+            relevance_variances[l,nr,c,:,:]  =  correct_relevances.var(0)
+            relevance_range[l,nr,c,:,:]      =  correct_relevances.max(0) - correct_relevances.min(0)
+            
+            # Make Corresponding predictor composites
+            correct_predictors               = predictor_all[l][correct_pred_id,...]
+            predictor_composites[l,c,:,:]    = correct_predictors.mean(0)
+            predictor_variances[l,c,:,:]     = correct_predictors.var(0)
+            
+
+#%% Save output
+
+"""
+Save as a dataset
+"""
+
+lat = load_dict['lat']
+lon = load_dict['lon']
+
+# Save variables
+save_vars      = [relevance_composites,relevance_variances,relevance_range,predictor_composites,predictor_variances,ncorrect_byclass]
+save_vars_name = ['relevance_composites','relevance_variances','relevance_range','predictor_composites','predictor_variances',
+                  'ncorrect_byclass']
+
+# Make Coords
+coords_relevances = {"lead":leads,"runid":runids,"class":pparams.classes,"lat":lat,"lon":lon}
+coords_preds      = {"lead":leads,"class":pparams.classes,"lat":lat,"lon":lon}
+coords_counts     = {"lead":leads,"runid":runids,"class":pparams.classes}
+
+# Convert to dataarray and make encoding dictionaries
+ds_all    = []
+encodings = {}
+for sv in range(len(save_vars)):
+    
+    svname = save_vars_name[sv]
+    if "relevance" in svname:
+        coord_in = coords_relevances
+    elif "predictor" in svname:
+        coord_in = coords_preds
+    elif "ncorrect" in svname:
+        coord_in = coords_counts
+    
+    da = xr.DataArray(save_vars[sv],dims=coord_in,coords=coord_in,name=svname)
+    encodings[svname] = {'zlib':True}
+    ds_all.append(da)
+    
+# Merge into dataset
+ds_all = xr.merge(ds_all)
+
+# Save Relevance data
+outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_relevance_maps.nc" % (datpath,expdir,dataset_name,varname,even_sample)
+ds_all.to_netcdf(outname,encoding=encodings)
+
+#%% Try saving
+
+"""
+
+-rw-rw-r-- 1 glliu glliu  82K Jun 13 16:39 Test_Metrics_CESM1_SSH_evensample0_ncorrect_byclass.npy
+-rw-rw-r-- 1 glliu glliu 2.7M Jun 13 16:39 Test_Metrics_CESM1_SSH_evensample0_predictor_variances.npy
+-rw-rw-r-- 1 glliu glliu 2.7M Jun 13 16:39 Test_Metrics_CESM1_SSH_evensample0_predictor_composites.npy
+-rw-rw-r-- 1 glliu glliu 267M Jun 13 16:39 Test_Metrics_CESM1_SSH_evensample0_relevance_range.npy
+-rw-rw-r-- 1 glliu glliu 267M Jun 13 16:39 Test_Metrics_CESM1_SSH_evensample0_relevance_variances.npy
+-rw-rw-r-- 1 glliu glliu 267M Jun 13 16:39 Test_Metrics_CESM1_SSH_evensample0_relevance_composites.npy
+
+"""
+save_vars      = [relevance_composites,relevance_variances,relevance_range,predictor_composites,predictor_variances,ncorrect_byclass]
+save_vars_name = ['relevance_composites','relevance_variances','relevance_range','predictor_composites','predictor_variances',
+                  'ncorrect_byclass']
+for sv in range(len(save_vars)):
+    outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_%s.npy" % (datpath,expdir,dataset_name,varname,even_sample,save_vars_name[sv])
+    np.save(outname,save_vars[sv],allow_pickle=True)
+#test_name = proc.addstrtoext(outname,"_"+save_vars_name[v])
 
 #%% Try saving
 
