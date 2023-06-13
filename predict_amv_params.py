@@ -88,7 +88,8 @@ varcolors_dark     = ("r","violet","gold","darkblue","dodgerblue","cyan","lightc
 varmarker     = ("o","d","x","v","^","*","1","2")
 
 # Class Names and colors
-classes       = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
+classes       = ["NASST+","Neutral","NASST-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
+classes_amv   = ["AMV+","Neutral","AMV-"]
 class_colors  = ("salmon","gray","cornflowerblue")
 
 # Plotting (map)
