@@ -20,14 +20,14 @@ figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02
 
 #%% Module and (Raw) Data Paths
 
-# Added info from scm. 
+# Added info from scm. First is the defaults
 mdict0 = {
-    "machine"           : 0, # Name of the machine
+    "machine"           : None, # Name of the machine
     "amv_path"          : 0,# Path to amv module (with proc,viz)
     "datpath_raw_atm"   : 0, # Path to CESM1-LENS Atmospheric Variables
     "datpath_raw_ocn"   : 0, # Path to CESM1-LENS Ocean Variables
     "cesm2path"         : 0, # Path to CESM2 Data
-    "lenspath"          : 0, # Large Ensemble Data (CMIP5)
+    "lenspath"          : "../../tools/Pytorch-LRP-master/", # Large Ensemble Data (CMIP5)
     }
 
 # Stormtrack Server
@@ -38,6 +38,7 @@ mdict1 = {
     "datpath_raw_ocn"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/", # Path to CESM1-LENS Ocean Variables
     "cesm2path"         : 0, # Path to CESM2 Data
     "lenspath"          : "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # Large Ensemble Data (CMIP5)
+    "lrp_path"          : "../../tools/Pytorch-LRP-master/",
     }
 
 # Astraeus Local
@@ -48,6 +49,7 @@ mdict2 = {
     "datpath_raw_ocn"   : 0, # Path to CESM1-LENS Ocean Variables
     "cesm2path"         : "/Users/gliu/Globus_File_Transfer/CESM2_LE/1x1/",
     "lenspath"          : 0, # Large Ensemble Data (CMIP5)
+    "lrp_path"          : "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/ml_demo/Pytorch-LRP-master/",
     }
 
 machine_path_dicts = (mdict1,mdict2,)
