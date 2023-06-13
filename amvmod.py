@@ -1465,11 +1465,11 @@ def select_samples(nsamples,y_class,X,shuffle=True,verbose=True,):
         for i in range(nclasses):
             
             # Sort by Class
-            inclass = classes[i]
-            idx = (y_class==inclass).squeeze()
+            inclass   = classes[i]
+            idx       = (y_class==inclass).squeeze()
             sel_label = y_class[idx,:]
             sel_input = X[idx,:,:,:]
-            sel_idx = np.where(idx)[0]
+            sel_idx   = np.where(idx)[0]
             
             label_by_class.append(sel_label)
             input_by_class.append(sel_input)
@@ -1534,6 +1534,9 @@ def apply_lead(data,target,lead,reshape=True,ens=None,tstep=None):
     if tstep is None:
         tstep = data.shape[2]
     nchannels,_,_,nlat,nlon = data.shape
+    
+    # Get Ens Indices
+    #sel_ens = np.arange(0,ens+1)
     
     # Apply Lead
     y                            = target[:ens,lead:]
@@ -2639,7 +2642,7 @@ def normalize_ds(ds):
 
 def prepare_predictors_target(varnames,eparams,debug=False,
                            return_target_values=False,
-                           return_nfactors=False):
+                           return_nfactors=False,load_all_ens=False):
     """ Prepares predictors and target. Works with output from:
         [prep_data_byvariable, make_landice_mask, prepare_regional_targets]
         Does the following:
@@ -2657,6 +2660,7 @@ def prepare_predictors_target(varnames,eparams,debug=False,
             debug    [BOOL]             : True to print debugging messages.
             return_target_values [BOOL] : True to return target values (in addition to class).
             return_nfactors [BOOL]      : True to return normalization factors (mu and sigma)
+            load_all_ens [BOOL]         : True to load all ensemble members
         Returns:
             data           [ARRAY : channel x ens x year x lat x lon] : Normalized + Masked Predictors
             target_class   [ARRAY : ens x year] : Target with corresponding class numbers
@@ -2712,8 +2716,9 @@ def prepare_predictors_target(varnames,eparams,debug=False,
     # ------------------
     # 6. Subset predictor and get dimensions, eparams['ens']
     # ------------------
-    data   = data[:,0:eparams['ens'],...]
-    target = target[0:eparams['ens'],:]
+    if load_all_ens is False: # Subset according to ens (default)
+        data   = data[:,0:eparams['ens'],...]
+        target = target[0:eparams['ens'],:]
     
     # ------------------
     # 7. Classify AMV Events
@@ -2721,8 +2726,8 @@ def prepare_predictors_target(varnames,eparams,debug=False,
     target_class = make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
     target_class = target_class.reshape(target.shape)
     if debug:
-        target_class = make_classes(target[:,25:].flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
-        count_samples(None,target_class)
+        target_class_temp = make_classes(target[:,25:].flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
+        count_samples(None,target_class_temp)
     
     # Output
     load_dict = {
