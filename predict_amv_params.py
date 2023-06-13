@@ -37,7 +37,7 @@ mdict1 = {
     "datpath_raw_atm"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/atm/proc/tseries/monthly/", # Path to CESM1-LENS Atmospheric Variables
     "datpath_raw_ocn"   : "/vortex/jetstream/climate/data1/yokwon/CESM1_LE/downloaded/ocn/proc/tseries/monthly/", # Path to CESM1-LENS Ocean Variables
     "cesm2path"         : 0, # Path to CESM2 Data
-    "lenspath"          : "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/" # Large Ensemble Data (CMIP5)
+    "lenspath"          : "/stormtrack/data3/glliu/01_Data/04_DeepLearning/CESM_data/LENS_other/ts/", # Large Ensemble Data (CMIP5)
     "lrp_path"          : "../../tools/Pytorch-LRP-master/",
     }
 
