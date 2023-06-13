@@ -83,7 +83,7 @@ datpath             = pparams.datpath
 dataset_name        = "CESM1"
 
 # Set some looping parameters and toggles
-varnames            = ["SSH","SST","SLP","SSS","NHFLX"]       # Names of predictor variables
+varnames            = ["SST","SLP","SSS","NHFLX"]       # Names of predictor variables
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 runids              = np.arange(0,100,1)    # Which runs to do
 
@@ -419,7 +419,7 @@ for v in range(nvars):
     np.savez(outname,**metrics_dict,allow_pickle=True)
     print("Saved Accuracy and Predictions to %s in %.2fs" % (outname,time.time()-st_acc))
     
-    print("Completed calculating metrics for %s in %.2fs" % (time.time()-vt))
+    print("Completed calculating metrics for %s in %.2fs" % (varname,time.time()-vt))
 
 
 
