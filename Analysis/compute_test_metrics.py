@@ -72,7 +72,7 @@ nn_param_dict      = pparams.nn_param_dict
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "FNN4_128_SingleVar_PaperRun"
+expdir              = "FNN4_128_SingleVar_PaperRun_detrended"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Processing Options
