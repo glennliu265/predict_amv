@@ -77,13 +77,14 @@ eparams             = train_cesm_params.train_params_all[expdir] # Load experime
 
 # Processing Options
 even_sample         = False
+standardize_input   = True # Set to True to standardize variance at each point
 
 # Get some paths
 datpath             = pparams.datpath
 dataset_name        = "CESM1"
 
 # Set some looping parameters and toggles
-varnames            = ["SST","SLP","SSS","NHFLX"]       # Names of predictor variables
+varnames            = ["SSH","SST","SLP","SSS","NHFLX"]       # Names of predictor variables
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 runids              = np.arange(0,100,1)    # Which runs to do
 
@@ -123,7 +124,6 @@ load_dict                      = am.prepare_predictors_target(varnames,eparams,r
 data                           = load_dict['data']
 target_class                   = load_dict['target_class']
 
-
 # Pick just the testing set
 data                           = data[:,ens_test,...]
 target_class                   = target_class[ens_test,:]
@@ -136,6 +136,23 @@ nlead                          = len(leads)
 
 # Count Samples...
 am.count_samples(None,target_class)
+
+# --------------------------------------------------------
+#%% Option to standardize input to test effect of variance
+# --------------------------------------------------------
+
+if standardize_input:
+    # Compute standardizing factor (and save)
+    std_vars = np.std(data,(1,2)) # [variable x lat x lon]
+    for v in range(nchannels):
+        savename = "%s%s/Metrics/%s_standardizing_factor_ens%02ito%02i.npy" % (datpath,expdir,varnames[v],ens_test[0],ens_test[-1])
+        np.save(savename,std_vars[v,:,:])
+    # Apply standardization
+    data = data / std_vars[:,None,None,:,:] 
+    std_vars_after = np.std(data,(1,2))
+    check =  np.all(np.nanmax(np.abs(std_vars_after)) < 2)
+    assert check, "Standardized values are not below 2!"
+        
 
 #%% 
 
@@ -192,12 +209,16 @@ for v in range(nvars):
     # ==============
     # Note: Since the testing sample is the same withheld set for the experiment, we can use leadtime as the outer loop.
     
+    # -----------------------
+    # Loop by Leadtime...
+    # -----------------------
+    outname = "/Test_Metrics_%s_%s_evensample%i.npz" % (dataset_name,varname,even_sample)
+    if standardize_input:
+        outname = proc.addstrtoext(outname,"_standardizeinput")
+        
     for l,lead in enumerate(leads):
         
-        # -----------------------
-        # Loop by Leadtime...
-        # -----------------------
-        outname = "/Test_Metrics_%s_%s_evensample%i.npz" % (dataset_name,varname,even_sample)
+
         
         # ===================================
         # I. Data Prep
@@ -395,6 +416,8 @@ for v in range(nvars):
     
     # Save Relevance data
     outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_relevance_maps.nc" % (datpath,expdir,dataset_name,varname,even_sample)
+    if standardize_input:
+        outname = proc.addstrtoext(outname,"_standardizeinput")
     ds_all.to_netcdf(outname,encoding=encodings)
     print("Saved Relevances to %s in %.2fs" % (outname,time.time()-st_rel))
 
@@ -416,6 +439,8 @@ for v in range(nvars):
     save_vars_name    = ["total_acc","class_acc","predictions","targets","ensemble","leads","runids"]
     metrics_dict      = dict(zip(save_vars_name,save_vars))
     outname           = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_accuracy_predictions.npz" % (datpath,expdir,dataset_name,varname,even_sample)
+    if standardize_input:
+        outname = proc.addstrtoext(outname,"_standardizeinput")
     np.savez(outname,**metrics_dict,allow_pickle=True)
     print("Saved Accuracy and Predictions to %s in %.2fs" % (outname,time.time()-st_acc))
     
