@@ -149,6 +149,7 @@ if standardize_input:
         np.save(savename,std_vars[v,:,:])
     # Apply standardization
     data = data / std_vars[:,None,None,:,:] 
+    data[np.isnan(data)] = 0
     std_vars_after = np.std(data,(1,2))
     check =  np.all(np.nanmax(np.abs(std_vars_after)) < 2)
     assert check, "Standardized values are not below 2!"
