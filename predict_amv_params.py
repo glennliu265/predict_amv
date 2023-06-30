@@ -371,8 +371,8 @@ simplecnn_dict={
     }
 
 # Assemble the dictionaries ...
-modelnames = ("FNN2"   , "FNN4_120"   , "FNN4_128"   , "simplecnn")
-indicts    = (FNN2_dict, FNN120_dict  , FNN128_dict  , simplecnn_dict)
+modelnames = ("FNN2"   , "FNN4_120"   , "FNN4_128"   , "simplecnn", "CNN2_LRP")
+indicts    = (FNN2_dict, FNN120_dict  , FNN128_dict  , simplecnn_dict, simplecnn_dict)
 nn_param_dict = dict(zip(modelnames,indicts))
 
 #%%
