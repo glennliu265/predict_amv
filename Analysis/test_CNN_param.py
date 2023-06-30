@@ -108,6 +108,10 @@ am.count_samples(None,target_class)
 
 #%% Load CNN
 
+"""
+Trying to build a CNN as a class following the example here:
+    https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
+"""
 netname    = "cnn_lrp"#'simplecnn'
 param_dict = nn_param_dict['simplecnn']
 
@@ -159,6 +163,10 @@ inn_model_new = InnvestigateModel(pmodel, lrp_exponent=innexp,
 
 #%% 
 
+"""
+Explicitly declare each layer, as is done in the function version
+"""
+
 layers = [
         nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
         #nn.Tanh(),
@@ -190,6 +198,10 @@ inn_model_old = InnvestigateModel(pmodel, lrp_exponent=innexp,
 
 
 #%% Test the model (cppied from viz_LRP_predictor.py)
+"""
+This section prepares the inputs for testing the model
+"""
+
 v    = 0
 lead = 0
 predictors = data[[v],...] # Get selected predictor
@@ -217,30 +229,40 @@ else:
     X_train,X_test       = X_subsets
     y_train,y_test       = y_subsets
 
-# Pass thru model
-input_data                       = X_test.float()
+
+#%% Pass thru model
+
+
+"""
+This didn't work. It appears that the INNvestigate package has some trouble with this.
+It doesn;t support one of the features
+
+"""
+input_data                       = X_test.float()[[0],...]
 pred_new,rel_new                 = inn_model_new.innvestigate(in_tensor=input_data)
 pred_old,rel_old                 = inn_model_old.innvestigate(in_tensor=input_data)
 
 
-relevances[m,:,:]                = true_relevance.detach().numpy().copy()
-factivations[m,:,:]              = model_prediction.detach().numpy().copy()
 
         
-#%%
+#%% Let's try captum....
+import captum
 
+
+# A bunch of scra below I should delete...
 # pmodel = am.transfer_model(netname,3,cnndropout=param_dict['cnndropout'],unfreeze_all=True,
 #                         nlat=nlat,nlon=nlon,nchannels=nchannels)
 
-inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
-                      method=innmethod,
-                      beta=innbeta)
+# inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+#                       method=innmethod,
+#                       beta=innbeta)
 
 
 
-import captum
+
 lrp       = captum.attr.LRP(pmodel)
 result    = lrp.attribute(input_data,target=(2,3))
+
 """
 
 # Ok this seems to be not working. I get the error: RuntimeError: 
@@ -295,8 +317,59 @@ result    = lrp.attribute(input_data,target=1)
 
 plt.pcolormesh(result.detach().numpy().squeeze(),vmin=-.02,vmax=.02,cmap="RdBu_r"),plt.colorbar()
 """
+After removing the max pool, it appears that captum now works. But at what cost?
+It seems that captum only supports 1 max pool layer which is inconvenient
+flatten is not supported either.
 
-
+Some of the errors may come in reusing functional nonlinearities
+https://captum.ai/docs/faq#can-my-model-use-functional-non-linearities-eg-nnfunctionalrelu-or-can-reused-modules-be-used-with-captum
 
 
 """
+#%% Try rewriting the function
+
+class CNN2(nn.Module):
+    
+    def __init__(self,channels,nchannels,filtersizes,poolsizes,firstlineardim,num_classes):
+        super().__init__()
+        self.conv1  = nn.Conv2d(in_channels=channels,out_channels=nchannels[0] ,kernel_size=filtersizes[0])
+        self.pool1  = nn.MaxPool2d(kernel_size=poolsizes[0])
+        self.activ1 = nn.ReLU()
+        self.conv2  = nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1])
+        self.pool2  = nn.MaxPool2d(kernel_size=poolsizes[1])
+        self.activ2 = nn.ReLU()
+        self.fc1    = nn.Linear(in_features=firstlineardim,out_features=64)
+        self.activ3 = nn.ReLU()
+        self.fc2    = nn.Linear(64, num_classes)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.pool1(x)
+        x = self.activ1(x)
+        x = self.conv2(x)
+        x = self.pool2(x)
+        x = self.activ2(x)
+        x = torch.flatten(x, 1) # flatten all dimensions except batch
+        x = self.fc1(x)
+        x = self.activ3(x)
+        x = self.fc2(x)
+        return x
+
+pmodel_old = CNN2(channels,nchannels,filtersizes,poolsizes,firstlineardim,num_classes)
+
+
+lrp       = captum.attr.LRP(pmodel_old)
+result    = lrp.attribute(input_data,target=0)
+plt.pcolormesh(result.detach().numpy().squeeze(),vmin=-.02,vmax=.02,cmap="RdBu_r"),plt.colorbar()
+
+"""
+Ok it kinda seems to be working, so i guess it is important to epxlicitly define each part of the model....
+
+I also need to figure out what the "target" argument result option does....
+
+"""
+#%% Tryh some class definitions
+
+
+
+

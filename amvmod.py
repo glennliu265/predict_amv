@@ -1298,29 +1298,8 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False
                     nn.Linear(in_features=64,out_features=num_classes)
                     ]
         model = nn.Sequential(*layers) # Set up model
-    elif modelname == "cnn_lrp":
-        layers = [
-                nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
-                #nn.Tanh(),
-                nn.ReLU(),
-                #nn.Sigmoid(),
-                nn.MaxPool2d(kernel_size=poolsizes[0]),
-
-                nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
-                #nn.Tanh(),
-                nn.ReLU(),
-                #nn.Sigmoid(),
-                nn.MaxPool2d(kernel_size=poolsizes[1]),
-
-                nn.Flatten(),
-                nn.Linear(in_features=firstlineardim,out_features=64),
-                #nn.Tanh(),
-                nn.ReLU(),
-                #nn.Sigmoid(),
-
-                nn.Dropout(p=0.5),
-                nn.Linear(in_features=64,out_features=num_classes)
-                ]
+    elif modelname == "CNN2_LRP":
+        model = CNN2(channels,nchannels,filtersizes,poolsizes,firstlineardim,num_classes)
     else: # Load Efficientnet from Timmm
         print("timm currently not supported. Need to resolve compatability issues.")
         return
@@ -2773,8 +2752,36 @@ def prepare_predictors_target(varnames,eparams,debug=False,
     if return_nfactors:
         load_dict['nfactors_byvar'] = nfactors_byvar
     return load_dict
+
+#%% Network Architectures (maybe move to a different script)
+
+class CNN2(nn.Module):
     
-    
+    def __init__(self,channels,nchannels,filtersizes,poolsizes,firstlineardim,num_classes):
+        super().__init__()
+        self.conv1  = nn.Conv2d(in_channels=channels,out_channels=nchannels[0] ,kernel_size=filtersizes[0])
+        self.pool1  = nn.MaxPool2d(kernel_size=poolsizes[0])
+        self.activ1 = nn.ReLU()
+        self.conv2  = nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1])
+        self.pool2  = nn.MaxPool2d(kernel_size=poolsizes[1])
+        self.activ2 = nn.ReLU()
+        self.fc1    = nn.Linear(in_features=firstlineardim,out_features=64)
+        self.activ3 = nn.ReLU()
+        self.fc2    = nn.Linear(64, num_classes)
+        
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.pool1(x)
+        x = self.activ1(x)
+        x = self.conv2(x)
+        x = self.pool2(x)
+        x = self.activ2(x)
+        x = torch.flatten(x, 1) # flatten all dimensions except batch
+        x = self.fc1(x)
+        x = self.activ3(x)
+        x = self.fc2(x)
+        return x
+
 
     
 
