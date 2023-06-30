@@ -1299,6 +1299,13 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False
                     ]
         model = nn.Sequential(*layers) # Set up model
     elif modelname == "CNN2_LRP":
+        nchannels     = [32,64]
+        filtersizes   = [[2,3],[3,3]]
+        filterstrides = [[1,1],[1,1]]
+        poolsizes     = [[2,3],[2,3]]
+        poolstrides   = [[2,3],[2,3]]
+        firstlineardim = calc_layerdims(nlat,nlon,filtersizes,filterstrides,poolsizes,poolstrides,nchannels)
+        
         model = CNN2(channels,nchannels,filtersizes,poolsizes,firstlineardim,num_classes)
     else: # Load Efficientnet from Timmm
         print("timm currently not supported. Need to resolve compatability issues.")
