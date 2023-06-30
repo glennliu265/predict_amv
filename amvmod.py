@@ -2457,10 +2457,10 @@ def train_NN_lead(X,y,eparams,pparams,debug=False,checkgpu=True):
     nclasses  = len(eparams['thresholds']) + 1
     
     # Flatten input data for FNN
+    ndat,nchannels,nlat,nlon = X.shape
+    outsize                  = nclasses
     if "FNN" in eparams['netname']:
-        ndat,nchannels,nlat,nlon = X.shape
         inputsize            = nchannels*nlat*nlon
-        outsize              = nclasses
         X                    = X.reshape(ndat,inputsize)
     
     # --------------------------
