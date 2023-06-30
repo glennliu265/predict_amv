@@ -1298,6 +1298,29 @@ def transfer_model(modelname,num_classes,cnndropout=False,unfreeze_all=False
                     nn.Linear(in_features=64,out_features=num_classes)
                     ]
         model = nn.Sequential(*layers) # Set up model
+    elif modelname == "cnn_lrp":
+        layers = [
+                nn.Conv2d(in_channels=channels, out_channels=nchannels[0], kernel_size=filtersizes[0]),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+                nn.MaxPool2d(kernel_size=poolsizes[0]),
+
+                nn.Conv2d(in_channels=nchannels[0], out_channels=nchannels[1], kernel_size=filtersizes[1]),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+                nn.MaxPool2d(kernel_size=poolsizes[1]),
+
+                nn.Flatten(),
+                nn.Linear(in_features=firstlineardim,out_features=64),
+                #nn.Tanh(),
+                nn.ReLU(),
+                #nn.Sigmoid(),
+
+                nn.Dropout(p=0.5),
+                nn.Linear(in_features=64,out_features=num_classes)
+                ]
     else: # Load Efficientnet from Timmm
         print("timm currently not supported. Need to resolve compatability issues.")
         return
@@ -1386,13 +1409,20 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
     ysizes = [ny]
     fcsizes  = []
     for i in range(N):
+        # Apply initial convolution
         xsizes.append(np.floor((xsizes[i]-filtersizes[i][0])/filterstrides[i][0])+1)
         ysizes.append(np.floor((ysizes[i]-filtersizes[i][1])/filterstrides[i][1])+1)
-
-        xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
-        ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
-
-        fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
+        
+        if i > (len(poolsizes)-1):
+            fcsizes.append(np.floor(xsizes[i]*ysizes[i]*nchannels[i]))
+            continue
+        else: # Apply pooling if needed
+            xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
+            ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
+            fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
+    print("Dimension at layer %i is %i" % (i,np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i])))
+        
+        
     return int(fcsizes[-1])
 
 def count_samples(nsamples,y_class):
