@@ -283,18 +283,18 @@ for nr,runid in enumerate(runids):
             X            = X.transpose(1,0,2,3) # [sample x channel x lat x lon]
             shuffidx     = target_indices    
         
-        #
+        # ----------------------
         # Flatten inputs for FNN
-        #
+        # ----------------------
         if "FNN" in eparams['netname']:
             ndat,nchannels,nlat,nlon = X.shape
             inputsize                = nchannels*nlat*nlon
             outsize                  = nclasses
             X_in                     = X.reshape(ndat,inputsize)
         
-        #
+        # -----------------------------
         # Place data into a data loader
-        #
+        # -----------------------------
         # Convert to Tensors
         X_torch = torch.from_numpy(X_in.astype(np.float32))
         y_torch = torch.from_numpy(y_class.astype(np.compat.long))
@@ -422,7 +422,7 @@ for c in range(3):
 figname = "%sReanalysis_Test_%s_Class_Acc.png" % (figpath,dataset_name)
 plt.savefig(figname,dpi=150)
 
-#%% Visualizet he class distribution
+#%% Visualize the class distribution
 
 idx_by_class,count_by_class = am.count_samples(None,target_class)
 
@@ -682,7 +682,7 @@ for y in range(ntime-leads[ilead]):
         
         count_by_year[y,c] = (y_pred_year == c).sum()
 
-#%% I was up to here
+#%% I was up to here. Make the barplot for Draft 1
     
     
     
@@ -690,10 +690,8 @@ for y in range(ntime-leads[ilead]):
 #     y_predicted_all == 
 #     y_predicted_all
     
-    
-        
-fig,ax       = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
 
+fig,ax       = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
 
 for c in range(3):
     label = classes[c]
@@ -701,7 +699,6 @@ for c in range(3):
     
     ax.bar(timeaxis_in+1870,count_by_year[:,c],bottom=count_by_year[:,:c].sum(1),
            label=label,color=class_colors[c],alpha=0.75,edgecolor="white")
-
 
 ax.set_ylabel("Frequency of Predicted Class")
 ax.set_xlabel("Year")
@@ -719,9 +716,14 @@ for th in thresholds_in:
     ax2.axhline([th],color="k",ls="dashed")
 ax2.axhline([0],color="k",ls="solid",lw=0.5)
 plt.savefig("%sHadISST_Prediction_Count_AllLeads.png"%figpath,dpi=150,bbox_inches="tight")
+
+
+#%%
+
+
 #%% Try the above, but get prediction count for selected leadtimes
 # Q : Is there a systematic shift towards the selected leadtimes?
-selected_leads      = [0,6,12,18,24]
+selected_leads      = leads.copy() #[0,6,12,18,24]
 nleads_sel          = len(selected_leads)
 
 count_by_year_leads = np.zeros((ntime-leads[-1],nclasses,nleads_sel))
@@ -765,6 +767,80 @@ for c in range(3):
     ax.set_ylabel("Predicted Class Count")
 
 plt.savefig("%sHadISST_Class_Prediction_Frequency_byYear.png"%(figpath),dpi=150,bbox_inches="tight")
+
+
+#%% Remake barplot. but for the selected leadtimes
+def make_count_barplot(count_by_year,lead,re_target,leadmax=24,classes=['AMV+', 'Neutral', 'AMV-'],
+                       class_colors=('salmon', 'gray', 'cornflowerblue')
+                       ):
+    
+    timeaxis      = np.arange(0,len(re_target.squeeze()))
+    timeaxis_in   = np.arange(leadmax,re_target.shape[1])
+    
+    maxcount = count_by_year.sum(-1)
+    #print(maxcount)
+    fig,ax       = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
+    for c in range(3):
+        label = classes[c]
+        plotcount = count_by_year/maxcount[:,None]
+        ax.bar(timeaxis_in+1870,plotcount[:,c],bottom=plotcount[:,:c].sum(1),
+               label=label,color=class_colors[c],alpha=0.75,edgecolor="white")
+    
+    ax.set_ylabel("Frequency of Predicted Class")
+    ax.set_xlabel("Year")
+    ax.legend()
+    ax.minorticks_on()
+    ax.grid(True,ls="dotted")
+    ax.set_xlim([1880,2025])
+    ax.set_ylim([0,1])
+    
+    ax2 = ax.twinx()
+    ax2.plot(timeaxis+1870,re_target.squeeze(),color="k",label="HadISST NASST Index")
+    ax2.set_ylabel("NASST Index ($\degree C$)")
+    ax2.set_ylim([-1.3,1.3])
+    for th in thresholds_in:
+        ax2.axhline([th],color="k",ls="dashed")
+    ax2.axhline([0],color="k",ls="solid",lw=0.5)
+    axs = [ax,ax2]
+    return fig,axs
+
+
+
+lagcorr = []
+for ll in range(nleads_sel):
+    lead = selected_leads[ll]
+    lagcorr.append(np.corrcoef(re_target[0,:(ntime-lead)],re_target[0,lead:])[0,1])
+
+
+
+
+
+for ll in range(nleads_sel):
+    lead = selected_leads[ll]
+    ilead = list(leads).index(lead)
+
+    # fig,axs = make_count_barplot(count_by_year_leads[:,:,ll],lead,re_target,leadmax=24)
+
+    # axs[0].set_title("Histogram for Lead %i Years" % (lead))
+
+    # plt.savefig("%sHadISST_Prediction_Count_Lead%02i.png"% (figpath,lead),dpi=150,bbox_inches="tight")
+
+
+    fig,ax = plt.subplots(1,1)
+    ax.set_ylim([0,1])
+    ax.plot(selected_leads,lagcorr,marker="x")
+    ax.axvline(lead,color="k",ls='dashed')
+    ax.set_xticks(selected_leads)
+    ax.set_title("Lag Correlation of NASST Index")
+    plt.savefig("%sHadISST_Lag_Correlation_lead%02i.png" % (figpath,lead),dpi=150)
+    plt.show()
+#%% Quickly look at lag correlation
+
+
+
+
+
+
 #%%
 
 ax.set_title(title)
