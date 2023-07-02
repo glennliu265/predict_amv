@@ -265,14 +265,6 @@ y_torch = torch.from_numpy(y_class.astype(np.compat.long))
 # Put into pytorch dataloaders
 test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
 
-
-
-#%%
-
-#%% I'm Up to Here.... --------------------------------------------------------
-
-
-
 # =====================
 # II. Rebuild the model
 # =====================
@@ -300,7 +292,6 @@ model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
 model_prediction                    = model_prediction.detach().numpy().copy()
 sample_relevances                   = sample_relevances.detach().numpy().copy()
 
-
 if "FNN" in eparams['netname']:
     predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
     sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
@@ -312,6 +303,7 @@ if "FNN" in eparams['netname']:
 # %% Do the same but for captum
 #
 
+
 lrp                 = captum.attr.LRP(pmodel)
 relevances_captum = []
 for c in range(3):
@@ -319,6 +311,7 @@ for c in range(3):
     relevances_captum.append(relevance_captum.detach().numpy().copy())
 relevance_captum = np.array(relevances_captum).mean(0)
 relevance_captum    = relevance_captum.reshape(nsamples_lead,nlat,nlon) 
+
 
 #%% Check captum maps for each class 
 
@@ -350,7 +343,68 @@ plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i" % (expd
         
 figname = "%sCaptum_LRP_byclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i.png" % (figpath,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise)
 plt.savefig(figname,dpi=250)
-#%% Compature the two outputs
+
+#%%
+"""
+Maybe the iNNvestigate model module is just doing the relevance maps for 
+the predicted class.
+
+In that case, I need to separate and re-composite the results accordingly.
+
+"""
+
+# Get indices of the predicted class
+predicted_class = model_prediction.argmax(1)
+predicted_class_indices = []
+for c in range(3):
+    cids = np.where(predicted_class == c)[0]
+    predicted_class_indices.append(cids)
+
+# Reorganize and composite by the above indices
+relevances_captum_all = np.array(relevances_captum).reshape(3,nsamples_lead,nlat,nlon) 
+relevances_captum_sorted = []
+for c in range(3):
+    relevances_sel=relevances_captum_all[c,predicted_class_indices[c],:]
+    relevances_captum_sorted.append(relevances_sel)
+    
+composites_by_class_prediction = [relevances_captum_sorted[c].mean(0) for c in range(3)]
+composites_by_class_prediction = np.array(composites_by_class_prediction)
+print(composites_by_class_prediction.shape)
+#%%
+"""
+Visualize the composites by class prediction
+"""
+normalize_samplewise=False
+
+vlm     = 1e-3
+fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},
+                       constrained_layout=True,figsize=(12,4))
+
+for a in range(3):
+    ax = axs[a]
+    plotvar = composites_by_class_prediction[a,...]
+    if normalize_samplewise:
+        plotvar = plotvar / np.nanmax(np.abs(plotvar),(1,2))[:,None,None]
+        print(np.nanmax(plotvar))
+        plotvar = plotvar
+        vlm_in  = 1e-1
+    else:
+        plotvar = plotvar
+        vlm_in = vlm
+        
+    pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-vlm_in,vmax=vlm_in,cmap="cmo.balance")
+    ax.coastlines()
+    ax.set_title("Captum Class %i" % (a+1))
+
+fig.colorbar(pcm,ax=axs.flatten(),orientation="horizontal",fraction=0.035,pad=0.01)
+plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i" % (expdir,varname_in,lead,runids[nr]))
+        
+        
+figname = "%sCaptum_LRP_byPREDICTEDclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i.png" % (figpath,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise)
+plt.savefig(figname,dpi=250)
+
+
+#%% Compre the two outputs
 
 vlm     = 4e-4
 fig,axs = plt.subplots(1,2,subplot_kw={'projection':ccrs.PlateCarree()},
@@ -363,13 +417,147 @@ fig.colorbar(pcm,ax=ax,orientation="horizontal",fraction=0.035,pad=0.01)
 ax.set_title("LRP (iNNvestigate)")
 
 ax = axs[1]
-pcm = ax.pcolormesh(lon,lat,relevance_captum.mean(0),vmin=-vlm,vmax=vlm,cmap="cmo.balance")
+#plotrel = composites_by_class_prediction.mean(0) # Plot composites by predictor
+plotrel = np.array(relevances_captum).reshape(3,nsamples_lead,nlat,nlon).mean(0).mean(0) # Plot blind composite of "everything"
+pcm = ax.pcolormesh(lon,lat,plotrel,vmin=-vlm,vmax=vlm,cmap="cmo.balance")
 fig.colorbar(pcm,ax=ax,orientation="horizontal",fraction=0.035,pad=0.01)
 ax.set_title("LRP (captum)")
 
 plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i" % (expdir,varname_in,lead,runids[nr]))
     
+#%% Lets test a specific event with a strong signal..
+
+bins = np.arange(-2.5,2.7,0.2)
+
+# Examine Histograms
+fig,axs = plt.subplots(1,4,constrained_layout=True,figsize=(12,4))
+
+ax = axs[0]
+ax.hist(model_prediction.flatten(),bins=bins,edgecolor="w")
+ax.set_title("Final Layer Activations (All Classes)")
+
+for i in range(3):
+    ax = axs[i+1]
+    ax.hist(model_prediction[:,i],bins=bins,edgecolor="w")
+    ax.set_title("Activations for class %i" % (i+1))
+
+plt.suptitle("Final Layer Activation for %s \n Predictor %s Lead %02i, Run %02i" % (expdir,varname_in,lead,runids[nr]))
+
+figname = "%sActivationsHistogram_%s_%s_l%02i_run%s.png" % (figpath,expdir,varname_in,lead,runids[nr])
+plt.savefig(figname,dpi=250)
+
+
+
+#%% Select an event (strong positive AMV)
+idmaxs = np.argmax(np.abs(model_prediction),0)
+print(model_prediction[idmaxs,:])
+idmax = idmaxs[0]
+print("Looking at sample %i" % idmax)
+
+# Get information
+predictor_input  = X_torch[[idmax],:]
+answer           = y_class[idmax]
+model_activation = model_prediction[idmax]
+
+
+
+#%% Try a bunch of INNvestigate hyperparameters
+
+
+innexps         = np.arange(1,11,1)
+innmethods      =('e-rule','b-rule')
+innbetas        = np.arange(.1,3.5,.5)
+
+n_exps = len(innexps)
+n_beta = len(innbetas)
+
+output_relevances = np.zeros((2,n_exps,n_beta,1,nlat*nlon))
+for meth in range(2):
+    innmethod = innmethods[meth]
+    for exp in range(n_exps):
+        innexp = innexps[exp]
+        for beta in range(n_beta):
+            innbeta = innbetas[beta]
+            
+            inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+                                              method=innmethod,
+                                              beta=innbeta)
+            model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=predictor_input)
+            sample_relevances                   = sample_relevances.detach().numpy().copy()
+            
+            output_relevances[meth,exp,beta,0,:] = sample_relevances.copy()
+            
+output_relevances= output_relevances.reshape(2,n_exps,n_beta,1,nlat,nlon)
+
+#%% Save output
+np.savez("%siNNvestigate_test_parameters.npz"%datpath,**{
+    'lon':lon,
+    'lat':lat,
+    'output_relevances':output_relevances,
+    'innexps':innexps,
+    'innbetas':innbetas,
+    'innmethods':innmethods,
+    'predictor':predictor_input,
+    'pmodel':pmodel    },allow_pickle=True)
+
+# Make a grid plot
+#%% Visualize the output
+
+vlm_in = 2.5e-3#5e-3
+meth = 1
+fig,axs = plt.subplots(10,7,figsize=(25,25),constrained_layout=True,
+                       subplot_kw={'projection':ccrs.PlateCarree()})
+
+for e in range(10):
+    idx_exp = e
+    innexp = innexps[idx_exp]
     
+    for b in range(7):
+        idx_beta = b
+        innbeta = innbetas[idx_beta]
+        
+        ax = axs[e,b]
+        
+        ax.set_extent(bbox)
+        ax.coastlines()
+        
+        ax.set_title("b: %.2f, e: %.2f" % (innbeta,innexp))
+        
+        plotrel =output_relevances[meth,idx_exp,idx_beta,0,:,:]
+        pcm     =ax.pcolormesh(lon,lat,plotrel,cmap='cmo.balance',vmin=-vlm_in,vmax=vlm_in)
+        
+fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.025,orientation='horizontal')
+
+
+figname = "%sSample%i_LRP_Parameter_Test_%s_%s_l%02i_run%s_method%s.png" % (figpath,idmax,expdir,varname_in,lead,runids[nr],innmethods[meth])
+
+plt.savefig(figname,dpi=150,bbox_inches='tight')
+# Find where the LRP hyperparameter space best resembles the captum output
+
+
+#%% Look at corresponding output for captum
+
+
+
+fig,axs = plt.subplots(1,3,figsize=(12,4),constrained_layout=True,
+                       subplot_kw={'projection':ccrs.PlateCarree()})
+
+
+for c in range(3):
+    ax = axs[c]
+    ax.coastlines()
+    plotrel =relevances_captum_all[c,idmax,:,:]
+    pcm     =ax.pcolormesh(lon,lat,plotrel,cmap='cmo.balance',vmin=-vlm_in,vmax=vlm_in)
+    
+fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.025,orientation='horizontal')
+
+
+figname = "%sSample%i_LRP_Captum_%s_%s_l%02i_run%s_method%s.png" % (figpath,idmax,expdir,varname_in,lead,runids[nr],innmethods[meth])
+plt.savefig(figname,dpi=150,bbox_inches='tight')
+
+
+#%% I'm Up to Here.... --------------------------------------------------------
+
 
 
 
