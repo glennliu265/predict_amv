@@ -79,7 +79,7 @@ nn_param_dict = pparams.nn_param_dict
 # Indicate settings (Network Name)
 
 # Data and variable settings
-varnames       = ("SST","SSH","SSS","PSL")
+varnames       = ("SST","SSH","SSS","SLP")
 varnames_plot  = ("SST","SSH","SSS","SLP")
 expdir         = "FNN4_128_SingleVar"
 eparams        = train_cesm_params.train_params_all[expdir]
@@ -99,14 +99,17 @@ nmodels        = 50 # Specify manually how much to do in the analysis
 # LRP Settings (note, this currently uses the innvestigate package from LRP-Pytorch)
 gamma          = 0.1
 epsilon        = 0.1
-innexp         = 2
-innmethod      ='b-rule'
-innbeta        = 0.1
+innexp         = 1
+innmethod      ='e-rule'
+innbeta        = 0.5
+innepsi        = 1e-2
 
 # Labeling for plots and output files
-ge_label       = "exp=%i, method=%s, $beta$=%.02f" % (innexp,innmethod,innbeta)
-ge_label_fn    = "innexp%i_%s_innbeta%.02f" % (innexp,innmethod,innbeta)
+ge_label       = "method=%s, exp=%i, $beta$=%.02f, $epsilon$=%.2e" % (innmethod,innexp,innbeta,innepsi)
+ge_label_fn    = "%s_exp%.2e_beta%.02f_epsi%.2i" % (innmethod[0],innexp,innbeta,innepsi)
 
+use_shuffidx   = True  # Use shuffidx to index correct testing set
+old_shuffling  = True  # Use old script method (just split directly)
 
 # Other Toggles
 darkmode  = False
@@ -159,7 +162,7 @@ if debug:
 
 
 # Remove all NaN points
-data_all[np.isnan(data_all)]     = 0
+data_all[np.isnan(data_all)]    = 0
 
 # Get Sizes
 nchannels                       = 1 # Change to 1, since we are just processing 1 variable at a time
@@ -179,7 +182,6 @@ else:
 target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
 target_class = target_class.reshape(target.shape)
 
-
 #%% Load model outputs and weights
 
 modweights_byvar = [] # [variable][lead][runid][?]
@@ -189,6 +191,9 @@ flists           = []
 for v,varname in enumerate(varnames):
     
     # Get the model weights
+    if "PaperRun" not in expdir and varname == "SLP":
+        varname = "PSL"
+        
     modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
     modweights_byvar.append(modweights_lead)
     modlist_byvar.append(modlist_lead)
@@ -278,17 +283,18 @@ for v,varname in enumerate(varnames): # Training data does not change for region
     idcorrect_lead    = []
     modelacc_lead     = []
     labels_lead       = []
-    
+    print("Computing Relevances for %s" % varname)
     
     for l,lead in enumerate(leads_sel): # Training data does chain with leadtime
         
         id_lead = list(leads).index(lead)
         if debug:
-            print("Lead is %i, idx = %i" % (leads[id_lead],id_lead))
+            print("\nLead is %i, idx = %i" % (leads[id_lead],id_lead))
         
         # Apply Lead Lag (Might have to move this further within the loop...)
         X,y_class = am.apply_lead(predictor,target_class,lead,reshape=True,ens=nens,tstep=ntime)
         
+        # ----------------------------
         # Flatten input data for FNN
         if "FNN" in eparams['netname']:
             ndat,nchannels,nlat,nlon = X.shape
@@ -303,6 +309,8 @@ for v,varname in enumerate(varnames): # Training data does not change for region
         X_subsets,y_subsets = am.train_test_split(X,y_class,eparams['percent_train'],
                                                        percent_val=eparams['percent_val'],
                                                        debug=False,offset=eparams['cv_offset'])
+        
+        # --------------------------
         
         # Convert to Tensors
         X_subsets = [torch.from_numpy(X.astype(np.float32)) for X in X_subsets]
@@ -347,7 +355,7 @@ for v,varname in enumerate(varnames): # Training data does not change for region
             # ----------------- ----------------------
             
             # Investigate
-            inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+            inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,epsilon=innepsi,
                                   method=innmethod,
                                   beta=innbeta)
             
@@ -355,9 +363,6 @@ for v,varname in enumerate(varnames): # Training data does not change for region
             model_prediction, true_relevance = inn_model.innvestigate(in_tensor=input_data)
             relevances[m,:,:]                = true_relevance.detach().numpy().copy()
             factivations[m,:,:]              = model_prediction.detach().numpy().copy()
-
-            
-            
         
         # Reshape Output
         relevances = relevances.reshape(nmodels,valsize,nchannels,nlat,nlon)
@@ -401,29 +406,36 @@ for v,varname in enumerate(varnames): # Training data does not change for region
     labels_all[varname]       = labels_lead
 
 print("Computed relevances in %.2fs" % (time.time()-st))
-
-#
-
-
-
 # XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx XXXXXXXXXXXx
   
 #%% Plot reduced nubber of leadtimes, for several variables (GRL Outline plot version)
+
+# Set darkmode
+darkmode = False
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+    transparent      = True
+else:
+    plt.style.use('default')
+    dfcol = "k"
+    transparent      = False
 
 #Same as above but reduce the number of leadtimes
 plot_bbox        = [-80,0,0,60]
 leadsplot        = [24,18,12,6,0]
 topN             = 25
-normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
+normalize_sample = 1 # 0=None, 1=samplewise, 2=after composite
 absval           = False
-transparent      = False
-cmax             = 1
+
+cmax             = 0.5
 
 clvl             = np.arange(-2.2,2.2,0.2)
 
 fsz_title        = 20
 fsz_axlbl        = 18
 fsz_ticks        = 16
+
 #cmax            = 0.5
 
 # Loop for each class
@@ -440,14 +452,15 @@ for c in range(3):
             id_lead    = list(leads_sel).index(lead)
             if debug:
                 print("Lead %02i, idx=%i" % (lead,id_lead))
-                
+            
             # Axis Formatting
             ax = axs[v,l]
             blabel = [0,0,0,0]
+            
             #ax.set_extent(plot_bbox)
             #ax.coastlines()
+            
             if v == 0:
-                
                 ax.set_title("Lead %02i Years" % (leads_sel[id_lead]),fontsize=fsz_title)
             if l == 0:
                 blabel[0] = 1
@@ -465,6 +478,7 @@ for c in range(3):
             X_subsets,y_subsets = prep_traintest_classification_new(data_all[[v],...],
                                                                     target_class,lead,
                                                                     eparams,nens=nens,ntime=ntime)
+            
             if eparams['percent_val'] > 0:
                 X_train,X_test,X_val = X_subsets
                 y_train,y_test,y_val = y_subsets
@@ -506,6 +520,7 @@ for c in range(3):
             plotvar /= topN
             if normalize_sample == 2:
                 plotrel = plotrel/np.max(np.abs(plotrel))
+                plotvar = plotvar/np.max(np.abs(plotvar))
                 
             # Set Land Points to Zero
             plotrel[plotrel==0] = np.nan
@@ -521,14 +536,268 @@ for c in range(3):
     cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.025,pad=0.01)
     cb.set_label("Normalized Relevance",fontsize=fsz_axlbl)
     cb.ax.tick_params(labelsize=fsz_ticks)
+    
     #plt.suptitle("Mean LRP Maps for Predicting %s using %s, \n Composite of Top %02i FNNs per leadtime" % (classes[c],varname,topN,))
-    savename = "%sPredictorComparison_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_Outline_smaller.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn)
+    savename = "%sPredictorComparison_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_Outline.png" % (figpath,expdir,classes[c],topN,normalize_sample,absval,ge_label_fn)
+    if darkmode:
+        savename = proc.addstrtoext(savename,"_darkmode")
     plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
     # Finish class loop (Fig)
+#%% Write a function to retrieve the year and ensemble of labels, given shuffidx from the old script
+
+v    = 0
+nmod = 0
+l    = 8
+
+# Required inputs (debugging)
+lead          = leads[l]
+percent_train = eparams['percent_train']
+percent_val   = eparams['percent_val']
+shuffid_in    = shuffids[v][nmod][l,:] # Samples (all)
+offset        = 0
+ens           = eparams['ens']
+nyr           = 86
+
+# Inputs: lead, shuffid, percent_train, percent_val, offset
+# make some dummy variables
 
 
 
-#%%
+def retrieve_ensyr_shuffid(lead,shuffid_in,percent_train,percent_val=0,
+                           offset=0,ens=42,nyr=86):
+    """
+    Retrieve the linear indices, ensemble, and year labels given a set
+    of shuffled indices from select_sample, accounting for offset and leadtimes.
+    
+
+    Parameters
+    ----------
+    lead : INT. Leadtime applied in units of provided time axis.
+    shuffid_in : ARRAY. Shuffled indices to subset, select, and retrieve indices from.
+    percent_train : NUMERIC. % data used for training
+    percent_val : NUMERIC. % data used for validation. optional, default is 0.
+    offset : NUMERIC. Offset to shift train.test.val split optional, default is 0.
+    ens : INT. Number of ensemble members to include optional, The default is 42.
+    nyr : INT, Numer of years to include. optional, the default is 86.
+
+    Returns
+    -------
+    shuffid_split : LIST of ARRAYS [train/test/val][samples]
+        Shuffids partitioned into each set
+    refids_linear_split : LIST of ARRAYS [train/test/val][samples]
+        Corresponding linear indices to unlagged data (ens x year)
+    refids_label_split : LIST of ARRAYS  [train/test/val][samples,[ens,yr]]
+        Ensemble and Year arrays for each of the corresponding splits
+
+    """
+    
+    # Apply Train/Test/Validation Split, accounting for offset
+    dummyX                  = shuffid_in[:,None]
+    dumX,dumY,split_indices = am.train_test_split(dummyX,dummyX,percent_train,percent_val=percent_val,debug=True,offset=offset,return_indices=True)
+    shuffid_split           = [shuffid_in[split_id] for split_id in split_indices]
+
+    # Get the actual ens and year (and corresponding linear id)
+    refids_label_split  = []
+    refids_linear_split = []
+    for ii in range(len(shuffid_split)):
+        shuffi = shuffid_split[ii].astype(int)
+        
+        ref_linearids,refids_label=am.get_ensyr_linear(lead,shuffi,
+                      reflead=0,nens=ens,nyr=nyr,
+                      apply_lead=True,ref_lead=True,
+                      return_labels=True,debug=True,return_counterpart=False)
+        
+        # Convert to Array
+        refids_label = np.array([[rf[0],rf[1]] for rf in refids_label]) # [sample, [ens,yr]]
+        
+        # Append
+        refids_linear_split.append(ref_linearids)
+        refids_label_split.append(refids_label)
+    return shuffid_split,refids_linear_split,refids_label_split
+
+#%% Make Histogram Plots of predictions vs. year, similar to analysis with HadISST for AMV Outline
+# Copied from test_reanalysis.py on 2023.05.04
+
+nvar           = len(factivations_all.keys())
+test_refids    =  np.empty((nvar,nlead,nmod),dtype='object')# [predictor x model x lead x class]
+test_ensyr     =  test_refids.copy() # 
+
+train_refids   = test_refids.copy()
+train_ensyr    = test_ensyr.copy()
+
+# Assumes leads are not shuffled, loop for each variable
+for v,varname in enumerate(varnames):
+    
+    #refids_lead = []
+    #ensyr_lead  = []
+    # Loop for leadtime
+    for l,lead in tqdm(enumerate(leads)):
+        
+        ilead         = list(leads).index(lead)
+        
+        # This is for the processing above
+       # y_predictions = np.argmax(factivations_all[varname][l],2) # [Model, Sample]
+        #y_actual      = labels_all[varname][l] # [Sample x 1]
+        
+        
+        # This is not for the processing above
+        
+        
+        for nm in range(nmod):
+            
+            y_predictions = ypred[v][nm][ilead,:]
+            y_actual      = ylabs[v][nm][ilead,:]
+            
+            
+            # Get sample indexes and ensemble/year information ---------------
+            shuffid_in      = shuffids[v][nm][ilead,:] # [Samples]
+            
+            # Retrieve Linear Indices and Ens/Year of testing set...
+            output_split = am.retrieve_ensyr_shuffid(lead,shuffid_in,eparams['percent_train'],
+                                                  percent_val=eparams['percent_val'],
+                                                  offset=eparams['cv_offset'],ens=eparams['ens'],nyr=ntime)
+            shuffid_split,refids_linear,refids_label = output_split
+            
+            # Save information from the testing set
+            test_refids[v,l,nm] = refids_linear[1]
+            test_ensyr[v,l,nm]  = refids_label[1]
+            
+            train_refids[v,l,m] = refids_linear[0]
+            train_ensyr[v,l,nm] = refids_label[0]
+
+            #refids_mod.append(refids_linear[1]) # [sample,]
+            #ensyr_mod.append(refids_label[1]) # [sample,(ens,yr)]
+            # ----------------------------------------------------------------
+            
+            
+ 
+            
+            # End model loop
+        #refids_lead.append(refids_mod)
+        #ensyr_mod.append()
+        # End leadtime loop
+        
+
+#%% Compute the years 
+
+
+# assume for now that you can covert everyhting into an array
+#test_ensyr = np.array(test_ensyr.flatten())
+
+num_peryear         = np.zeros((nvar,ntime)) # [predictor time]
+count_by_year       = np.zeros((nvar,ntime,nclasses)) # [predictor x time x class]
+count_by_year_label = count_by_year.copy()
+
+timeaxis_in    = np.arange(leads[-1],target.shape[1])
+timeaxis       = np.arange(0,target.shape[1])
+
+count_by_year_ens       = np.zeros((nvar,ntime,nclasses,nens))
+count_by_year_ens_label = count_by_year_ens.copy()
+num_peryear_ens         = np.zeros((nvar,ntime,nens))
+
+# Do a stupid loop...
+for v in range(nvar):
+    for l in range(nlead):
+        for nm in tqdm(range(nmod)):
+            
+            # Get predictions for that model/leadtime/predictor
+            test_years       = test_ensyr[v,l,m][:,1] # [Sample]
+            test_ens         = test_ensyr[v,l,m][:,0] # [Sample]
+            test_predictions = ypred[v][nm][l]
+            test_labels      = ylabs[v][nm][l]
+            
+            # Loop for each year
+            for y in range(len(timeaxis)):
+                
+                y_sel   = timeaxis[y]
+                # Get boolean indices and restrict predictions
+                id_year = (test_years == y_sel)
+                
+                # Do the ensemble aggregate
+                predictions_ysel = test_predictions[id_year].astype(int)
+                labels_ysel      = test_labels[id_year].astype(int)
+                num_peryear[v,y] += len(predictions_ysel)
+                for c in range(3): # Tally up the predicted classes
+                    count_by_year[v,y,c]       += (predictions_ysel == c).sum()
+                    count_by_year_label[v,y,c] += (labels_ysel == c).sum()
+                    # End Class Loop
+                    
+                # Count individuall for ensemble member
+                for e in range(nens):
+                    id_ens = (test_ens == e)
+                    predictions_y_ens_sel = test_predictions[id_year*id_ens].astype(int)
+                    predictions_y_ens_sel_label = test_labels[id_year*id_ens].astype(int)
+                    num_peryear_ens[v,y,e] += len(predictions_y_ens_sel)
+                    for c in range(3): # Tally up the predicted classes
+                        count_by_year_ens[v,y,c,e] += (predictions_y_ens_sel == c).sum()
+                        count_by_year_ens_label[v,y,c,e] += (predictions_y_ens_sel_label == c).sum()
+                        # End Class Loop (ens)
+                    # End Ens Loop
+                # End Year Loop
+            # End Model Loop
+        # End Lead Loop
+    # End Prediction Loop
+                
+#%% Make the plot
+
+plot_ens        = 8 #Non # Set to "ALL"" to plot all "Actual" to plot real data
+normalize_count = True
+
+if plot_ens == "ALL":
+    num_peryear_in   = num_peryear
+    count_by_year_in = count_by_year
+    plot_target      = target.mean(0)
+elif plot_ens == "Actual":
+    num_peryear_in   = num_peryear
+    count_by_year_in = count_by_year_label
+    plot_target      = target.mean(0)
+else:
+    num_peryear_in   = num_peryear_ens[:,:,plot_ens]
+    count_by_year_in = count_by_year_ens[:,:,:,plot_ens]
+    plot_target      = target[plot_ens,:]
+    
+if normalize_count:
+    ylab = "Percentage of Predictions"
+    count_in = count_by_year_in / num_peryear_in[:,:,None]
+    #ylim = [0,1]
+else:
+    ylab = "Frequency of Predicted Class"
+    count_in = count_by_year_in.copy()
+    ylim = [0,2500]
+for v in range(nvar):
+    fig,axs=pviz.make_count_barplot(count_in[v,...],lead,target,thresholds_in,leadmax=0,classes=classes,
+                           class_colors=pparams.class_colors,startyr=1920)
+    
+    ax,ax2=axs
+    ax.set_xlim([1915,2010])
+    #ax.plot(timeaxis+1920,num_peryear[v,:],color="magenta")
+    
+    #ax2 = ax.twinx()
+    ax2.plot(np.arange(0,ntime)+1920,plot_target,c="k")
+    for th in range(2):
+        ax2.axhline([thresholds_in[th]],ls="dashed",color="k",lw=0.95)
+    ax2.axhline([0],ls="solid",color="k",lw=0.75,label="Ensemble Average NASST")
+    ax2.legend(loc="upper right")
+    
+    #ax.set_ylim(ylim)
+    ax.set_title("Class Prediction Count by Year for %s, Experiment: %s" % (varnames[v],expdir))
+    ax.set_ylabel(ylab)
+    savename = "%sCount_by_year_%s_%s_normalize%i_ens%s.png" % (figpath,expdir,varnames[v],
+                                                          normalize_count,plot_ens+1)
+    plt.savefig(savename,dpi=150)
+    
+#%% Debug check to make sure full proportion is equivalent
+
+if debug:
+    test1 = count_by_year.sum(-1)
+    test2 = test1/num_peryear
+    print(test2) # Should be 1...
+
+
+#%% Check the testing dataset
+
+
+
 #%%
 #%% Plot Colorbar
 
@@ -608,7 +877,7 @@ for topN in np.arange(5,55,5):
                            subplot_kw={'projection':proj},constrained_layout=True)
     for r,region in enumerate(regions):
         
-        for l,lead in enumerate(leads):
+        for l,lead in enumerate(lead_sel):
             ax = axs[r,l]
             
             # Get indices of the top 10 models
@@ -722,7 +991,6 @@ topN             = 25 # Top 10 models
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
 cmax             = 0.50
-# 
 
 pcount = 0
 
