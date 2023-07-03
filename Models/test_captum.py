@@ -281,11 +281,16 @@ pmodel.eval()
 
 
 # ===========================
-# IV. Perform LRP
+#%% IV. Perform LRP (Pytorch-LRP)
 # ===========================
-nsamples_lead = X_torch.shape[0]
 
-inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+innexp         = 1
+innmethod      ='b-rule'
+innbeta        = 0.5
+nsamples_lead = X_torch.shape[0]
+innepsi        = 1e-6
+
+inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,epsilon=innepsi,
                                   method=innmethod,
                                   beta=innbeta)
 model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
@@ -296,13 +301,9 @@ if "FNN" in eparams['netname']:
     predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
     sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
 
-#%%
-
-
-#
-# %% Do the same but for captum
-#
-
+#  ===========================
+# %% Compute relevance maps for captum 
+#  ===========================
 
 lrp                 = captum.attr.LRP(pmodel)
 relevances_captum = []
@@ -312,8 +313,9 @@ for c in range(3):
 relevance_captum = np.array(relevances_captum).mean(0)
 relevance_captum    = relevance_captum.reshape(nsamples_lead,nlat,nlon) 
 
-
-#%% Check captum maps for each class 
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
+#%% PLOT: Check captum maps for each class 
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 
 normalize_samplewise = True
 
@@ -344,7 +346,9 @@ plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i" % (expd
 figname = "%sCaptum_LRP_byclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i.png" % (figpath,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise)
 plt.savefig(figname,dpi=250)
 
-#%%
+#  =================================
+#%% Sort and composite by prediction
+#  =================================
 """
 Maybe the iNNvestigate model module is just doing the relevance maps for 
 the predicted class.
@@ -363,14 +367,24 @@ for c in range(3):
 # Reorganize and composite by the above indices
 relevances_captum_all = np.array(relevances_captum).reshape(3,nsamples_lead,nlat,nlon) 
 relevances_captum_sorted = []
+relevances_inn_sorted= []
 for c in range(3):
     relevances_sel=relevances_captum_all[c,predicted_class_indices[c],:]
     relevances_captum_sorted.append(relevances_sel)
     
+    # Also composite the Pytorch-LRP Output by Class
+    relevances_inn_sorted.append(sample_relevances[predicted_class_indices[c],:,:])
+    
+    
 composites_by_class_prediction = [relevances_captum_sorted[c].mean(0) for c in range(3)]
 composites_by_class_prediction = np.array(composites_by_class_prediction)
+
+composites_inn = np.array([relevances_inn_sorted[c].mean(0) for c in range(3)])
+
 print(composites_by_class_prediction.shape)
-#%%
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
+#%% Composites by prediction, captum vs. pytorch-lrp
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 """
 Visualize the composites by class prediction
 """
@@ -402,6 +416,58 @@ plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i" % (expd
         
 figname = "%sCaptum_LRP_byPREDICTEDclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i.png" % (figpath,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise)
 plt.savefig(figname,dpi=250)
+
+
+
+#%% Compare Captum and Pytorch LRP
+
+
+
+normalize_samplewise=False
+
+vlm     = 1e-3
+fig,axs = plt.subplots(2,3,subplot_kw={'projection':ccrs.PlateCarree()},
+                       constrained_layout=True,figsize=(12,8))
+
+
+for mm in range(2):
+    
+    if mm == 0:
+        composites_in = composites_by_class_prediction
+        mlabel = "Captum"
+    else:
+        composites_in = composites_inn
+        mlabel ="Pytorch-LRP"
+    
+    for a in range(3):
+        ax = axs[mm,a]
+        plotvar = composites_in[a,...]
+        
+        if normalize_samplewise:
+            plotvar = plotvar / np.nanmax(np.abs(plotvar),(1,2))[:,None,None]
+            print(np.nanmax(plotvar))
+            plotvar = plotvar
+            vlm_in  = 1e-1
+        else:
+            plotvar = plotvar
+            vlm_in = vlm
+        
+        pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-vlm_in,vmax=vlm_in,cmap="cmo.balance")
+        ax.coastlines()
+        ax.set_title("Class %i (%s)" % (a+1,mlabel))
+
+fig.colorbar(pcm,ax=axs.flatten(),orientation="horizontal",fraction=0.035,pad=0.01)
+
+lrp_params = "LRP Method %s, $beta$: %.2f, $epsilon$: %.2e, exp: %i" % (innmethod,innbeta,innepsi,innexp)
+lrp_out    = "meth%s_b%.2f_e%.2f_exp%.2f" % (innmethod[0],innbeta,innepsi,innexp)
+
+plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i\n%s" % (expdir,varname_in,lead,runids[nr],lrp_params))
+
+        
+figname = "%sCaptum_Comparison_LRP_byPREDICTEDclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i_%s.png" % (figpath,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise,lrp_out)
+plt.savefig(figname,dpi=250)
+
+
 
 
 #%% Compre the two outputs
@@ -537,8 +603,7 @@ plt.savefig(figname,dpi=150,bbox_inches='tight')
 
 #%% Look at corresponding output for captum
 
-
-
+vlm_in = 5e-3
 fig,axs = plt.subplots(1,3,figsize=(12,4),constrained_layout=True,
                        subplot_kw={'projection':ccrs.PlateCarree()})
 
