@@ -288,7 +288,11 @@ innexp         = 1
 innmethod      ='b-rule'
 innbeta        = 0.5
 nsamples_lead = X_torch.shape[0]
-innepsi        = 1e-6
+innepsi        = 1e-2
+
+# Naming...
+lrp_params = "LRP Method %s, $beta$: %.2f, $epsilon$: %.2e, exp: %i" % (innmethod,innbeta,innepsi,innexp)
+lrp_out    = "meth%s_b%.2f_e%.2f_exp%.2f" % (innmethod[0],innbeta,innepsi,innexp)
 
 inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,epsilon=innepsi,
                                   method=innmethod,
@@ -314,7 +318,7 @@ relevance_captum = np.array(relevances_captum).mean(0)
 relevance_captum    = relevance_captum.reshape(nsamples_lead,nlat,nlon) 
 
 # <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
-#%% PLOT: Check captum maps for each class 
+#%% PLOT: Check captum maps for each class (all composites irrespective of prediction)
 # <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 
 normalize_samplewise = True
@@ -325,7 +329,9 @@ fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},
 
 for a in range(3):
     ax = axs[a]
+    
     plotvar = np.array(relevances_captum)[a,...].reshape(nsamples_lead,nlat,nlon)
+    
     if normalize_samplewise:
         plotvar = plotvar / np.nanmax(np.abs(plotvar),(1,2))[:,None,None]
         print(np.nanmax(plotvar))
@@ -383,12 +389,13 @@ composites_inn = np.array([relevances_inn_sorted[c].mean(0) for c in range(3)])
 
 print(composites_by_class_prediction.shape)
 # <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
-#%% Composites by prediction, captum vs. pytorch-lrp
+#%% PLOT Composites by prediction for captum OR Pytorch-LRP
 # <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 """
 Visualize the composites by class prediction
 """
 normalize_samplewise=False
+plot_mode = "Pytorch-LRP" # Captum
 
 vlm     = 1e-3
 fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},
@@ -396,7 +403,11 @@ fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},
 
 for a in range(3):
     ax = axs[a]
-    plotvar = composites_by_class_prediction[a,...]
+    if plot_mode == "Captum":
+        plotvar = composites_by_class_prediction[a,...]
+    else:
+        plotvar = composites_inn[a,...]
+    
     if normalize_samplewise:
         plotvar = plotvar / np.nanmax(np.abs(plotvar),(1,2))[:,None,None]
         print(np.nanmax(plotvar))
@@ -408,28 +419,28 @@ for a in range(3):
         
     pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-vlm_in,vmax=vlm_in,cmap="cmo.balance")
     ax.coastlines()
-    ax.set_title("Captum Class %i" % (a+1))
+    ax.set_title("%s Class %i" % (plot_mode,a+1))
 
 fig.colorbar(pcm,ax=axs.flatten(),orientation="horizontal",fraction=0.035,pad=0.01)
-plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i" % (expdir,varname_in,lead,runids[nr]))
-        
-        
-figname = "%sCaptum_LRP_byPREDICTEDclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i.png" % (figpath,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise)
+
+figname = "%s%s_LRP_byPREDICTEDclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i.png" % (figpath,plot_mode,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise)
+if plot_mode == "Pytorch-LRP":
+    figname = proc.addstrtoext(figname,"_"+lrp_out)
+    plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i \n%s" % (expdir,varname_in,lead,runids[nr],lrp_params))
+else:
+    
+    plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i" % (expdir,varname_in,lead,runids[nr]))
+
 plt.savefig(figname,dpi=250)
 
-
-
-#%% Compare Captum and Pytorch LRP
-
-
-
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
+#%% PLOT composites by prediction, COMPARE captum vs. pytorch-lrp on same plot
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 normalize_samplewise=False
 
 vlm     = 1e-3
 fig,axs = plt.subplots(2,3,subplot_kw={'projection':ccrs.PlateCarree()},
                        constrained_layout=True,figsize=(12,8))
-
-
 for mm in range(2):
     
     if mm == 0:
@@ -458,8 +469,6 @@ for mm in range(2):
 
 fig.colorbar(pcm,ax=axs.flatten(),orientation="horizontal",fraction=0.035,pad=0.01)
 
-lrp_params = "LRP Method %s, $beta$: %.2f, $epsilon$: %.2e, exp: %i" % (innmethod,innbeta,innepsi,innexp)
-lrp_out    = "meth%s_b%.2f_e%.2f_exp%.2f" % (innmethod[0],innbeta,innepsi,innexp)
 
 plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i\n%s" % (expdir,varname_in,lead,runids[nr],lrp_params))
 
@@ -467,10 +476,9 @@ plt.suptitle("Relevance Maps for %s \n Predictor %s Lead %02i, Run %02i\n%s" % (
 figname = "%sCaptum_Comparison_LRP_byPREDICTEDclass_%s_%s_l%02i_run%s_standardize%i_samplenorm%i_%s.png" % (figpath,expdir,varname_in,lead,runids[nr],standardize_input,normalize_samplewise,lrp_out)
 plt.savefig(figname,dpi=250)
 
-
-
-
-#%% Compre the two outputs
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
+#%% OLD COMPARISON PLOTCompre the two outputs
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 
 vlm     = 4e-4
 fig,axs = plt.subplots(1,2,subplot_kw={'projection':ccrs.PlateCarree()},
@@ -533,6 +541,7 @@ model_activation = model_prediction[idmax]
 innexps         = np.arange(1,11,1)
 innmethods      =('e-rule','b-rule')
 innbetas        = np.arange(.1,3.5,.5)
+
 
 n_exps = len(innexps)
 n_beta = len(innbetas)
