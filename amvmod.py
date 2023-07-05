@@ -2593,7 +2593,7 @@ def compute_persistence_baseline(leads,y_class,nsamples=None,percent_train=1,
         
         if debug:
             _,_=count_samples(nsamples,y_class_label)
-            
+        
         
         # ----------------------
         # Make predictions

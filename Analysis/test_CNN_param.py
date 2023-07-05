@@ -67,8 +67,6 @@ proc.makedir(figpath)
 # Load model_dict
 nn_param_dict = pparams.nn_param_dict
 
-
-
 #%%
 expdir         = "FNN4_128_SingleVar"
 eparams        = train_cesm_params.train_params_all[expdir]
@@ -107,7 +105,6 @@ nlead                          = len(leads)
 am.count_samples(None,target_class)
 
 #%% Load CNN
-
 """
 Trying to build a CNN as a class following the example here:
     https://pytorch.org/tutorials/beginner/blitz/cifar10_tutorial.html
@@ -203,7 +200,7 @@ This section prepares the inputs for testing the model
 """
 
 v    = 0
-lead = 0
+lead = 24
 predictors = data[[v],...] # Get selected predictor
 X,y_class  = am.apply_lead(predictors,target_class,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
 
@@ -242,9 +239,6 @@ input_data                       = X_test.float()[[0],...]
 pred_new,rel_new                 = inn_model_new.innvestigate(in_tensor=input_data)
 pred_old,rel_old                 = inn_model_old.innvestigate(in_tensor=input_data)
 
-
-
-        
 #%% Let's try captum....
 import captum
 
@@ -256,9 +250,6 @@ import captum
 # inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
 #                       method=innmethod,
 #                       beta=innbeta)
-
-
-
 
 lrp       = captum.attr.LRP(pmodel)
 result    = lrp.attribute(input_data,target=(2,3))
@@ -356,7 +347,6 @@ class CNN2(nn.Module):
         return x
 
 pmodel_old = CNN2(channels,nchannels,filtersizes,poolsizes,firstlineardim,num_classes)
-
 
 lrp       = captum.attr.LRP(pmodel_old)
 result    = lrp.attribute(input_data,target=0)

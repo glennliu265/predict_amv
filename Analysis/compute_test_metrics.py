@@ -92,6 +92,7 @@ runids              = np.arange(0,100,1)    # Which runs to do
 innexp         = 2
 innmethod      ='b-rule'
 innbeta        = 0.1
+innepsilon     = 1e-2
 
 # Other toggles
 save_all_relevances = False                # True to save all relevances (~33G per file...)

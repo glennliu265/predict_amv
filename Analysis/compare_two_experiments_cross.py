@@ -76,7 +76,7 @@ ed1 = {
 
 ed2 = {
        "varnames" : ["SST",],
-       "expdir"  : "FNN4_128_SingleVar_PIC",
+       "expdir"   : "FNN4_128_SingleVar_PIC",
        "expname"       : "PIC_SST",
        "expname_long"  : "PiControl SST",
        "no_val"  : False
@@ -539,7 +539,7 @@ for iclass in range(3):
         
         title = "Relevance and Predictor Composites for Correct %s Predictions,\n%i-year Leadtime" % (classes[iclass],leads[ilead])
         plt.suptitle(title,fontsize=fsz_title)
-        
+        # 
         
         # Make composites and plot them
         for aa in range(4):
@@ -620,9 +620,7 @@ ax.set_title("Total Accuracy for Predicting AMV (Predictor Uncertainty Test)")
 savename = "%sPredictor_Ablation_Test_TotalAcc_%s.png" % (figpath,expdir)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
 
-
 #%% Visualize accuracy differences by class
-
 
 fig,axs = plt.subplots(1,3,figsize=(18,4),constrained_layout=True)
 for c in range(3):
