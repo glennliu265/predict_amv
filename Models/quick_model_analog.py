@@ -22,12 +22,10 @@ import sys
 import numpy as np
 import os
 import time
-import
+import tqdm
 
 import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
-
-
 
 #%% Load custom packages and setup parameters
 
@@ -61,13 +59,11 @@ expdir              = "FNN4_128_SingleVar_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames            = ['SSH',"SST","SSS","SLP","NHFLX",]       # Names of predictor variables
+varnames            = ['SSH',]#"SST","SSS","SLP","NHFLX",]       # Names of predictor variables
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 
 # Other toggles
-checkgpu            = True                 # Set to true to check if GPU is availabl
-debug               = True                 # Set verbose outputs
-savemodel           = True                 # Set to true to save model weights
+debug               = False                 # Set verbose outputs
 
 # Save looping parameters into parameter dictionary
 eparams['varnames'] = varnames
@@ -218,7 +214,6 @@ def calc_distance(x,y):
         dists.append(dist)
     dists = np.array(dists) # [sample, distances to train samples]
     return dists # [distance to train samples]
-    
 
 def calc_rms_distance(x,y):
     #std_i_x       = np.nanmean(np.nanstd(x,0),(1) # [channel] # std across sample, then mean lat/lon
@@ -231,16 +226,21 @@ def std_predictor(x):
     return x/std_i_x[None,:,None,None]
 
 
-x = (std_predictor(X)).reshape(X.shape[0],np.prod(X.shape[1:]))
-y = (std_predictor(X_test)).reshape(X_test.shape[0],np.prod(X_test.shape[1:]))
-d = pairwise_distances(y,x,metric='euclidean')
-#d = pairwise_distances(y,x,metric=calc_rms_distance)
+def calc_distance_sklearn(x,y):
+    x = (std_predictor(X)).reshape(X.shape[0],np.prod(X.shape[1:]))
+    y = (std_predictor(X_test)).reshape(X_test.shape[0],np.prod(X_test.shape[1:]))
+    d = pairwise_distances(y,x,metric='euclidean')
+    return d
+# x = (std_predictor(X)).reshape(X.shape[0],np.prod(X.shape[1:]))
+# y = (std_predictor(X_test)).reshape(X_test.shape[0],np.prod(X_test.shape[1:]))
+# d = pairwise_distances(y,x,metric='euclidean')
+# d = pairwise_distances(y,x,metric=calc_rms_distance)
 
 # ------------------------------------------------------------
 # %% Looping for runid
 # ------------------------------------------------------------
 
-use_target_value = True
+use_target_value = False
 
 # Print Message
 print("Running [train_NN_CESM1.py] with the following settings:")
@@ -296,13 +296,17 @@ for l,lead in tqdm.tqdm(enumerate(leads)):
     # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
     X,y_class           = am.apply_lead(predictors,target_class,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
     X_test,y_class_test = am.apply_lead(predictors_test,target_class_test,lead,reshape=True,ens=nens_test,tstep=ntime)
+    _,y_lib_values = am.apply_lead(predictors,target,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
     
+    #X_test = X.copy()
+    #y_class_test = y_class.copy()
     #
     # %
     #
     
     # Normalize and compute distance (replace with scikitlearn to speed up)
-    dists = calc_distance(X,X_test) # [test_sample, distance_to_train_sample]
+    #dists = calc_distance(X,X_test) # [test_sample, distance_to_train_sample]
+    dists = calc_distance_sklearn(X,X_test)
     
     # Get indices to sort by distance (closest to furthest)
     id_sort = np.argsort(dists,axis=-1)
@@ -321,11 +325,11 @@ for l,lead in tqdm.tqdm(enumerate(leads)):
         predicted_class     = []
         for n in range(nsamples_test):
             # Grab corresponding k-closest cases from the library
-            id_sel          = id_sort[n,id_sort[n,:]]
+            id_sel          = id_sort[n,:]
             
             if use_target_value:
                 # Get the value
-                _,y_lib_values = am.apply_lead(predictors,target,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
+                
                 nearest_values  = y_lib_values[id_sel,0][:k_closest]
                 predicted_value = nearest_values.mean()
                 
@@ -338,8 +342,6 @@ for l,lead in tqdm.tqdm(enumerate(leads)):
                     pred = 1
                 predicted_class.append(pred)
                 
-                
-                
             else: # Use target class
                 nearest_classes = y_class[id_sel,0][:k_closest]
                 nearest_classes_all.append(nearest_classes)
@@ -351,7 +353,7 @@ for l,lead in tqdm.tqdm(enumerate(leads)):
         predictions_byk.append(predicted_class)
         
         # Compute accuracy
-        output = am.compute_class_acc(predicted_class,y_class_test,3)
+        output = am.compute_class_acc(predicted_class,y_class_test,3,verbose=False,debug=False)
         classacc_all[l,ik,:] = output[1]
         totalacc_all[l,ik] = output[0]
     
@@ -382,8 +384,7 @@ for l,lead in tqdm.tqdm(enumerate(leads)):
     
 #%% Save the output
 
-
-savename = "../../CESM_data/%s/Model_Analog_Forecast.npz" % (expdir)
+savename = "../../CESM_data/%s/Model_Analog_Forecast_euclidean_usevalues%i.npz" % (expdir,use_target_value)
 
 savedict = {
     "selected_k" : selected_k,
@@ -392,7 +393,6 @@ savedict = {
     "totalacc_all" : totalacc_all,
     }
 np.savez(savename,**savedict,allow_pickle=True)
-
 
 #%% Visualize accuracy changes by k
 
@@ -406,7 +406,7 @@ for a in range(3):
     ax.legend(ncol=4)
     
 plt.suptitle("Model Analog Forecast",fontsize=24)
-figname = "%sModel_Analog_Forecast_allvars.png" % pparams.figpath
+figname = "%sModel_Analog_Forecast_allvars_euclidean_usetarget%i.png" % (pparams.figpath,use_target_value)
 plt.savefig(figname,dpi=150,bbox_inches='tight')
 
 
