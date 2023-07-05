@@ -2658,7 +2658,8 @@ def normalize_ds(ds):
 
 def prepare_predictors_target(varnames,eparams,debug=False,
                            return_target_values=False,
-                           return_nfactors=False,load_all_ens=False):
+                           return_nfactors=False,load_all_ens=False,
+                           savestd=True):
     """ Prepares predictors and target. Works with output from:
         [prep_data_byvariable, make_landice_mask, prepare_regional_targets]
         Does the following:
@@ -2667,8 +2668,9 @@ def prepare_predictors_target(varnames,eparams,debug=False,
         3. Normalize data
         4. Change NaNs to zero
         5. Get Threshold Values
-        6. Subset to ensemble
-        7. Make classes
+        6. Standardize predictors in space (optional)
+        7. Subset to ensemble
+        8. Make classes
         
         Inputs:
             eparams  [DICT]             : Parameter dictionary, set in train_cesm_parameters.
@@ -2677,6 +2679,8 @@ def prepare_predictors_target(varnames,eparams,debug=False,
             return_target_values [BOOL] : True to return target values (in addition to class).
             return_nfactors [BOOL]      : True to return normalization factors (mu and sigma)
             load_all_ens [BOOL]         : True to load all ensemble members
+            savestd [BOOL]              : True to save spatial standardization factors
+            
         Returns:
             data           [ARRAY : channel x ens x year x lat x lon] : Normalized + Masked Predictors
             target_class   [ARRAY : ens x year] : Target with corresponding class numbers
@@ -2729,15 +2733,35 @@ def prepare_predictors_target(varnames,eparams,debug=False,
     else:
         thresholds_in = eparams['thresholds']
     
+    # ----------------------------------------------------
+    # 6. Standardize predictors ins pace, if option is set
+    #     Note: copied original section from check_predictor_normalization.py
+    # ----------------------------------------------------
+    if eparams['stdspace']:
+        print("Predictors will be standardized in space. Output will be saved to the [Metrics] directory.")
+        # Compute standardizing factor (and save)
+        std_vars = np.std(data,(1,2)) # [variable x lat x lon]
+        if savestd:
+            for v in range(nchannels):
+                savename = "../Metrics/%s_spatial_std.npy" % (varnames[v])
+                np.save(savename,std_vars[v,:,:])
+        
+        # Apply standardization
+        data                 = data / std_vars[:,None,None,:,:] # add singleton dim for ens and year
+        data[np.isnan(data)] = 0 # Make sure NaN values are zero again
+        std_vars_after       = np.std(data,(1,2))
+        check                =  np.all(np.nanmax(np.abs(std_vars_after)) < 2)
+        assert check, "Standardized values are not below 2!"
+        
     # ------------------
-    # 6. Subset predictor and get dimensions, eparams['ens']
+    # 7. Subset predictor and get dimensions, eparams['ens']
     # ------------------
     if load_all_ens is False: # Subset according to ens (default)
         data   = data[:,0:eparams['ens'],...]
         target = target[0:eparams['ens'],:]
     
     # ------------------
-    # 7. Classify AMV Events
+    # 8. Classify AMV Events
     # ------------------
     target_class = make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
     target_class = target_class.reshape(target.shape)

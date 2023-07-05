@@ -46,7 +46,7 @@ from torch.utils.data import DataLoader, TensorDataset,Dataset
 machine = 'stormtrack' # Indicate machine (see module packages section in pparams)
 
 # Import packages specific to predict_amv
-cwd = os.getcwd()
+cwd     = os.getcwd()
 sys.path.append(cwd+"/../")
 import predict_amv_params as pparams
 import train_cesm_params as train_cesm_params
@@ -55,7 +55,6 @@ import amvmod as am
 
 # Load Predictor Information
 bbox          = pparams.bbox
-
 # Import general utilities from amv module
 pkgpath = pparams.machine_paths[machine]['amv_path']
 sys.path.append(pkgpath)
@@ -68,11 +67,11 @@ from amv import proc
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "CNN2_PaperRun"
+expdir              = "FNN4_SingleVar_PaperRun_stdspace"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames            = ["SST","SSS","SLP","NHFLX",]#"SSH",]#]       # Names of predictor variables
+varnames            = ['SSH',]#"SST","SSS","SLP","NHFLX",]       # Names of predictor variables
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 runids              = np.arange(0,100,1)    # Which runs to do
 

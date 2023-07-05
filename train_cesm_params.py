@@ -16,10 +16,42 @@ Created on Thu Mar 23 09:21:09 2023
 -------------------
 Current Experiments
 -------------------
-    FNN4_128_Rewrite        : Testing (20 epochs) for rewritten NN training script in late March 2023. Uses [train_NN_CESM1.py]
-    FNN4_128_SingleVar_CV   : k-fold Cross Validation script, where testing % = 0.30. Uses [train_NN_CESM1_CV.py].
-    FNN4_128_SingleVar      : Old script training FNN4_128 for single predictors, preior to rewrite. Uses [NN_test_lead_ann_ImageNet_classification_singlevar.py]
-
+    
+        ~ Set 1: Cross-Validation Experiments
+    FNN4_128_Rewrite            : Testing (20 epochs) for rewritten NN training script in late March 2023. Uses [train_NN_CESM1.py]
+    FNN4_128_SingleVar_CV       : k-fold Cross Validation script, where testing % = 0.30. Uses [train_NN_CESM1_CV.py], copies FNN4_128_SingleVar_Rewrite
+    FNN4_128_SingleVar_CV_consistent : Use consistent sample. Copies FNN4_128_SingleVar_Rewrite.
+    
+        ~ Set 2: Old Parametersfrom before the script rewrite
+    FNN4_128_SingleVar          : Old script training FNN4_128 for single predictors, preior to rewrite. Uses [NN_test_lead_ann_ImageNet_classification_singlevar.py]
+    FNN4_128_SingleVar_detrend  : Same as above, detrended. Copies FNN4_128_SingleVar
+    FNN4_128_SingleVar_Rerun100 : Rerun old script by with 100 networks instead of 50.
+    
+         ~ Set 3: Debugging new script (large inter-model differences, testing consistent sampling)
+    FNN4_128_SingleVar_Rerun100_consistent : Same as FNN4_128_SingleVar_Rerun100 but uses consistent sampling
+    FNN4_128_SingleVar_debug1_shuffle_all  : Same as FNN4_128_SingleVar_Rerun100, but with shuffled samples
+    FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs: Copies FNN4_128_SingleVar_debug1_shuffle_all, but switch to old number of epochs, earlystopping, batch size
+    FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs: Copies above, but reduce batchsize to 16
+    FNN4_128_SingleVar_debug1_shuffle_all_no_val : Copies above, but remove validation set
+    FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020 : Copies above, but changes Test-Train split to the old 20-80
+    
+         ~ Set 4: Trying PiC training
+    FNN4_128_SingleVar_PIC      : Training script for PiC data, same settings as original FNN4_128_SingleVar
+    
+         ~ Set 5: Regaining my senses in June after writing up the draft....
+    FNN4_128_SingleVar_Rewrite_June : Copies FNN4_128_SingleVar exactly to rerun in June 2023
+    FNN4_128_SingleVar_Testing      : Copies FNN4_128_SingleVar, trying new Train.Val split of 60-10
+    
+    
+         ~ Set 6: Testing Index Normalization
+    FNN4_128_SingleVar_Norm0    : FNN4 run with UNnormalized index, 32 ensemble members
+    FNN4_128_SingleVar_Norm1    : FNN4 run with normalized index, 32 ensemble members
+    
+         ~ Set 7: Reducing training to 32 ens members for training run
+    FNN4_128_SingleVar_PaperRun           : 100-epoch run for Predict AMV Draft
+    FNN4_128_SingleVar_PaperRun_detrended : Detrended version of above run
+    CNN2_PaperRun                         : Corresponding CNN2 run with architecture that works with Captum
+    
 """
 
 # Load my own custom modules
@@ -67,6 +99,7 @@ expdict['season']          = None     # Season of AMV Index (not yet implemented
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
 expdict['norm']            = True     # Indicate if target was normalized
+expdict['stdspace']        = False    # Set to true to standardize predictors in space
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -122,15 +155,15 @@ Single Variable Training for 4 Layer Fully-Connected NN, Cross Validation Test
 """
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
-expname                    = "FNN4_128_SingleVar_CV"
+expname                         = "FNN4_128_SingleVar_CV"
 
 # Copy dictionary from above
 expdict = train_params_all["FNN4_128_SingleVar_Rewrite"].copy()
 
 # Cross Validation Options
-expdict['cv_loop']         = True    # Repeat for cross-validation
-percent_test               = 1 - (expdict['percent_train'] + expdict['percent_val'])
-expdict['cv_offset']       = percent_test       # Set cv option. Default is test size chunk
+expdict['cv_loop']              = True    # Repeat for cross-validation
+percent_test                    = 1 - (expdict['percent_train'] + expdict['percent_val'])
+expdict['cv_offset']            = percent_test       # Set cv option. Default is test size chunk
 expdict['shuffle_class']        = False              # Set to True to sample DIFFERENT subsets prior to class subsetting
 expdict['shuffle_trainsplit']   = True             # Set to False to maintain same set for train/test/val split
 
@@ -183,6 +216,7 @@ expdict['season']          = None     # Season of AMV Index (not yet implemented
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
 expdict['norm']            = True     # Indicate if target was normalized
+expdict['stdspace']        = False    # Set to true to standardize predictors in space
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -275,6 +309,7 @@ expdict['season']          = None     # Season of AMV Index (not yet implemented
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
 expdict['norm']            = True     # Indicate if target was normalized
+expdict['stdspace']        = False    # Set to true to standardize predictors in space
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -445,6 +480,7 @@ expdict['season']          = None     # Season of AMV Index (not yet implemented
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
 expdict['norm']            = True     # Indicate if target was normalized
+expdict['stdspace']        = False    # Set to true to standardize predictors in space
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = True     # Use PiControl Data
 
@@ -531,9 +567,6 @@ expdict["percent_val"]     = 0.10
 
 train_params_all[expname] = expdict.copy()
 
-
-
-
 #%% 2023.06.06 Rerun
 """
 
@@ -557,6 +590,7 @@ expdict['season']          = None     # Season of AMV Index (not yet implemented
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
 expdict['norm']            = True     # Indicate if target was normalized
+expdict['stdspace']        = False    # Set to true to standardize predictors in space
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -668,7 +702,7 @@ train_params_all[expname] = expdict.copy()
 #%% CNN2_LRP Paper Run
 """
 
-FNN4_128_SingleVar_PaperRun
+CNN2_PaperRun
 
 Old Singlevar Script, prior to rewrite
 
@@ -688,6 +722,7 @@ expdict['season']          = None     # Season of AMV Index (not yet implemented
 expdict['lowpass']         = False    # True if the target was low-pass filtered
 expdict['regrid']          = None     # Regrid option of data
 expdict['norm']            = True     # Indicate if target was normalized
+expdict['stdspace']        = False    # Set to true to standardize predictors in space
 expdict['mask']            = True     # True for land-ice masking
 expdict["PIC"]             = False    # Use PiControl Data
 
@@ -734,6 +769,30 @@ expdict['batch_size']     = 32                   # Pairs of predictions
 expdict['unfreeze_all']   = True                 # Set to true to unfreeze all layers, false to only unfreeze last layer
 
 train_params_all[expname] = expdict.copy()
+
+
+#%%
+
+
+"""
+"FNN4_128_SingleVar_PaperRun_stdspace"
+    Copies FNN4_128_SingleVar_PaperRun, but trains networks with spatially-standardized predictors
+
+
+"""
+
+# # Create Experiment Directory (note that expname = expdir in the original script)
+expname                    = "FNN4_128_SingleVar_PaperRun_stdspace"
+
+# Copy dictionary from above
+expdict                   = train_params_all["FNN4_128_SingleVar_PaperRun"].copy()
+
+# Set custom/new params
+expdict['stdspace']       = True
+train_params_all[expname] = expdict.copy()
+
+
+#%%
 
 """
 
