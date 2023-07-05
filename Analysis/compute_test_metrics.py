@@ -120,13 +120,13 @@ nens_test      = len(ens_test)
 # Copied segment from train_NN_CESM1.py
 
 # Load data + target
-load_dict                      = am.prepare_predictors_target(varnames,eparams,return_nfactors=True,load_all_ens=True)
+load_dict                      = am.prepare_predictors_target(varnames,eparams,return_nfactors=True,load_all_ens=True,return_test_set=True)
 data                           = load_dict['data']
 target_class                   = load_dict['target_class']
 
 # Pick just the testing set
-data                           = data[:,ens_test,...]
-target_class                   = target_class[ens_test,:]
+data                           = load_dict['data_test']#data[:,ens_test,...]
+target_class                   = load_dict['target_class_test']#target_class[ens_test,:]
 
 # Get necessary sizes
 nchannels,nens,ntime,nlat,nlon = data.shape             
