@@ -13,11 +13,6 @@ Created on Fri May 26 07:41:31 2023
 @author: gliu
 """
 
-import sys
-import numpy as np
-import os
-import time
-import tqdm
 
 import torch
 from torch import nn
@@ -27,13 +22,9 @@ import sys
 import numpy as np
 import os
 import time
-import tqdm
+import
 
-import torch
-from torch import nn
-from torch.utils.data import DataLoader, TensorDataset,Dataset
-
-
+import matplotlib.pyplot as plt
 from sklearn.metrics.pairwise import pairwise_distances
 
 
@@ -49,6 +40,8 @@ import predict_amv_params as pparams
 import train_cesm_params as train_cesm_params
 import amv_dataloader as dl
 import amvmod as am
+
+import pamv_visualizer as pviz
 
 # Load Predictor Information
 bbox          = pparams.bbox
@@ -81,8 +74,10 @@ eparams['varnames'] = varnames
 eparams['leads']    = leads
 
 
-
-
+# Model Analog Settings
+# Indicate k 
+selected_k                     =np.arange(1,11,1)
+thres                          =.37
     
 # ============================================================
 # End User Edits ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -108,14 +103,18 @@ else:
 # ----------------------------------------------
 
 # Load data + target
-load_dict                      = am.prepare_predictors_target(varnames,eparams,return_nfactors=True,return_test_set=True)
+load_dict                      = am.prepare_predictors_target(varnames,eparams,return_target_values=True,
+                                                              return_nfactors=True,return_test_set=True)
 data                           = load_dict['data']
 target_class                   = load_dict['target_class']
+target                         = load_dict['target']
 
 # Get separate testing set
 data_test                      = load_dict['data_test']
+target_test                    = load_dict['target_test']
 target_class_test              = load_dict['target_class_test']
 nens_test                      = data_test.shape[1]
+
 
 # Get necessary sizes
 nchannels,nens,ntime,nlat,nlon = data.shape             
@@ -123,8 +122,7 @@ inputsize                      = nchannels*nlat*nlon    # Compute inputsize to r
 nclasses                       = len(eparams['thresholds'])+1
 nlead                          = len(leads)
 
-# Indicate k 
-selected_k                     =np.arange(1,11,1)
+
 
 # Debug messages
 if debug:
@@ -172,55 +170,38 @@ predictor_refids --> array of the predictor refids
 
 
 #%%
-class model_analog_amv:
-    def __init__(self,predictor,target):
-        super().__init__()
-        self.library     = predictor # [sample x channel x lat x lon]
-        self.target      = target    # [sample x time]
+# class model_analog_amv:
+#     def __init__(self,predictor,target):
+#         super().__init__()
+#         self.library     = predictor # [sample x channel x lat x lon]
+#         self.target      = target    # [sample x time]
         
     
-    def calc_distance(x,y):
-        # y is assumed to be [1 x channel x lat x lon]
-        # Compute domain-averaged standard deviation for each variable
-        std_i_x       = np.nanmean(np.nanstd(x,0),(1,2)) # [channel] # std across sample, then mean lat/lon
-        std_i_y       = np.nanmean(np.nanstd(y,0),(1,2)) # [channel] 
-        dist    = np.nansum((x/std_i_x[None,:,None,None] - y/std_i_x[None,:,None,None])**2,(1,2,3)) # sum across channel, lat, lon
-        # nsamples      = y.shape[0]
-        # dists         = []
-        # for n in range(nsamples):
-        #     dist    = np.nansum((x/std_i_x[None,:,None,None] - y[[n],...]/std_i_x[None,:,None,None])**2,(1,2,3)) # sum across channel, lat, lon
-        #     dists.append(dist)
-        # dists = np.array(dists) # [sample, distances to train samples]
-        return dist # [distance to train samples]
+#     def calc_distance(x,y):
+#         # y is assumed to be [1 x channel x lat x lon]
+#         # Compute domain-averaged standard deviation for each variable
+#         std_i_x       = np.nanmean(np.nanstd(x,0),(1,2)) # [channel] # std across sample, then mean lat/lon
+#         std_i_y       = np.nanmean(np.nanstd(y,0),(1,2)) # [channel] 
+#         dist    = np.nansum((x/std_i_x[None,:,None,None] - y/std_i_x[None,:,None,None])**2,(1,2,3)) # sum across channel, lat, lon
+#         # nsamples      = y.shape[0]
+#         # dists         = []
+#         # for n in range(nsamples):
+#         #     dist    = np.nansum((x/std_i_x[None,:,None,None] - y[[n],...]/std_i_x[None,:,None,None])**2,(1,2,3)) # sum across channel, lat, lon
+#         #     dists.append(dist)
+#         # dists = np.array(dists) # [sample, distances to train samples]
+#         return dist # [distance to train samples]
         
-    def find_match(self,sample,ensemble_size):
-        self.distances = self.calc_distance(self.library,self.sample) # Compute the distances
-        # Get the [K] closest distances
-        np.argsort(self.distances
-        
-        
-        
-        # sample = [[sample] x channel x lat x lon]
+#     def find_match(self,sample,ensemble_size):
+#         self.distances = self.calc_distance(self.library,self.sample) # Compute the distances
+#         # Get the [K] closest distances
+#         np.argsort(self.distances
         
         
         
+#         # sample = [[sample] x channel x lat x lon]
         
-        
-        
-    
-    
-    def forward(self, x):
-        x = self.conv1(x)
-        x = self.pool1(x)
-        x = self.activ1(x)
-        x = self.conv2(x)
-        x = self.pool2(x)
-        x = self.activ2(x)
-        x = torch.flatten(x, 1) # flatten all dimensions except batch
-        x = self.fc1(x)
-        x = self.activ3(x)
-        x = self.fc2(x)
-        return x
+
+#         return x
     
 
 
@@ -258,6 +239,8 @@ d = pairwise_distances(y,x,metric='euclidean')
 # ------------------------------------------------------------
 # %% Looping for runid
 # ------------------------------------------------------------
+
+use_target_value = True
 
 # Print Message
 print("Running [train_NN_CESM1.py] with the following settings:")
@@ -305,7 +288,7 @@ totalacc_all = np.zeros((nleads,nk))
 # -----------------------
 # 07. Loop by Leadtime...
 # -----------------------
-for l,lead in enumerate(leads):
+for l,lead in tqdm.tqdm(enumerate(leads)):
     
     # --------------------------
     # 08. Apply lead/lag to data
@@ -332,18 +315,38 @@ for l,lead in enumerate(leads):
     classacc_byk=[]
     totalacc_byk=[]
     for ik,k_closest in enumerate(selected_k):
+        
         nsamples_test       = X_test.shape[0]
         nearest_classes_all = []
         predicted_class     = []
         for n in range(nsamples_test):
             # Grab corresponding k-closest cases from the library
             id_sel          = id_sort[n,id_sort[n,:]]
-            nearest_classes = y_class[id_sel,0][:k_closest]
-            nearest_classes_all.append(nearest_classes)
             
-            # Take mean of class and use as predction
-            predicted_class.append(np.round(nearest_classes.mean()).astype(int))
-            #print(dists[n,id_sel])
+            if use_target_value:
+                # Get the value
+                _,y_lib_values = am.apply_lead(predictors,target,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
+                nearest_values  = y_lib_values[id_sel,0][:k_closest]
+                predicted_value = nearest_values.mean()
+                
+                # Classify base on threshold
+                if predicted_value <= -thres:
+                    pred = 2
+                elif predicted_value > thres:
+                    pred = 0
+                else:
+                    pred = 1
+                predicted_class.append(pred)
+                
+                
+                
+            else: # Use target class
+                nearest_classes = y_class[id_sel,0][:k_closest]
+                nearest_classes_all.append(nearest_classes)
+                
+                # Take mean of class and use as prediction
+                predicted_class.append(np.round(nearest_classes.mean()).astype(int))
+                #print(dists[n,id_sel])
         predicted_class = np.array(predicted_class)[:,None] # [sample x 1]
         predictions_byk.append(predicted_class)
         
@@ -355,33 +358,58 @@ for l,lead in enumerate(leads):
     # Make plot to see how distribution of predictions changes with # of analogs
     if debug:
         fig,axs = plt.subplots(2,7,constrained_layout=True,figsize=(12,4.5))
-        for a in range(14):
+        for a in range(nk):
             ax = axs.flatten()[a]
             ax.hist(predictions_byk[a],bins=np.arange(-1,4,1))
             ax.set_title("k=%i"% np.arange(1,15,1)[a])
             ax.set_xlim([-1,3])
         plt.suptitle("%02iyr-Lead Model Analog Forecast for Predictors: %s" % (lead,str(varnames)))
         plt.savefig("%sModel_Analog_Forecast_byk_lead%02i.png" % (pparams.figpath,lead),dpi=150,bbox_inches='tight')
-        
-    
-    
     
     # Look at accuracy
     
     
-    # Testing....
-    dist = dists[0,:]
+    # # Testing....
+    # dist = dists[0,:]
     
-    # Get indices to sort by distance (closest to furthest)
-    id_sort = np.argsort(dist)
+    # # Get indices to sort by distance (closest to furthest)
+    # id_sort = np.argsort(dist)
     
-    #  Grab corresponding Indices
+    # #  Grab corresponding Indices
     
-    nearest_classes = y_class[id_sort,0][:k_closest]
-    predicted_class = np.nanmean(nearest_classes)
+    # nearest_classes = y_class[id_sort,0][:k_closest]
+    # predicted_class = np.nanmean(nearest_classes)
     
+#%% Save the output
+
+
+savename = "../../CESM_data/%s/Model_Analog_Forecast.npz" % (expdir)
+
+savedict = {
+    "selected_k" : selected_k,
+    "leads"      : leads,
+    "classacc_all" : classacc_all,
+    "totalacc_all" : totalacc_all,
+    }
+np.savez(savename,**savedict,allow_pickle=True)
+
+
+#%% Visualize accuracy changes by k
+
+
+fig,axs = pviz.init_classacc_fig(leads,)
+
+for a in range(3):
+    ax = axs[a]
+    for k in range(nk):
+        ax.plot(classacc_all[:,k,a],label="k=%i"% selected_k[k])
+    ax.legend(ncol=4)
     
-    
+plt.suptitle("Model Analog Forecast",fontsize=24)
+figname = "%sModel_Analog_Forecast_allvars.png" % pparams.figpath
+plt.savefig(figname,dpi=150,bbox_inches='tight')
+
+
     
     
     
