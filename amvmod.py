@@ -2794,7 +2794,7 @@ def prepare_predictors_target(varnames,eparams,debug=False,
         # Add testing sets to the dictionary
         load_dict['data_test']         = data_test
         load_dict['target_test']       = target_test
-        load_dict['target_test_class'] = target_test_class
+        load_dict['target_class_test'] = target_test_class
     return load_dict
 
 #%% Network Architectures (maybe move to a different script)
