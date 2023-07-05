@@ -2659,7 +2659,7 @@ def normalize_ds(ds):
 def prepare_predictors_target(varnames,eparams,debug=False,
                            return_target_values=False,
                            return_nfactors=False,load_all_ens=False,
-                           savestd=True):
+                           savestd=True,return_test_set=False):
     """ Prepares predictors and target. Works with output from:
         [prep_data_byvariable, make_landice_mask, prepare_regional_targets]
         Does the following:
@@ -2680,6 +2680,8 @@ def prepare_predictors_target(varnames,eparams,debug=False,
             return_nfactors [BOOL]      : True to return normalization factors (mu and sigma)
             load_all_ens [BOOL]         : True to load all ensemble members
             savestd [BOOL]              : True to save spatial standardization factors
+            return_test_set [BOOL]      : True to load the testing set
+            
             
         Returns:
             data           [ARRAY : channel x ens x year x lat x lon] : Normalized + Masked Predictors
@@ -2782,6 +2784,17 @@ def prepare_predictors_target(varnames,eparams,debug=False,
         load_dict['target'] = target
     if return_nfactors:
         load_dict['nfactors_byvar'] = nfactors_byvar
+    if return_test_set: # Get test set
+        # Load the data
+        data_test                      = data[:,eparams['ens']:,...]
+        # Reclassify the targets
+        target_test                    = target[eparams['ens']:,:]
+        target_test_class              = make_classes(target_test.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
+        target_test_class              = target_test_class.reshape(target_test.shape)
+        # Add testing sets to the dictionary
+        load_dict['data_test']         = data_test
+        load_dict['target_test']       = target_test
+        load_dict['target_test_class'] = target_test_class
     return load_dict
 
 #%% Network Architectures (maybe move to a different script)
