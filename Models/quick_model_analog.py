@@ -33,6 +33,11 @@ import torch
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 
+
+from sklearn.metrics.pairwise import pairwise_distances
+
+
+
 #%% Load custom packages and setup parameters
 
 machine = 'Astraeus' # Indicate machine (see module packages section in pparams)
@@ -63,7 +68,7 @@ expdir              = "FNN4_128_SingleVar_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Set some looping parameters and toggles
-varnames            = ['SSH',]#"SST","SSS","SLP","NHFLX",]       # Names of predictor variables
+varnames            = ['SSH',"SST","SSS","SLP","NHFLX",]       # Names of predictor variables
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 
 # Other toggles
@@ -107,14 +112,19 @@ load_dict                      = am.prepare_predictors_target(varnames,eparams,r
 data                           = load_dict['data']
 target_class                   = load_dict['target_class']
 
+# Get separate testing set
 data_test                      = load_dict['data_test']
-target_class_test              = load_dict['target_test_class']
+target_class_test              = load_dict['target_class_test']
+nens_test                      = data_test.shape[1]
 
 # Get necessary sizes
 nchannels,nens,ntime,nlat,nlon = data.shape             
 inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
 nclasses                       = len(eparams['thresholds'])+1
 nlead                          = len(leads)
+
+# Indicate k 
+selected_k                     =np.arange(1,11,1)
 
 # Debug messages
 if debug:
@@ -159,22 +169,40 @@ predictor_refids --> array of the predictor refids
 
 
 
+
+
 #%%
 class model_analog_amv:
     def __init__(self,predictor,target):
         super().__init__()
-        self.library = predictor # [channel x sample x lat x lon]
-        self.target  = target    # [sample x time]
+        self.library     = predictor # [sample x channel x lat x lon]
+        self.target      = target    # [sample x time]
+        
     
     def calc_distance(x,y):
+        # y is assumed to be [1 x channel x lat x lon]
         # Compute domain-averaged standard deviation for each variable
-        std_i_x = np.nanmean(np.nanstd(x,1),(1,2)) # [channel]
-        std_i_y = np.nanmean(np.nanstd(y,1),(1,2)) # [channel]
+        std_i_x       = np.nanmean(np.nanstd(x,0),(1,2)) # [channel] # std across sample, then mean lat/lon
+        std_i_y       = np.nanmean(np.nanstd(y,0),(1,2)) # [channel] 
+        dist    = np.nansum((x/std_i_x[None,:,None,None] - y/std_i_x[None,:,None,None])**2,(1,2,3)) # sum across channel, lat, lon
+        # nsamples      = y.shape[0]
+        # dists         = []
+        # for n in range(nsamples):
+        #     dist    = np.nansum((x/std_i_x[None,:,None,None] - y[[n],...]/std_i_x[None,:,None,None])**2,(1,2,3)) # sum across channel, lat, lon
+        #     dists.append(dist)
+        # dists = np.array(dists) # [sample, distances to train samples]
+        return dist # [distance to train samples]
+        
+    def find_match(self,sample,ensemble_size):
+        self.distances = self.calc_distance(self.library,self.sample) # Compute the distances
+        # Get the [K] closest distances
+        np.argsort(self.distances
         
         
-        return np.nansum((x/std_i_x[:,None,None,None,None] - y/std_i_x[:,None,None,None,None])**2)
-    
-    def find_match(self,sample):
+        
+        # sample = [[sample] x channel x lat x lon]
+        
+        
         
         
         
@@ -195,6 +223,38 @@ class model_analog_amv:
         return x
     
 
+
+def calc_distance(x,y):
+    # y is assumed to be [1 x channel x lat x lon]
+    # Compute domain-averaged standard deviation for each variable (following Ding et al. 2018)
+    std_i_x       = np.nanmean(np.nanstd(x,0),(1,2)) # [channel] # std across sample, then mean lat/lon
+    std_i_y       = np.nanmean(np.nanstd(y,0),(1,2)) # [channel] 
+    nsamples_y    = y.shape[0]
+    dists         = []
+    # Simple RMS distance normalized by amt above
+    for n in tqdm(range(nsamples_y)):
+        dist    = np.nansum((x/std_i_x[None,:,None,None] - y[[n],...]/std_i_x[None,:,None,None])**2,(1,2,3)) # sum across channel, lat, lon
+        dists.append(dist)
+    dists = np.array(dists) # [sample, distances to train samples]
+    return dists # [distance to train samples]
+    
+
+def calc_rms_distance(x,y):
+    #std_i_x       = np.nanmean(np.nanstd(x,0),(1) # [channel] # std across sample, then mean lat/lon
+    #std_i_y       = np.nanmean(np.nanstd(y,0),(1)) # [channel] 
+    #dist    = np.nansum((x/std_i_x[None,:,] - y/std_i_x[None,:,None,None])**2,(1,2,3)) 
+    return np.nansum((x-y[[0],...])**2,1)
+
+def std_predictor(x):
+    std_i_x       = np.nanmean(np.nanstd(x,0),(1,2))
+    return x/std_i_x[None,:,None,None]
+
+
+x = (std_predictor(X)).reshape(X.shape[0],np.prod(X.shape[1:]))
+y = (std_predictor(X_test)).reshape(X_test.shape[0],np.prod(X_test.shape[1:]))
+d = pairwise_distances(y,x,metric='euclidean')
+#d = pairwise_distances(y,x,metric=calc_rms_distance)
+
 # ------------------------------------------------------------
 # %% Looping for runid
 # ------------------------------------------------------------
@@ -213,134 +273,115 @@ print("\tShuffle        : " + str(eparams['shuffle_trainsplit']))
 # ------------------------
 # 04. Loop by predictor...
 # ------------------------
-for v,varname in enumerate(varnames): 
-    vt = time.time()
-    predictors = data[[v],...] # Get selected predictor
-    
 
-        
-    # Preallocate Evaluation Metrics...
-    train_loss_grid = [] #np.zeros((max_epochs,nlead))
-    test_loss_grid  = [] #np.zeros((max_epochs,nlead))
-    val_loss_grid   = [] 
-    
-    train_acc_grid  = []
-    test_acc_grid   = [] # This is total_acc
-    val_acc_grid    = []
-    
-    acc_by_class    = []
-    total_acc       = []
-    yvalpred        = []
-    yvallabels      = []
-    sampled_idx     = []
-    thresholds_all  = []
-    sample_sizes    = []
-    
-    # -----------------------
-    # 07. Loop by Leadtime...
-    # -----------------------
-    for l,lead in enumerate(leads):
-        
-        
-        if target_indices is None:
-            # --------------------------
-            # 08. Apply lead/lag to data
-            # --------------------------
-            # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-            X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
-            
-            
-            # ----------------------
-            # 09. Select samples
-            # ----------------------
-            if (eparams['shuffle_trainsplit'] is True) or (l == 0):
-                if eparams['nsamples'] is None: # Default: nsamples = smallest class
-                    threscount = np.zeros(nclasses)
-                    for t in range(nclasses):
-                        threscount[t] = len(np.where(y_class==t)[0])
-                    eparams['nsamples'] = int(np.min(threscount))
-                    print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
-                y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
-            
-            else:
-                
-                print("Select the pre-sampled indices")
-                shuffidx = sampled_idx[l-1]
-                y_class  = y_class[shuffidx,...]
-                X        = X[shuffidx,...]
-                am.count_samples(eparams['nsamples'],y_class)
-            shuffidx = shuffidx.astype(int)
-        else:
-            print("Using preselected indices")
-            pred_indices = predictor_indices[l]
-            nchan        = predictors.shape[0]
-            y_class      = target_class.reshape((ntime*nens,1))[target_indices,:]
-            X            = predictors.reshape((nchan,nens*ntime,nlat,nlon))[:,pred_indices,:,:]
-            X            = X.transpose(1,0,2,3) # [sample x channel x lat x lon]
-            shuffidx     = target_indices    
-        
-        
-        
-        
-        
-        
-        # # --------------------------------------------------------------------------------
-        # # Steps 10-12 (Split Data, Train/Test/Validate Model, Calculate Accuracy by Class)
-        # # --------------------------------------------------------------------------------
-        output = am.train_NN_lead(X,y_class,eparams,pparams,debug=debug,checkgpu=checkgpu)
-        model,trainloss,valloss,testloss,trainacc,valacc,testacc,y_predicted,y_actual,class_acc,lead_acc = output
-        
-        # Append outputs for the leadtime
-        train_loss_grid.append(trainloss)
-        val_loss_grid.append(valloss)
-        test_loss_grid.append(testloss)
-        
-        train_acc_grid.append(trainacc)
-        val_acc_grid.append(valacc)
-        test_acc_grid.append(testacc)
-        
-        acc_by_class.append(class_acc)
-        total_acc.append(lead_acc)
-        yvalpred.append(y_predicted)
-        yvallabels.append(y_actual)
-        sampled_idx.append(shuffidx) # Save the sample indices
-        sample_sizes.append(eparams['nsamples'])
-        
-        # ------------------------------
-        # 13. Save the model and metrics
-        # ------------------------------
-        if savemodel:
-            modout = "../../CESM_data/%s/Models/%s_%s_lead%02i_classify.pt" %(expdir,expname,varname,lead)
-            torch.save(model.state_dict(),modout)
-        
-        # Save Metrics
-        savename = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
-        np.savez(savename,**{
-                  'train_loss'     : train_loss_grid,
-                  'test_loss'      : test_loss_grid,
-                  'val_loss'       : val_loss_grid,
-                  'train_acc'      : train_acc_grid,
-                  'test_acc'       : test_acc_grid,
-                  'val_acc'        : val_acc_grid,
-                  'total_acc'      : total_acc,
-                  'acc_by_class'   : acc_by_class,
-                  'yvalpred'       : yvalpred,
-                  'yvallabels'     : yvallabels,
-                  'sampled_idx'    : sampled_idx,
-                  'thresholds_all' : thresholds_all,
-                  'exp_params'     : eparams,
-                  'sample_sizes'   : sample_sizes,
-                  }
-                  )
-        
-        # Clear some memory
-        del model
-        torch.cuda.empty_cache()  # Save some memory
-        
-        print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
-        # End Lead Loop >>>
+vt = time.time()
+predictors      = data[:,...] # Get selected predictor
+predictors_test = data_test[:,...]
 
-    print("\nPredictor %s finished in %.2fs" % (varname,time.time()-vt))
-    # End Predictor Loop >>>
-print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
-             
+    
+# Preallocate Evaluation Metrics...
+train_loss_grid = [] #np.zeros((max_epochs,nlead))
+test_loss_grid  = [] #np.zeros((max_epochs,nlead))
+val_loss_grid   = [] 
+
+train_acc_grid  = []
+test_acc_grid   = [] # This is total_acc
+val_acc_grid    = []
+
+acc_by_class    = []
+total_acc       = []
+yvalpred        = []
+yvallabels      = []
+sampled_idx     = []
+thresholds_all  = []
+sample_sizes    = []
+
+nk     = len(selected_k)
+nleads  = len(leads)
+
+classacc_all = np.zeros((nleads,nk,3,)) # [lead,classes]
+totalacc_all = np.zeros((nleads,nk))
+
+# -----------------------
+# 07. Loop by Leadtime...
+# -----------------------
+for l,lead in enumerate(leads):
+    
+    # --------------------------
+    # 08. Apply lead/lag to data
+    # --------------------------
+    # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+    X,y_class           = am.apply_lead(predictors,target_class,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
+    X_test,y_class_test = am.apply_lead(predictors_test,target_class_test,lead,reshape=True,ens=nens_test,tstep=ntime)
+    
+    #
+    # %
+    #
+    
+    # Normalize and compute distance (replace with scikitlearn to speed up)
+    dists = calc_distance(X,X_test) # [test_sample, distance_to_train_sample]
+    
+    # Get indices to sort by distance (closest to furthest)
+    id_sort = np.argsort(dists,axis=-1)
+    if debug:
+        iii=2 #Print to check if distances were actually sorted...
+        print(dists[iii,id_sort[iii,:]])
+    
+    
+    predictions_byk=[]
+    classacc_byk=[]
+    totalacc_byk=[]
+    for ik,k_closest in enumerate(selected_k):
+        nsamples_test       = X_test.shape[0]
+        nearest_classes_all = []
+        predicted_class     = []
+        for n in range(nsamples_test):
+            # Grab corresponding k-closest cases from the library
+            id_sel          = id_sort[n,id_sort[n,:]]
+            nearest_classes = y_class[id_sel,0][:k_closest]
+            nearest_classes_all.append(nearest_classes)
+            
+            # Take mean of class and use as predction
+            predicted_class.append(np.round(nearest_classes.mean()).astype(int))
+            #print(dists[n,id_sel])
+        predicted_class = np.array(predicted_class)[:,None] # [sample x 1]
+        predictions_byk.append(predicted_class)
+        
+        # Compute accuracy
+        output = am.compute_class_acc(predicted_class,y_class_test,3)
+        classacc_all[l,ik,:] = output[1]
+        totalacc_all[l,ik] = output[0]
+    
+    # Make plot to see how distribution of predictions changes with # of analogs
+    if debug:
+        fig,axs = plt.subplots(2,7,constrained_layout=True,figsize=(12,4.5))
+        for a in range(14):
+            ax = axs.flatten()[a]
+            ax.hist(predictions_byk[a],bins=np.arange(-1,4,1))
+            ax.set_title("k=%i"% np.arange(1,15,1)[a])
+            ax.set_xlim([-1,3])
+        plt.suptitle("%02iyr-Lead Model Analog Forecast for Predictors: %s" % (lead,str(varnames)))
+        plt.savefig("%sModel_Analog_Forecast_byk_lead%02i.png" % (pparams.figpath,lead),dpi=150,bbox_inches='tight')
+        
+    
+    
+    
+    # Look at accuracy
+    
+    
+    # Testing....
+    dist = dists[0,:]
+    
+    # Get indices to sort by distance (closest to furthest)
+    id_sort = np.argsort(dist)
+    
+    #  Grab corresponding Indices
+    
+    nearest_classes = y_class[id_sort,0][:k_closest]
+    predicted_class = np.nanmean(nearest_classes)
+    
+    
+    
+    
+    
+    
