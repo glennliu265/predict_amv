@@ -2669,8 +2669,8 @@ def prepare_predictors_target(varnames,eparams,debug=False,
         4. Change NaNs to zero
         5. Get Threshold Values
         6. Standardize predictors in space (optional)
-        7. Subset to ensemble
-        8. Make classes
+        7. Make classes
+        8. Subset to ensemble
         
         Inputs:
             eparams  [DICT]             : Parameter dictionary, set in train_cesm_parameters.
@@ -2756,20 +2756,26 @@ def prepare_predictors_target(varnames,eparams,debug=False,
         assert check, "Standardized values are not below 2!"
         
     # ------------------
-    # 7. Subset predictor and get dimensions, eparams['ens']
-    # ------------------
-    if load_all_ens is False: # Subset according to ens (default)
-        data   = data[:,0:eparams['ens'],...]
-        target = target[0:eparams['ens'],:]
-    
-    # ------------------
-    # 8. Classify AMV Events
+    # 7. Classify AMV Events
     # ------------------
     target_class = make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
     target_class = target_class.reshape(target.shape)
     if debug:
         target_class_temp = make_classes(target[:,25:].flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
         count_samples(None,target_class_temp)
+        
+    # ------------------
+    # 8. Subset predictor and get dimensions, eparams['ens']
+    # ------------------
+    if load_all_ens is False: # Subset according to ens (default)
+        if return_test_set: # Grab test set before subsetting
+            # Load the data
+            data_test                      = data[:,eparams['ens']:,...]
+            target_test                    = target[eparams['ens']:,:]
+            target_test_class              = target_class[eparams['ens']:,:]
+        # Subset the data
+        data   = data[:,0:eparams['ens'],...]
+        target = target[0:eparams['ens'],:]
     
     # Output
     load_dict = {
@@ -2785,12 +2791,6 @@ def prepare_predictors_target(varnames,eparams,debug=False,
     if return_nfactors:
         load_dict['nfactors_byvar'] = nfactors_byvar
     if return_test_set: # Get test set
-        # Load the data
-        data_test                      = data[:,eparams['ens']:,...]
-        # Reclassify the targets
-        target_test                    = target[eparams['ens']:,:]
-        target_test_class              = make_classes(target_test.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
-        target_test_class              = target_test_class.reshape(target_test.shape)
         # Add testing sets to the dictionary
         load_dict['data_test']         = data_test
         load_dict['target_test']       = target_test
