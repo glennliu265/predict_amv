@@ -32,6 +32,8 @@ from tqdm import tqdm
 import time
 import os
 
+import nitime
+
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 
 #%% Load custom packages and setup parameters
@@ -69,7 +71,7 @@ nn_param_dict      = pparams.nn_param_dict
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "FNN4_128_SingleVar_PaperRun_stdspace"
+expdir              = "FNN4_128_SingleVar_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Processing Options
@@ -173,7 +175,7 @@ General Procedure
 """
 
 all_predictors = [data[[0],...],data_std[[0],...]]
-data_names     = ("Raw","Spatially Standardized")
+data_names     = ("Raw","Temporally Standardized")
 
 # Just take the first index, since we are only looking at one lead/variable
 lead       = leads[0]
@@ -192,8 +194,9 @@ modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
 nmodels = len(modweights_lead[0])
 
 
-
-#%% Try just for one model first
+# VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+#%% Try just for one model first ( THIS SECTION IS WILL BE COPIED BELOW :(
+# Need to turn into a function))
 
 # ===================================
 # I. Data Prep
@@ -234,8 +237,7 @@ y_torch = torch.from_numpy(y_class.astype(np.compat.long))
 # Put into pytorch dataloaders
 test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
 
-
-
+# ----------------------------------
 #%% Compute and composite relevances
 
 relevances_all      = []
@@ -356,7 +358,9 @@ for ii in range(2):
     relevances_all.append(relevances_byrun)
     predictions_all.append(predictions_byrun)
     print("\nCompleted training for lead of %i in %.2fs" % (lead,time.time()-vt))
-    
+
+
+
     
 #%% Examine if ther eis a difference
 
@@ -440,6 +444,423 @@ plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
 
 savename ="%sNormalizing_Effect_%s_lead%02iyears.png" % (figpath,varname,lead)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+
+#%% Examine relevance histogram and select a threshold
+
+thres_rel   = 0.4
+fig,axs = plt.subplots(2,3,figsize=(8,4.5),constrained_layout=True)
+bins    = np.arange(0,1.1,.1)
+
+for ii in range(2):
+    for c in range(3):
+        
+        ax =axs[ii,c]
+        
+        if ii == 0:
+            ax.set_title(pparams.classes[c])
+        
+        if c == 0:
+            ax.text(-0.25, 0.55, data_names[ii], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
+
+        plotvar = relevance_composites[ii,:,c,:,:].mean(0)
+        plotvar = (plotvar / np.nanmax(np.abs(plotvar))).flatten()
+        count_above = (plotvar > thres_rel).sum()
+        
+        ax.hist(plotvar,bins=bins,edgecolor="w")
+        ax.axvline([thres_rel],ls='dashed',color="k")
+        ax.set_title("Count Above %.2f: %i" % (thres_rel,count_above))
+
+
+savename ="%sRelevanceAblation_Histogram_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+#%% Apply mask to data to see which regions remain
+
+lon = load_dict['lon']
+lat = load_dict['lat']
+
+
+# Nneed to cimposite and relevance
+
+fig,axs = plt.subplots(2,3,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(8,4.5))
+
+for ii in range(2):
+    for c in range(3):
+        
+        ax =axs[ii,c]
+        ax.set_extent(bbox)
+        ax.coastlines()
+        plotvar = relevance_composites[ii,:,c,:,:].mean(0)
+        plotvar = plotvar / np.nanmax(np.abs(plotvar))
+        
+        #relevance_mask = np.where(plotvar.flatten()>thres_rel)[0]
+        
+        plotvar[plotvar < thres_rel] = 0
+        pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-1,vmax=1,cmap="RdBu_r")
+        
+        
+        if ii == 0:
+            ax.set_title(pparams.classes[c])
+        
+        if c == 0:
+            ax.text(-0.05, 0.55, data_names[ii], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
+cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.05)
+cb.set_label("Normalized Relevance")
+plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
+
+savename ="%sRelevanceAblation_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+#%% Choose the dataset to use and replace the points with synthetic data
+
+ii            = 0 # Let's use the un-normalized dataset
+sel_c         = 0 # Select the positive class
+select_random = True
+
+# Get the predictor to use
+synth_name   = ["zeros","white noise","red noise"]
+synth_colors = ["gray","cornflowerblue","red"]
+predictor_in = predictors.reshape(1,nens,ntime,nlat*nlon)
+
+# Make mask based on selected dataset and class
+plotvar = relevance_composites[ii,:,sel_c,:,:].mean(0)
+plotvar = plotvar / np.nanmax(np.abs(plotvar))
+sel_pts =  np.where(plotvar.flatten() > thres_rel)[0]
+npts = len(sel_pts)
+if select_random:
+    sel_pts = np.random.choice(np.arange(nlat*nlon),size=npts) # Randomly select some points
+    
+
+# Create Synthetic Data
+dropped_points = []
+synthetic_data = np.zeros((3,nens,ntime,nlat*nlon,))
+for pt in tqdm(range(npts)):
+    
+    idx = sel_pts[pt]
+    
+    for e in range(nens):
+        
+        ts_in     = predictor_in[0,e,:,idx] # Get the timeseries
+        
+        # Avoid land points
+        if select_random:
+            while np.all(predictor_in[0,e,:,idx]==0):
+                idx+=1
+                if idx > nlat*nlon-1:
+                    idx = 0
+                ts_in     = predictor_in[0,e,:,idx]
+        
+            
+        # Estimate AR1 coefficient using yule-walker
+        coef,sigma=nitime.algorithms.AR_est_YW(ts_in,1)
+        
+        # Make red noise timeseries
+        X_ar,noise,aph=nitime.utils.ar_generator(ntime,sigma=sigma,coefs=coef)
+        
+        synthetic_data[2,e,:,idx] = X_ar.copy()
+        
+        # Make white noise timeseries
+        synthetic_data[1,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
+    dropped_points.append(idx)
+        
+if debug:
+    pt = 22
+    idx = sel_pts[pt]
+    fig,ax = plt.subplots(1,1,figsize=(6,3),constrained_layout=True)
+    ax.plot(predictor_in[0,e,:,idx],label="Original Timeseries",color="k")
+    for zz in range(3):
+        ax.plot(synthetic_data[zz,e,:,idx],label=synth_name[zz],color=synth_colors[zz])
+    ax.legend(ncol=3)
+    
+    
+    savename ="%sRelevanceAblation_%s_lead%02iyears_thresrel%.02f_sampletimeseries_pt%i.png" % (figpath,varname,lead,thres_rel,pt)
+    plt.savefig(savename,dpi=150,bbox_inches="tight")
+    
+
+synthetic_data = synthetic_data.reshape(3,nens,ntime,nlat,nlon)
+
+#%% Visualize which points where randomly dropped
+
+idlat,idlon=np.unravel_index(dropped_points,(nlat,nlon))
+
+fig,ax = plt.subplots(1,1,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(8,4.5))
+ax.set_extent(bbox)
+ax.coastlines()
+plotvar = relevance_composites[0,:,sel_c,:,:].mean(0)
+plotvar = plotvar / np.nanmax(np.abs(plotvar))
+ax.scatter(lon[idlon],lat[idlat])
+        
+savename ="%sRelevanceAblation_Randompoints_%s_lead%02iyears_thresrel%.02f_sampletimeseries_pt%i.png" % (figpath,varname,lead,thres_rel,pt)
+plt.savefig(savename,dpi=150,bbox_inches="tight")
+
+#%% Below this is copied code from above ^^^^^
+# Need to turn into a function))
+
+# ===================================
+# I. Data Prep
+# ===================================
+
+# IA. Apply lead/lag to data
+# --------------------------
+# X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+X,y_class = am.apply_lead(synthetic_data,target_class,lead,reshape=True,ens=nens_test,tstep=ntime)
+
+# ----------------------
+# IB. Select samples
+# ----------------------
+_,class_count = am.count_samples(None,y_class)
+if even_sample:
+    eparams['nsamples'] = int(np.min(class_count))
+    print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+    y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+
+
+# ----------------------
+# IC. Flatten inputs for FNN
+# ----------------------
+if "FNN" in eparams['netname']:
+    ndat,nchannels,nlat,nlon = X.shape
+    inputsize                = nchannels*nlat*nlon
+    outsize                  = nclasses
+    X_in                     = X.reshape(ndat,inputsize)
+        
+
+# -----------------------------
+# ID. Place data into a data loader
+# -----------------------------
+# Convert to Tensors
+X_torch = torch.from_numpy(X_in.astype(np.float32))
+y_torch = torch.from_numpy(y_class.astype(np.compat.long))
+
+# Put into pytorch dataloaders
+test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
+
+# ----------------------------------
+#%Compute and composite relevances
+
+relevances_all      = []
+predictors_all_lead = []
+predictions_all     = []
+targets_all         = []
+
+test_acc_byclass_synth = np.zeros((3,len(runids),3)) # [experiment, runid, classes]
+
+for ii in range(3):
+    
+    predictors= synthetic_data[[ii],...]
+
+    # ===================================
+    # I. Data Prep
+    # ===================================
+    
+    # IA. Apply lead/lag to data
+    # --------------------------
+    # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+    X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=nens_test,tstep=ntime)
+    
+    # ----------------------
+    # IB. Select samples
+    # ----------------------
+    _,class_count = am.count_samples(None,y_class)
+    if even_sample:
+        eparams['nsamples'] = int(np.min(class_count))
+        print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+        y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+
+    
+    # ----------------------
+    # IC. Flatten inputs for FNN
+    # ----------------------
+    if "FNN" in eparams['netname']:
+        ndat,nchannels,nlat,nlon = X.shape
+        inputsize                = nchannels*nlat*nlon
+        outsize                  = nclasses
+        X_in                     = X.reshape(ndat,inputsize)
+    
+    # -----------------------------
+    # ID. Place data into a data loader
+    # -----------------------------
+    # Convert to Tensors
+    X_torch = torch.from_numpy(X_in.astype(np.float32))
+    y_torch = torch.from_numpy(y_class.astype(np.compat.long))
+    
+    # Put into pytorch dataloaders
+    test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
+    
+    # Preallocate
+    relevances_byrun  = []
+    predictions_byrun = []
+    targets_byrun     = []
+    
+    # --------------------
+    # 05. Loop by runid...
+    # --------------------
+    for nr,runid in tqdm(enumerate(runids)):
+        rt = time.time()
+        
+        # =====================
+        # II. Rebuild the model
+        # =====================
+        # Get the models (now by leadtime)
+        modweights = modweights_lead[0][nr]
+        modlist    = modlist_lead[0][nr]
+        
+        # Rebuild the model
+        pmodel = am.recreate_model(eparams['netname'],nn_param_dict,inputsize,nclasses,nlon=nlon,nlat=nlat)
+        
+        # Load the weights
+        pmodel.load_state_dict(modweights)
+        pmodel.eval()
+        
+        # =======================================================
+        # III. Test the model separately to get accuracy by class
+        # =======================================================
+        y_predicted,y_actual,test_loss = am.test_model(pmodel,test_loader,eparams['loss_fn'],
+                                                       checkgpu=checkgpu,debug=False)
+        lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=debug,verbose=False)
+        
+        
+        test_acc_byclass_synth[ii,nr,:] = class_acc.copy()
+        
+        # Save variables
+        predictions_byrun.append(y_predicted)
+        if nr == 0:
+            targets_byrun.append(y_actual)
+        
+        # ===========================
+        # IV. Perform LRP
+        # ===========================
+        nsamples_lead = len(y_actual)
+        inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+                                          method=innmethod,
+                                          beta=innbeta)
+        model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
+        model_prediction                    = model_prediction.detach().numpy().copy()
+        sample_relevances                   = sample_relevances.detach().numpy().copy()
+        if "FNN" in eparams['netname']:
+            predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
+            sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
+        
+        # Save Variables
+        if nr == 0:
+            predictors_all_lead.append(predictor_test) # Predictors are the same across model runs
+        relevances_byrun.append(sample_relevances)
+        
+        # Clear some memory
+        del pmodel
+        torch.cuda.empty_cache()  # Save some memory
+        
+        #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+        # End Lead Loop >>>
+    
+    relevances_all.append(relevances_byrun)
+    predictions_all.append(predictions_byrun)
+    print("\nCompleted training for lead of %i in %.2fs" % (lead,time.time()-vt))
+
+#%% Look at the change in skill
+
+method  = 0
+fig,axs = plt.subplots(3,1,constrained_layout=True)
+
+for a in range(3):
+    ax = axs[a]
+    
+    
+    diff = test_acc_byclass_synth[method,:,a] - test_acc_byclass[0,:,a]
+    ax.bar(runids,diff)
+    ax.axhline([0],ls='solid',color="k")
+    ax.set_title("%s, Mean Diff: %.2f" % (pparams.classes[a],diff.mean()*100)+"%")
+    
+    ax.set_ylim([-.75,.75])
+
+
+plt.suptitle("Change in Test Accuracy Using %s Data (Relevance Threshold %.2f)" % (synth_name[method],thres_rel))
+
+figname = "%sRelevanceAblation_AccChange_%s_%s_relthres%.2f_class%s_selrand%i.png" % (figpath,expdir,synth_name[method].replace(" ",""),thres_rel,
+                                                                                      pparams.classes[sel_c],select_random)
+plt.savefig(figname,dpi=150,bbox_inches='tight')
+
+
+#%%
+
+# ===================================================
+#%% Save Relevance Output
+# ===================================================
+#Save as relevance output as a dataset
+
+st_rel = time.time()
+
+lat = load_dict['lat']
+lon = load_dict['lon']
+
+# Save variables
+save_vars      = [relevance_composites,relevance_variances,relevance_range,predictor_composites,predictor_variances,ncorrect_byclass]
+save_vars_name = ['relevance_composites','relevance_variances','relevance_range','predictor_composites','predictor_variances',
+                  'ncorrect_byclass']
+
+# Make Coords
+coords_relevances = {"lead":leads,"runid":runids,"class":pparams.classes,"lat":lat,"lon":lon}
+coords_preds      = {"lead":leads,"class":pparams.classes,"lat":lat,"lon":lon}
+coords_counts     = {"lead":leads,"runid":runids,"class":pparams.classes}
+
+# Convert to dataarray and make encoding dictionaries
+ds_all    = []
+encodings = {}
+for sv in range(len(save_vars)):
+    
+    svname = save_vars_name[sv]
+    if "relevance" in svname:
+        coord_in = coords_relevances
+    elif "predictor" in svname:
+        coord_in = coords_preds
+    elif "ncorrect" in svname:
+        coord_in = coords_counts
+    
+    da = xr.DataArray(save_vars[sv],dims=coord_in,coords=coord_in,name=svname)
+    encodings[svname] = {'zlib':True}
+    ds_all.append(da)
+    
+# Merge into dataset
+ds_all = xr.merge(ds_all)
+
+# Save Relevance data
+outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_relevance_maps.nc" % (datpath,expdir,dataset_name,varname,even_sample)
+if standardize_input:
+    outname = proc.addstrtoext(outname,"_standardizeinput")
+ds_all.to_netcdf(outname,encoding=encodings)
+print("Saved Relevances to %s in %.2fs" % (outname,time.time()-st_rel))
+
+# ===================================================
+#%% Save accuracy and prediction data
+# ===================================================
+st_acc = time.time()
+
+if save_all_relevances:
+    print("Saving all relevances!")
+    save_vars      = [relevances_all,predictor_all,]
+    save_vars_name = ["relevances","predictors",]
+    for sv in range(len(save_vars)):
+        outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_%s.npy" % (datpath,expdir,dataset_name,varname,even_sample,save_vars_name[sv])
+        np.save(outname,save_vars[sv],allow_pickle=True)
+        print("Saved %s to %s in %.2fs" % (save_vars_name[sv],outname,time.time()-st_acc))
+
+save_vars         = [total_acc_all,class_acc_all,predictions_all,targets_all,ens_test,leads,runids]
+save_vars_name    = ["total_acc","class_acc","predictions","targets","ensemble","leads","runids"]
+metrics_dict      = dict(zip(save_vars_name,save_vars))
+outname           = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_accuracy_predictions.npz" % (datpath,expdir,dataset_name,varname,even_sample)
+if standardize_input:
+    outname = proc.addstrtoext(outname,"_standardizeinput")
+np.savez(outname,**metrics_dict,allow_pickle=True)
+print("Saved Accuracy and Predictions to %s in %.2fs" % (outname,time.time()-st_acc))
+
+print("Completed calculating metrics for %s in %.2fs" % (varname,time.time()-vt))
+
+
+
+
+
 
 
 #%% Examine the relevance "gain"
@@ -533,84 +954,6 @@ for a in range(10):
     ax.plot(np.arange(1,101),pcs[:,a],label="EOF %i" % (a+1))
     ax.legend()
 
-
-
-
-
-#%% Below this is copied code...
-#%%
-
-# ===================================================
-#%% Save Relevance Output
-# ===================================================
-#Save as relevance output as a dataset
-
-st_rel = time.time()
-
-lat = load_dict['lat']
-lon = load_dict['lon']
-
-# Save variables
-save_vars      = [relevance_composites,relevance_variances,relevance_range,predictor_composites,predictor_variances,ncorrect_byclass]
-save_vars_name = ['relevance_composites','relevance_variances','relevance_range','predictor_composites','predictor_variances',
-                  'ncorrect_byclass']
-
-# Make Coords
-coords_relevances = {"lead":leads,"runid":runids,"class":pparams.classes,"lat":lat,"lon":lon}
-coords_preds      = {"lead":leads,"class":pparams.classes,"lat":lat,"lon":lon}
-coords_counts     = {"lead":leads,"runid":runids,"class":pparams.classes}
-
-# Convert to dataarray and make encoding dictionaries
-ds_all    = []
-encodings = {}
-for sv in range(len(save_vars)):
-    
-    svname = save_vars_name[sv]
-    if "relevance" in svname:
-        coord_in = coords_relevances
-    elif "predictor" in svname:
-        coord_in = coords_preds
-    elif "ncorrect" in svname:
-        coord_in = coords_counts
-    
-    da = xr.DataArray(save_vars[sv],dims=coord_in,coords=coord_in,name=svname)
-    encodings[svname] = {'zlib':True}
-    ds_all.append(da)
-    
-# Merge into dataset
-ds_all = xr.merge(ds_all)
-
-# Save Relevance data
-outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_relevance_maps.nc" % (datpath,expdir,dataset_name,varname,even_sample)
-if standardize_input:
-    outname = proc.addstrtoext(outname,"_standardizeinput")
-ds_all.to_netcdf(outname,encoding=encodings)
-print("Saved Relevances to %s in %.2fs" % (outname,time.time()-st_rel))
-
-# ===================================================
-#%% Save accuracy and prediction data
-# ===================================================
-st_acc = time.time()
-
-if save_all_relevances:
-    print("Saving all relevances!")
-    save_vars      = [relevances_all,predictor_all,]
-    save_vars_name = ["relevances","predictors",]
-    for sv in range(len(save_vars)):
-        outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_%s.npy" % (datpath,expdir,dataset_name,varname,even_sample,save_vars_name[sv])
-        np.save(outname,save_vars[sv],allow_pickle=True)
-        print("Saved %s to %s in %.2fs" % (save_vars_name[sv],outname,time.time()-st_acc))
-
-save_vars         = [total_acc_all,class_acc_all,predictions_all,targets_all,ens_test,leads,runids]
-save_vars_name    = ["total_acc","class_acc","predictions","targets","ensemble","leads","runids"]
-metrics_dict      = dict(zip(save_vars_name,save_vars))
-outname           = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_accuracy_predictions.npz" % (datpath,expdir,dataset_name,varname,even_sample)
-if standardize_input:
-    outname = proc.addstrtoext(outname,"_standardizeinput")
-np.savez(outname,**metrics_dict,allow_pickle=True)
-print("Saved Accuracy and Predictions to %s in %.2fs" % (outname,time.time()-st_acc))
-
-print("Completed calculating metrics for %s in %.2fs" % (varname,time.time()-vt))
 
 
 
