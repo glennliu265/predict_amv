@@ -46,6 +46,12 @@ percent_train = 1    # Percentage of training data
 repeat_calc   = 1  # Number of times to resample and repeat the calculations
 save_baseline = True
 
+outpath       = "../Data/Metrics/"
+savename      = "%spersistence_baseline_%s_%s_detrend%i_quantile%i_nsamples%s_repeat%i.npz" % (outpath,dataset_name,
+                                                                                            region,detrend,
+                                                                                            quantile,nsamples,repeat_calc)
+if save_baseline:
+    print("Data will be saved to %s" % savename)
 # ---------------
 #%% Load the data
 # ---------------
@@ -97,7 +103,7 @@ all_dicts = []
 for N in tqdm(range(repeat_calc)):
     out_dict = am.compute_persistence_baseline(leads,y_class,nsamples=nsamples,percent_train=percent_train)
     all_dicts.append(out_dict)
-if N == 1:
+if repeat_calc == 1:
     all_dicts = out_dict
 print(out_dict.keys())
 
@@ -105,7 +111,14 @@ print(out_dict.keys())
 #%% Save Baselines
 # ----------------
 
-if save_baseline:
+if (save_baseline) and (repeat_calc == 1):
+    np.savez(savename,**all_dicts,allow_pickle=True)
+else:
+    print("Currently only supports repeat_calc=1")
+
+
+#test = np.load(savename,allow_pickle=True)
+    
     
 
 # ------------------
