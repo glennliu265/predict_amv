@@ -1407,7 +1407,7 @@ def calc_layerdims(nx,ny,filtersizes,filterstrides,poolsizes,poolstrides,nchanne
             xsizes[i+1] = np.floor((xsizes[i+1] - poolsizes[i][0])/poolstrides[i][0]+1)
             ysizes[i+1] = np.floor((ysizes[i+1] - poolsizes[i][1])/poolstrides[i][1]+1)
             fcsizes.append(np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i]))
-    print("Dimension at layer %i is %i" % (i,np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i])))
+    #print("Dimension at layer %i is %i" % (i,np.floor(xsizes[i+1]*ysizes[i+1]*nchannels[i])))
         
         
     return int(fcsizes[-1])
