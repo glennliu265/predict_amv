@@ -122,7 +122,7 @@ nens_test      = len(ens_test)
 # Copied segment from train_NN_CESM1.py
 
 # Load data + target
-load_dict                      = am.prepare_predictors_target(varnames,eparams,return_nfactors=True,load_all_ens=True,return_test_set=True)
+load_dict                      = am.prepare_predictors_target(varnames,eparams,return_nfactors=True,load_all_ens=False,return_test_set=True)
 data                           = load_dict['data']
 target_class                   = load_dict['target_class']
 
