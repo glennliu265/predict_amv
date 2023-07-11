@@ -57,7 +57,6 @@ import amv_dataloader as dl
 import train_cesm_params as train_cesm_params
 import pamv_visualizer as pviz
 
-
 # Load relevant variables from parameter files
 bboxes  = pparams.bboxes
 regions = pparams.regions
@@ -81,14 +80,17 @@ nn_param_dict = pparams.nn_param_dict
 # Data and variable settings
 varnames       = ("SST","SSH","SSS","SLP")
 varnames_plot  = ("SST","SSH","SSS","SLP")
-expdir         = "FNN4_128_SingleVar"
+expdir         = "FNN4_128_SingleVar_PaperRun_detrended"
 eparams        = train_cesm_params.train_params_all[expdir]
 
-leads          = np.arange(0,25,3)
-leads_sel      = [0,6,12,18,24] # Subset the leads for processing
+leads          = np.arange(0,26,1)
 
 no_val         = True # Set to True for old training set, which had no validation
-nmodels        = 50 # Specify manually how much to do in the analysis
+nmodels        = 100 # Specify manually how much to do in the analysis
+
+# Compositing options
+topN           = 50 # Top models to include
+
 
 #modelname     = "FNN4_128"
 #leads         = np.arange(0,25,3)
@@ -141,7 +143,11 @@ else:
     plt.style.use('default')
     dfcol = "k"
     
-    
+
+
+# Other settings
+nclasses = 3
+
 #%% Load the data and target (copied from [test_predictor_uncertainty.py] on 2023.04.12)
 
 # Load predictor and labels, lat/lon, cut region
@@ -153,13 +159,11 @@ target_all                      = target[:eparams['ens'],:]
 data_all                        = data_all[:,:eparams['ens'],:,:,:]
 nchannels,nens,ntime,nlat,nlon  = data_all.shape
 
-
 # Make land mask
 data_mask = np.sum(data_all,(0,1,2))
 data_mask[~np.isnan(data_mask)] = 1
 if debug:
     plt.pcolormesh(data_mask),plt.colorbar()
-
 
 # Remove all NaN points
 data_all[np.isnan(data_all)]    = 0
@@ -169,7 +173,6 @@ nchannels                       = 1 # Change to 1, since we are just processing 
 inputsize                       = nchannels*nlat*nlon    # Compute inputsize to remake FNN
 nclasses                        = len(eparams['thresholds']) + 1
 nlead                           = len(leads)
-
 
 # Create Classes
 std1         = target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
@@ -182,37 +185,152 @@ else:
 target_class = am.make_classes(target.flatten()[:,None],thresholds_in,exact_value=True,reverse=True,quantiles=eparams['quantile'])
 target_class = target_class.reshape(target.shape)
 
-#%% Load model outputs and weights
 
-modweights_byvar = [] # [variable][lead][runid][?]
-modlist_byvar    = [] 
-flists           = [] 
 
-for v,varname in enumerate(varnames):
+#%% Load the relevance composites, from [compute_test_metrics.py]
+nvars       = len(varnames)
+nleads      = len(leads)
+metrics_dir = "%s%s/Metrics/Test_Metrics/" % (datpath,expdir)
+pcomps   = []
+rcomps   = []
+ds_all   = []
+acc_dict = []
+for v in range(nvars):
+    # Load the composites
+    varname = varnames[v]
+    ncname = "%sTest_Metrics_CESM1_%s_evensample0_relevance_maps.nc" % (metrics_dir,varname)
+    ds     = xr.open_dataset(ncname)
+    #ds_all.append(ds)
+    rcomps.append(ds['relevance_composites'].values)
+    pcomps.append(ds['predictor_composites'].values)
     
-    # Get the model weights
-    if "PaperRun" not in expdir and varname == "SLP":
-        varname = "PSL"
-        
-    modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
-    modweights_byvar.append(modweights_lead)
-    modlist_byvar.append(modlist_lead)
-    
-    
-    # Get list of metric files
-    search = "%s%s/Metrics/%s" % (datpath,expdir,"*%s*" % varname)
-    flist  = glob.glob(search)
-    flist  = [f for f in flist if "of" not in f]
-    flist.sort()
-    flists.append(flist)
-    print("Found %i files for %s using searchstring: %s" % (len(flist),varname,search))
-    
-# Get the shuffled indices
-expdict = am.make_expdict(flists,leads)
+    # Load the accuracies
+    ldname  = "%sTest_Metrics_CESM1_%s_evensample0_accuracy_predictions.npz" % (metrics_dir,varname)
+    npz     = np.load(ldname,allow_pickle=True)
+    expdict = proc.npz_to_dict(npz)
+    acc_dict.append(expdict)
 
-# Unpack Dictionary
-totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict,no_val)
-# shuffids [predictor][run][lead][nsamples]
+nleads,nruns,nclasses,nlat,nlon=rcomps[v].shape
+lon = ds.lon.values
+lat = ds.lat.values
+
+
+#%% Composite topN composites
+
+# Get accuracy by class [var][run x lead x class]
+class_accs  = [acc_dict[v]['class_acc'] for v in range(nvars)]
+rcomps_topN = np.zeros((nvars,nleads,nclasses,nlat,nlon))
+
+for v in range(nvars):
+    for l in tqdm(range(nleads)):
+        for c in range(nclasses):
+            
+            # Get ranking of models by test accuracy
+            acc_list = class_accs[v][:,l,c] # [runs]
+            id_hi2lo  = np.argsort(acc_list)[::-1] # Reverse to get largest value first
+            id_topN   = id_hi2lo[:topN]
+            
+            # Make composite 
+            rcomp_in  = rcomps[v][l,id_topN,c,:,:] # [runs x lat x lon]
+            rcomps_topN[v,l,c,:,:] = rcomp_in.mean(0) # Mean along run dimension
+
+
+#%% Make plot of selected leadtimes (copied from below)
+
+# Set darkmode
+darkmode = True
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+    transparent      = True
+else:
+    plt.style.use('default')
+    dfcol = "k"
+    transparent      = False
+
+#Same as above but reduce the number of leadtimes
+plot_bbox        = [-80,0,0,60]
+leadsplot        = [25,20,10,5,0]
+
+normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
+absval           = False
+cmax             = 1
+cmin             = 1
+clvl             = np.arange(-2.1,2.1,0.3)
+no_sp_label      = True
+fsz_title        = 20
+fsz_axlbl        = 18
+fsz_ticks        = 16
+cmap='cmo.balance'
+
+for c in range(3): # Loop for class
+    ia = 0
+    fig,axs = plt.subplots(4,5,figsize=(24,16),
+                           subplot_kw={'projection':proj},constrained_layout=True)
+    # Loop for variable
+    for v,varname in enumerate(varnames):
+        # Loop for leadtime
+        for l,lead in enumerate(leadsplot):
+            
+            # Get lead index
+            id_lead    = list(leads).index(lead)
+            
+            if debug:
+                print("Lead %02i, idx=%i" % (lead,id_lead))
+            
+            # Axis Formatting
+            ax = axs[v,l]
+            blabel = [0,0,0,0]
+            
+            #ax.set_extent(plot_bbox)
+            #ax.coastlines()
+            
+            if v == 0:
+                ax.set_title("Lead %02i Years" % (leads[id_lead]),fontsize=fsz_title)
+            if l == 0:
+                blabel[0] = 1
+                ax.text(-0.15, 0.55, varnames_plot[v], va='bottom', ha='center',rotation='vertical',
+                        rotation_mode='anchor',transform=ax.transAxes,fontsize=fsz_axlbl)
+            if v == (len(varnames)-1):
+                blabel[-1]=1
+            
+            ax = viz.add_coast_grid(ax,bbox=plot_bbox,blabels=blabel,fill_color="k")
+            if no_sp_label is False:
+                ax = viz.label_sp(ia,ax=ax,fig=fig,alpha=0.8,fontsize=fsz_axlbl)
+            # -----------------------------
+            
+            # --------- Composite the Relevances and variables
+            plotrel = rcomps_topN[v,id_lead,c,:,:]
+            if normalize_sample == 2:
+                plotrel = plotrel/np.max(np.abs(plotrel))
+            plotvar = pcomps[v][id_lead,c,:,:]
+            #plotvar = plotvar/np.max(np.abs(plotvar))
+            
+            
+            # Set Land Points to Zero
+            plotrel[plotrel==0] = np.nan
+            plotvar[plotrel==0] = np.nan
+            
+            # Do the plotting
+            pcm=ax.pcolormesh(lon,lat,plotrel*data_mask,vmin=-cmin,vmax=cmax,cmap=cmap)
+            cl = ax.contour(lon,lat,plotvar*data_mask,levels=clvl,colors="k",linewidths=0.75)
+            ax.clabel(cl,clvl[::2])
+            ia += 1
+            # Finish Leadtime Loop (Column)
+        # Finish Variable Loop (Row)
+    cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.025,pad=0.01)
+    cb.set_label("Normalized Relevance",fontsize=fsz_axlbl)
+    cb.ax.tick_params(labelsize=fsz_ticks)
+    
+    #plt.suptitle("Mean LRP Maps for Predicting %s using %s, \n Composite of Top %02i FNNs per leadtime" % (classes[c],varname,topN,))
+    savename = "%sPredictorComparison_LRP_%s_%s_top%02i_normalize%i_abs%i_%s_Draft2.png" % (figpath,expdir,classes[c],topN,normalize_sample,absval,ge_label_fn)
+    if darkmode:
+        savename = proc.addstrtoext(savename,"_darkmode")
+    plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
+
+
+
+_#%% Section below is the old script, where the relevance is explicilty calculated-----------------
 
 #%% Quick sanity check
 
