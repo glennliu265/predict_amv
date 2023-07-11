@@ -425,10 +425,10 @@ else:
 plot_bbox        = [-80,0,0,60]
 leadsplot        = [24,18,12,6,0]
 topN             = 25
-normalize_sample = 1 # 0=None, 1=samplewise, 2=after composite
+normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
 
-cmax             = 0.5
+cmax             = 1
 
 clvl             = np.arange(-2.2,2.2,0.2)
 
@@ -520,7 +520,7 @@ for c in range(3):
             plotvar /= topN
             if normalize_sample == 2:
                 plotrel = plotrel/np.max(np.abs(plotrel))
-                plotvar = plotvar/np.max(np.abs(plotvar))
+            plotvar = plotvar/np.max(np.abs(plotvar))
                 
             # Set Land Points to Zero
             plotrel[plotrel==0] = np.nan
