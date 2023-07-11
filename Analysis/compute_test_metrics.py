@@ -250,6 +250,8 @@ for v in range(nvars):
             inputsize                = nchannels*nlat*nlon
             outsize                  = nclasses
             X_in                     = X.reshape(ndat,inputsize)
+        else:
+            X_in = X
         
         # -----------------------------
         # ID. Place data into a data loader
