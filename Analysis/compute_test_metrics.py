@@ -21,15 +21,13 @@ Compute Test Metrics
 import numpy as np
 import sys
 import glob
-import importlib
-import copy
+
 import xarray as xr
 
 import torch
 from torch import nn
 
-import matplotlib.pyplot as plt
-import cartopy.crs as ccrs
+
 
 from tqdm import tqdm
 import time
@@ -72,7 +70,7 @@ nn_param_dict      = pparams.nn_param_dict
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "FNN4_128_SingleVar_PaperRun_detrended"
+expdir              = "CNN2_PaperRun"#"FNN4_128_SingleVar_PaperRun_detrended"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Processing Options
@@ -88,7 +86,10 @@ varnames            = ["SSH","SST","SLP","SSS","NHFLX"]       # Names of predict
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 runids              = np.arange(0,100,1)    # Which runs to do
 
+
+
 # LRP Parameters
+calc_lrp       = False # Set to True to calculate relevance composites
 innexp         = 2
 innmethod      ='b-rule'
 innbeta        = 0.1
@@ -301,141 +302,145 @@ for v in range(nvars):
             if nr == 0:
                 targets_all.append(y_actual)
             
-            # ===========================
-            # IV. Perform LRP
-            # ===========================
-            nsamples_lead = len(y_actual)
-            inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
-                                              method=innmethod,
-                                              beta=innbeta)
-            model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
-            model_prediction                    = model_prediction.detach().numpy().copy()
-            sample_relevances                   = sample_relevances.detach().numpy().copy()
-            if "FNN" in eparams['netname']:
-                predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
-                sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
             
-            # Save Variables
-            if nr == 0:
-                predictor_all.append(predictor_test) # Predictors are the same across model runs
-            relevances_lead.append(sample_relevances)
-            
-            # Clear some memory
-            del pmodel
-            torch.cuda.empty_cache()  # Save some memory
-            
-            #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
-            # End Lead Loop >>>
+            if calc_lrp:
+                # ===========================
+                # IV. Perform LRP
+                # ===========================
+                nsamples_lead = len(y_actual)
+                inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+                                                  method=innmethod,
+                                                  beta=innbeta)
+                model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
+                model_prediction                    = model_prediction.detach().numpy().copy()
+                sample_relevances                   = sample_relevances.detach().numpy().copy()
+                if "FNN" in eparams['netname']:
+                    predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
+                    sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
+                
+                # Save Variables
+                if nr == 0:
+                    predictor_all.append(predictor_test) # Predictors are the same across model runs
+                relevances_lead.append(sample_relevances)
+                
+                # Clear some memory
+                del pmodel
+                torch.cuda.empty_cache()  # Save some memory
+                
+                #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+                # End Lead Loop >>>
         relevances_all.append(relevances_lead)
         predictions_all.append(predictions_lead)
         print("\nCompleted training for %s lead %i of %i in %.2fs" % (varname,lead,leads[-1],time.time()-lt))
     
-
+    
     # =============================================================================================================================
     #%% Composite the relevances (can look at single events later, it might actually be easier to write a separate script for that)
     # =============================================================================================================================
-    # the purpose here is to get some quick, aggregate metrics
-    
-    # Need to add option to cull models in visualization script...
-    st_rel_comp          = time.time()
-    
-    relevance_composites = np.zeros((nlead,nmodels,3,nlat,nlon)) * np.nan # [lead x model x class x lat x lon]
-    relevance_variances  = relevance_composites.copy()                    # [lead x model x class x lat x lon]
-    relevance_range      = relevance_composites.copy()                    # [lead x model x class x lat x lon]
-    predictor_composites = np.zeros((nlead,3,nlat,nlon)) * np.nan         # [lead x class x lat x lon]
-    predictor_variances  = predictor_composites.copy()                    # [lead x class x lat x lon]
-    ncorrect_byclass     = np.zeros((nlead,nmodels,3))                # [lead x model x class
-    
-    for l in range(nlead):
+    if calc_lrp:
+        # the purpose here is to get some quick, aggregate metrics
         
-        for nr in tqdm(range(nmodels)):
+        # Need to add option to cull models in visualization script...
+        st_rel_comp          = time.time()
+        
+        relevance_composites = np.zeros((nlead,nmodels,3,nlat,nlon)) * np.nan # [lead x model x class x lat x lon]
+        relevance_variances  = relevance_composites.copy()                    # [lead x model x class x lat x lon]
+        relevance_range      = relevance_composites.copy()                    # [lead x model x class x lat x lon]
+        predictor_composites = np.zeros((nlead,3,nlat,nlon)) * np.nan         # [lead x class x lat x lon]
+        predictor_variances  = predictor_composites.copy()                    # [lead x class x lat x lon]
+        ncorrect_byclass     = np.zeros((nlead,nmodels,3))                # [lead x model x class
+        
+        for l in range(nlead):
             
-            predictions_model = predictions_all[l][nr] # [sample]
-            relevances_model  = relevances_all[l][nr]  # [sample x lat x lon]
+            for nr in tqdm(range(nmodels)):
+                
+                predictions_model = predictions_all[l][nr] # [sample]
+                relevances_model  = relevances_all[l][nr]  # [sample x lat x lon]
+                
+                for c in range(3):
+                    
+                    # Get correct indices
+                    class_indices                   = np.where(targets_all[l] == c)[0] # Sample indices of a particular class
+                    correct_ids                     = np.where(targets_all[l][class_indices] == predictions_model[class_indices])
+                    correct_pred_id                 = class_indices[correct_ids] # Correct predictions to composite over
+                    ncorrect                        = len(correct_pred_id)
+                    ncorrect_byclass[l,nr,c]        = ncorrect
+                    
+                    if ncorrect == 0:
+                        continue # Set NaN to model without any results
+                    # Make Composite
+                    correct_relevances               =  relevances_model[correct_pred_id,...]
+                    relevance_composites[l,nr,c,:,:] =  correct_relevances.mean(0)
+                    relevance_variances[l,nr,c,:,:]  =  correct_relevances.var(0)
+                    relevance_range[l,nr,c,:,:]      =  correct_relevances.max(0) - correct_relevances.min(0)
+                    
+                    # Make Corresponding predictor composites
+                    correct_predictors               = predictor_all[l][correct_pred_id,...]
+                    predictor_composites[l,c,:,:]    = correct_predictors.mean(0)
+                    predictor_variances[l,c,:,:]     = correct_predictors.var(0)
+        print("Saved Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
             
-            for c in range(3):
-                
-                # Get correct indices
-                class_indices                   = np.where(targets_all[l] == c)[0] # Sample indices of a particular class
-                correct_ids                     = np.where(targets_all[l][class_indices] == predictions_model[class_indices])
-                correct_pred_id                 = class_indices[correct_ids] # Correct predictions to composite over
-                ncorrect                        = len(correct_pred_id)
-                ncorrect_byclass[l,nr,c]        = ncorrect
-                
-                if ncorrect == 0:
-                    continue # Set NaN to model without any results
-                # Make Composite
-                correct_relevances               =  relevances_model[correct_pred_id,...]
-                relevance_composites[l,nr,c,:,:] =  correct_relevances.mean(0)
-                relevance_variances[l,nr,c,:,:]  =  correct_relevances.var(0)
-                relevance_range[l,nr,c,:,:]      =  correct_relevances.max(0) - correct_relevances.min(0)
-                
-                # Make Corresponding predictor composites
-                correct_predictors               = predictor_all[l][correct_pred_id,...]
-                predictor_composites[l,c,:,:]    = correct_predictors.mean(0)
-                predictor_variances[l,c,:,:]     = correct_predictors.var(0)
-    print("Saved Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
+        # ===================================================
+        #%% Save Relevance Output
+        # ===================================================
+        #Save as relevance output as a dataset
+        
+        st_rel = time.time()
+        
+        lat = load_dict['lat']
+        lon = load_dict['lon']
+        
+        # Save variables
+        save_vars      = [relevance_composites,relevance_variances,relevance_range,predictor_composites,predictor_variances,ncorrect_byclass]
+        save_vars_name = ['relevance_composites','relevance_variances','relevance_range','predictor_composites','predictor_variances',
+                          'ncorrect_byclass']
+        
+        # Make Coords
+        coords_relevances = {"lead":leads,"runid":runids,"class":pparams.classes,"lat":lat,"lon":lon}
+        coords_preds      = {"lead":leads,"class":pparams.classes,"lat":lat,"lon":lon}
+        coords_counts     = {"lead":leads,"runid":runids,"class":pparams.classes}
+        
+        # Convert to dataarray and make encoding dictionaries
+        ds_all    = []
+        encodings = {}
+        for sv in range(len(save_vars)):
             
-    # ===================================================
-    #%% Save Relevance Output
-    # ===================================================
-    #Save as relevance output as a dataset
-    
-    st_rel = time.time()
-    
-    lat = load_dict['lat']
-    lon = load_dict['lon']
-    
-    # Save variables
-    save_vars      = [relevance_composites,relevance_variances,relevance_range,predictor_composites,predictor_variances,ncorrect_byclass]
-    save_vars_name = ['relevance_composites','relevance_variances','relevance_range','predictor_composites','predictor_variances',
-                      'ncorrect_byclass']
-    
-    # Make Coords
-    coords_relevances = {"lead":leads,"runid":runids,"class":pparams.classes,"lat":lat,"lon":lon}
-    coords_preds      = {"lead":leads,"class":pparams.classes,"lat":lat,"lon":lon}
-    coords_counts     = {"lead":leads,"runid":runids,"class":pparams.classes}
-    
-    # Convert to dataarray and make encoding dictionaries
-    ds_all    = []
-    encodings = {}
-    for sv in range(len(save_vars)):
+            svname = save_vars_name[sv]
+            if "relevance" in svname:
+                coord_in = coords_relevances
+            elif "predictor" in svname:
+                coord_in = coords_preds
+            elif "ncorrect" in svname:
+                coord_in = coords_counts
+            
+            da = xr.DataArray(save_vars[sv],dims=coord_in,coords=coord_in,name=svname)
+            encodings[svname] = {'zlib':True}
+            ds_all.append(da)
+            
+        # Merge into dataset
+        ds_all = xr.merge(ds_all)
         
-        svname = save_vars_name[sv]
-        if "relevance" in svname:
-            coord_in = coords_relevances
-        elif "predictor" in svname:
-            coord_in = coords_preds
-        elif "ncorrect" in svname:
-            coord_in = coords_counts
+        # Save Relevance data
+        outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_relevance_maps.nc" % (datpath,expdir,dataset_name,varname,even_sample)
+        if standardize_input:
+            outname = proc.addstrtoext(outname,"_standardizeinput")
+        ds_all.to_netcdf(outname,encoding=encodings)
+        print("Saved Relevances to %s in %.2fs" % (outname,time.time()-st_rel))
         
-        da = xr.DataArray(save_vars[sv],dims=coord_in,coords=coord_in,name=svname)
-        encodings[svname] = {'zlib':True}
-        ds_all.append(da)
-        
-    # Merge into dataset
-    ds_all = xr.merge(ds_all)
-    
-    # Save Relevance data
-    outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_relevance_maps.nc" % (datpath,expdir,dataset_name,varname,even_sample)
-    if standardize_input:
-        outname = proc.addstrtoext(outname,"_standardizeinput")
-    ds_all.to_netcdf(outname,encoding=encodings)
-    print("Saved Relevances to %s in %.2fs" % (outname,time.time()-st_rel))
+        if save_all_relevances:
+            st_acc = time.time()
+            print("Saving all relevances!")
+            save_vars      = [relevances_all,predictor_all,]
+            save_vars_name = ["relevances","predictors",]
+            for sv in range(len(save_vars)):
+                outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_%s.npy" % (datpath,expdir,dataset_name,varname,even_sample,save_vars_name[sv])
+                np.save(outname,save_vars[sv],allow_pickle=True)
+                print("Saved %s to %s in %.2fs" % (save_vars_name[sv],outname,time.time()-st_acc))
 
     # ===================================================
     #%% Save accuracy and prediction data
     # ===================================================
     st_acc = time.time()
-    
-    if save_all_relevances:
-        print("Saving all relevances!")
-        save_vars      = [relevances_all,predictor_all,]
-        save_vars_name = ["relevances","predictors",]
-        for sv in range(len(save_vars)):
-            outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_%s.npy" % (datpath,expdir,dataset_name,varname,even_sample,save_vars_name[sv])
-            np.save(outname,save_vars[sv],allow_pickle=True)
-            print("Saved %s to %s in %.2fs" % (save_vars_name[sv],outname,time.time()-st_acc))
     
     save_vars         = [total_acc_all,class_acc_all,predictions_all,targets_all,ens_test,leads,runids]
     save_vars_name    = ["total_acc","class_acc","predictions","targets","ensemble","leads","runids"]
