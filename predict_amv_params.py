@@ -77,15 +77,44 @@ varcolors     = ("r","limegreen","pink","darkblue","purple","cyan")
 threscolors   = ("r","gray","cornflowerblue")
 
 # Variables (all, new since 2022.12.09, updated 2023.02.07 adding UOHC/UOSC)
-varnames      = ("SST","SSS","PSL","BSF","SSH","HMXL","UOHC","UOSC")
-varnamesplot  = ("SST","SSS","SLP","BSF","SSH","MLD","UOHC","UOSC")
+varnames      = ("SST","SSS","PSL","BSF","SSH","HMXL","UOHC","UOSC","NHFLX")
+varnamesplot  = ("SST","SSS","SLP","BSF","SSH","MLD","UOHC","UOSC","NHFLX")
 varnames_long = ("Temperature","Salinity","Pressure","Barotropic Streamfunction",
                  "Sea Surface Height","Mixed-Layer Depth",
-                 "Upper Ocean Heat Content","Upper Ocean Salt Content")
-vunits        = ("$\degree$C","psu","mb","cm","Sv","cm","$J\,m^{-2}$","$J\,m^{-2}$")
-varcolors          = ("r","violet","gold","darkblue","dodgerblue","cyan","lightcoral","orchid")
-varcolors_dark     = ("r","violet","gold","darkblue","dodgerblue","cyan","lightcoral","orchid")
-varmarker     = ("o","d","x","v","^","*","1","2")
+                 "Upper Ocean Heat Content","Upper Ocean Salt Content","Net Heat Flux")
+vunits        = ("$\degree$C","psu","mb","cm","Sv","cm","$J\,m^{-2}$","$J\,m^{-2}$","$W m^{-2}$")
+varcolors          = ("r","violet","gold","darkblue","dodgerblue","cyan","lightcoral","orchid","orange")
+varcolors_dark     = ("r","violet","gold","darkblue","dodgerblue","cyan","lightcoral","orchid","orange")
+varmarker     = ("o","d","x","v","^","*","1","2","3")
+
+# Variables (all, 2023.07.10) -------------------------------------------------
+varnames      = ("SST",
+                  "SSS",
+                  "SLP",
+                  "SSH",
+                  "NHFLX",)
+varnamesplot  = varnames
+varnames_long = ("Temperature",
+                  "Salinity",
+                  "Pressure",
+                  "Sea Surface Height",
+                  "Net Heat Flux",)
+vunits        = ("$\degree$C",
+                  "psu",
+                  "mb",
+                  "cm",
+                  "$W m^{-2}$")
+varcolors          = ("r",
+                      "violet",
+                      "gold",
+                      "dodgerblue",
+                      "cyan")
+varcolors_dark     = varcolors
+varmarker     = ("o",
+                  "d",
+                  "x",
+                  "^",
+                  "*",)
 
 # Class Names and colors
 classes       = ["NASST+","Neutral","NASST-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]

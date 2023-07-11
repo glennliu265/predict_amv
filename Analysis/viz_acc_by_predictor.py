@@ -5,6 +5,7 @@
 Visualize Classification Accuracy by Predictor
 
 Copied sectinos from viz_results.ipynb on 2022.11.16
+Major changes on 2023.07.10 to work with output from compute_test_metrics
 
 Created on Wed Nov 16 10:45:21 2022
 
@@ -21,8 +22,9 @@ import sys
 # Load my own custom modules
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import viz,proc
-
 import amv_dataloader as dl
+
+import pamv_visualizer as pviz
 
 #%% User Edits
 
@@ -32,16 +34,17 @@ import amv_dataloader as dl
 # varmarker    = ("o","d","x","v","^","*")
 
 detrend      = True
-expdirs      = ("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
-expdirs_long = ("FNN (Detrended)", "FNN (Undetrended)", "CNN (Undetrended)")
-skipvars     = ("UOHC","UOSC",)#
+expdirs      = ("FNN4_128_Singlevar_PaperRun","FNN4_128_Singlevar_PaperRun_detrended")#("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
+expdirs_long = ("FNN (Undetrended)","FNN (Detrended)",)# "CNN (Undetrended)")
+skipvars     = ("UOHC","UOSC","HMXL","BSF","NHFLX")#
 #threscolors = ("r","gray","cornflowerblue")
 expnames     = ("FNN","CNN")
 expcolors    = ("gold","dodgerblue")
 quantile     = False
-nsamples     = 300
-
+nsamples     = None
 no_vals      = (True,) * len(expdirs)
+
+load_test_metrics = True # Set to true to use output computed by [compute_test_metrics.py]
 
 if quantile:
     chance_baseline = [0.33,]*3
@@ -53,8 +56,8 @@ else:
 
 # Old figpath: datpath + expdir + "/Figures/"
 
-classes   = ["AMV+","Neutral","AMV-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
-leads     = np.arange(0,25,3)
+classes   = ["NASST+","Neutral","NASST-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
+leads     = np.arange(0,26,1)
 
 # Plotting Parameters
 lwall     = 2.5
@@ -84,62 +87,70 @@ datpath         = pparams.datpath
 
 # Import class information
 classes         = pparams.classes
-threscolors    = pparams.class_colors
+threscolors     = pparams.class_colors
 
 # Import variable name information
 varnames        = pparams.varnames
 varnamesplot    = pparams.varnamesplot
 varcolors       = pparams.varcolors
 varmarker       = pparams.varmarker
+varcolors_dark  = pparams.varcolors_dark
 
 
 #%% Load the data (with functions)
 import amvmod as am
 
 alloutputs = []
-e = 0
-for expdir in expdirs:
+
+if load_test_metrics: # Load new output
+    for expdir in expdirs:
+        output_byvar = []
+        for v in varnames:
+            if v=="PSL":
+                v = "SLP"
+            if v in skipvars:
+                
+                print("Skipping %s" % v)
+                continue
+            fn              = "%s%s/Metrics/Test_Metrics/Test_Metrics_CESM1_%s_evensample0_accuracy_predictions.npz" % (datpath,expdir,v)
+            npz             = np.load(fn,allow_pickle=True)
+            expdict         = proc.npz_to_dict(npz)
+            output_byvar.append(expdict)
+        alloutputs.append(output_byvar)
     
-    # Get list of files for each variable
-    flists = []
-    for v in varnames:
-        if v in skipvars:
-            print("Skipping %s" % v)
-            continue
-        search = "%s%s/Metrics/*%s*" % (datpath,expdir,v)
-        flist  = glob.glob(search)
-        flist  = [f for f in flist if "of" not in f]
-        flist.sort()
-        print("Found %i files for %s" % (len(flist),v,))
-        flists.append(flist)
-    
-    # Make the experiment dictionary
-    expdict = am.make_expdict(flists,leads,no_val=no_vals[e])
-    
-    expdict['classacc'] = np.array(expdict['classacc'])
-    _,nruns,nleads,nclasses      = expdict['classacc'].shape
-    #nruns = len(expdict['classacc'][0])
-    #nleads,nclasses = expdict['classacc'][0][0].shape
-    
-    # Add to outputs
-    alloutputs.append(expdict)
-    e += 1
-    
-
-
-#%% Load persistence baseline
-
-fpath = "../../CESM_data/"
-fnp   = "AMVClassification_Persistence_Baseline_ens40_RegionNone_maxlead24_step3_nsamples%s_detrend%i_000pctdata.npz" % (nsamples,detrend)
-
-ldp = np.load(fpath+fnp,allow_pickle=True)#.f#.arr_0
-
-persaccclass = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
-persacctotal = np.array(ldp['arr_0'][None][0]['total_acc'])
-
+else: # Old Loading Script
+    e = 0
+    for expdir in expdirs:
+        # Get list of files for each variable
+        flists = []
+        for v in varnames:
+            varnames.pop(v)
+            varcolors.pop(v)
+            varnamesplot.pop(v)
+            if v in skipvars:
+                print("Skipping %s" % v)
+                continue
+            search = "%s%s/Metrics/*%s*" % (datpath,expdir,v)
+            flist  = glob.glob(search)
+            flist  = [f for f in flist if "of" not in f]
+            flist.sort()
+            print("Found %i files for %s" % (len(flist),v,))
+            flists.append(flist)
+        
+        # Make the experiment dictionary
+        expdict = am.make_expdict(flists,leads,no_val=no_vals[e])
+        
+        expdict['classacc'] = np.array(expdict['classacc'])
+        _,nruns,nleads,nclasses      = expdict['classacc'].shape
+        #nruns = len(expdict['classacc'][0])
+        #nleads,nclasses = expdict['classacc'][0][0].shape
+        
+        # Add to outputs
+        alloutputs.append(expdict)
+        e += 1
 
 #%% Updated load of persistence baseline
-
+# ======================================
 
 persaccclass = []
 persacctotal = []
@@ -148,14 +159,14 @@ for detrend in [False,True]:
     pers_leads,pers_class_acc,pers_total_acc = dl.load_persistence_baseline("CESM1",
                                                                             return_npfile=False,region=None,quantile=quantile,
                                                                             detrend=detrend,limit_samples=False,nsamples=nsamples,repeat_calc=1)
-
+    
     persaccclass.append(pers_class_acc)
     persacctotal.append(pers_total_acc)
     persleads.append(pers_leads)
     
     
 # Plot baselines
-fig,axs = plt.subplots(1,3)
+fig,axs = plt.subplots(1,3,constrained_layout=True,figsize=(12,4))
 for c in range(3):
     print(c)
     ax = axs.flatten()[c]
@@ -163,9 +174,38 @@ for c in range(3):
     for i in range(2):
         ax.plot(persleads[i],persaccclass[i][:,c],label="Detrend %i" % i)
     ax.legend()
-               
-               
+
+#%% Make the plot (2023.07.10)
+
+expnum     = 0
+plot_leads = np.arange(0,26,1)
+nvar       = len(varnames)
+fig,axs    = pviz.init_classacc_fig(leads)
+
+for c in range(3):
+    ax = axs[c]
+    
+    # Plot Neural Network Averages
+    for v in range(nvar):
+        varname = varnames[v]
+        class_acc = alloutputs[expnum][v]['class_acc'] # [Models, Leads, Class]
+        
+        mu  = class_acc[:,plot_leads,c].mean(0)
+        std = class_acc[:,plot_leads,c].std(0)
+        
+        
+        ax.plot(leads[plot_leads],mu,label=varname,color=varcolors[v],marker=varmarker[v],lw=2.5)
+        ax.fill_between(leads[plot_leads],(mu-std),(mu+std),color=varcolors[v],alpha=0.10,zorder=1)
+    
+    # Plot persistence baselines
+    ax.plot(persleads[i],persaccclass[i][:,c],color=dfcol,label="Persistence",lw=lwall)
+    ax.hlines([chance_baseline[c]],xmin=-1,xmax=25,ls="dashed",color=dfcol,label="Random Chance")
+    
+    # Label Legend
+    if c == 1:
+        ax.legend(ncol=4)
 #%% Load the case for all predictors
+# ======================================
 
 # expdir   = "FNN4_128_ALL"
 # varname  = "ALL"
@@ -202,16 +242,47 @@ for c in range(3):
 
 # %% The Section below does visualizations for a single experiment
 # Set the experiment number here
-
+nvars      = len(alloutputs[expnum])
 expnum     = 0
-totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[expnum])
+if load_test_metrics: # New unpacking method (should I put this in a func... :()
+    
+    totalacc = np.array([alloutputs[expnum][v]['total_acc'] for v in range(nvars)])
+    classacc = np.array([alloutputs[expnum][v]['class_acc'] for v in range(nvars)])
+    ypred    = np.array([alloutputs[expnum][v]['predictions'] for v in range(nvars)])
+    ylabs    = np.array([alloutputs[expnum][v]['targets'] for v in range(nvars)])
+    
+else:
+    # old format, need to get it in the shape: # [variable x run? x lead x class]
+    
+    totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[expnum])
 
+
+#%% Check to see how many models are just predicting one or two class (currently 24/10400)
+# --------------------------- ------------------------------------------------------------
+ignore_one_class = np.zeros((4,26,100))
+cnt_pred1 = 0
+cnt_pred2 = 0
+for v in range(nvars):
+    for l in range(nleads):
+        for r in range(nruns):
+            ypred_network = ypred[v,l,r]
+            
+            nclass_predicted = len(np.unique(ypred_network))
+            ignore_one_class[v,l,r] = nclass_predicted
+            if nclass_predicted == 1:
+                cnt_pred1 += 1
+            if nclass_predicted == 2:
+                cnt_pred2 += 1
+print("Models predicting only 1 class  : %i" % cnt_pred1)
+print("Models predicting only 2 classes: %i" % cnt_pred1)
+print("Model indices %s" % (str(np.where(ignore_one_class <3))))
+                
 #%% Visualize Accuracy by Class, compare between predictors
 
 nvar       = len(varnames)
-nruns      = 50#totalacc.shape[1]
+nruns      = 100#totalacc.shape[1]
 nleads     = len(leads)
-plotmodels = np.arange(0,5)
+plotmodels = np.arange(0,4)
 plotmax    = False # Set to True to plot maximum
 fig,axs = plt.subplots(1,3,figsize=(18,4))
 
@@ -228,9 +299,10 @@ for c in range(3):
     
     for i in plotmodels:
         if plotmax:
-            plotacc = classacc[i,:,:,c].max(0)
+            plotacc = classacc[i,:,:,c].max(0) # [variable x run? x lead x class]
         else:
             plotacc = classacc[i,:,:,c].mean(0)
+        
         ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i],
                 marker=varmarker[i],markersize=8)
         
@@ -241,7 +313,7 @@ for c in range(3):
         
     #ax.plot(leads,autodat[::3,c],color='k',ls='dotted',label="AutoML",lw=lwall)
     ax.plot(leads,persaccclass[:,c],color=dfcol,label="Persistence",lw=lwall)
-
+    
     ax.hlines([chance_baseline[c]],xmin=-1,xmax=25,ls="dashed",color=dfcol)
         
     if c == 0:
@@ -252,7 +324,7 @@ for c in range(3):
         
 plt.savefig("%sPredictor_Intercomparison_byclass_plotmax%i_%s.png"% (figpath,plotmax,expdirs[expnum]),dpi=200)
 #%% Same as above plot, but specificall for AGU
-plotmodels = [0,1,2,4]
+plotmodels = [0,1,2,3]
 ex         = expnum
 add_conf   = True
 plotconf   = 0.68
@@ -283,9 +355,8 @@ for c in range(3):
         
         sortacc  = np.sort(classacc[i,:,:,c],0)
         idpct    = sortacc.shape[0] * plotconf
-        lobnd   = np.floor(idpct).astype(int)
-        hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
-        
+        lobnd    = np.floor(idpct).astype(int)
+        hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
         
         ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnames[i],zorder=9)
         if add_conf:
@@ -317,31 +388,32 @@ plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_AGUver.p
 
 #%% Make the same plot as above, but output in increments
 
-plotmodels = [0,2,1,4]
+
+
+plotmodels = [0,2,1,3]
 ex         = expnum
 add_conf   = True
-plotconf   = 0.95
+plotconf   = False #0.95
 fill_alpha = 0.20
 plotmax    = False # Set to True to plot maximum
+maxmod     = 100 # Maximum networks to plot
+mks        = 5 # Marker Size
 
-def init_accplot(c,figsize=(6,4),labelx=True,labely=True):
+def init_accplot(c,leads,figsize=(6,4),labelx=True,labely=True):
     # Initialize plot
+    
     fig,ax = plt.subplots(1,1,figsize=(6,4),constrained_layout=True)
     
+    pviz.format_acc_plot(leads,ax)
+    
     ax.set_title("%s" %(classes[c]),fontsize=16,)
-    ax.set_xlim([0,24])
-    ax.set_xticks(leads)
+    ax.set_xlim([0,25])
+    ax.set_xticks(np.arange(0,26,5))
     ax.set_ylim([0,1])
     ax.set_yticks(np.arange(0,1.25,.25))
-    ax.grid(True,ls='dotted')
     
     ax.plot(leads,persaccclass[detrend][:,c],color='w',label="Persistence",lw=lwall,ls="solid")
     ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol,label="Random Chance")
-    
-    # if labely:
-    #     ax.set_ylabel("Accuracy")
-    # if labelx:
-    #     ax.set_xlabel("Prediction Lead (Years)")
     
     return fig,ax
 
@@ -350,7 +422,7 @@ c = 0
 
 # Plot just the baseline
 pcounter = 0
-fig,ax = init_accplot(c)
+fig,ax = init_accplot(c,leads)
 ax.legend(ncol=3,fontsize=10)
 savename = "%sPredictor_Intercomparison_byclass_plotmax%i_%s_AGUver_%02i.png"% (figpath,plotmax,expdirs[expnum],pcounter)
 
@@ -362,7 +434,7 @@ for p in np.arange(1,len(plotmodels)+1):
     
     print(plotmodels[:p])
     plotmodels_loop= plotmodels[:p]
-    fig,ax = init_accplot(c)
+    fig,ax = init_accplot(c,leads)
     
     for i in plotmodels_loop:
         
@@ -373,23 +445,21 @@ for p in np.arange(1,len(plotmodels)+1):
             plotacc = classacc[i,:,:,c].max(0)
         else:
             plotacc = classacc[i,:,:,c].mean(0)
-        mu        = classacc[i,:50,:,c].mean(0)
-        sigma     = classacc[i,:50,:,c].std(0)
+        mu        = classacc[i,:maxmod,:,c].mean(0)
+        sigma     = classacc[i,:maxmod,:,c].std(0)
         sortacc  = np.sort(classacc[i,:,:,c],0)
         idpct    = sortacc.shape[0] * plotconf
         lobnd   = np.floor(idpct).astype(int)
         hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
         
-        ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],markersize=8,
+        ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],markersize=mks,
                 alpha=1.0,lw=2.5,label=varnamesplot[i],zorder=9)
         if add_conf:
             if plotconf:
                 ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=fill_alpha,color=varcolors[i],zorder=1,label="")
             else:
-                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=varcolors[i],zorder=1)
-        
+                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=fill_alpha,color=varcolors[i],zorder=1)
         ax.legend(ncol=3,fontsize=10)
-        
     
     savename = "%sPredictor_Intercomparison_byclass_plotmax%i_%s_AGUver_%02i.png"% (figpath,plotmax,expdirs[expnum],pcounter)
     # Initial Save
@@ -399,7 +469,7 @@ for p in np.arange(1,len(plotmodels)+1):
 
 
 for c in [1,2]:
-    fig,ax = init_accplot(c,labelx=False,labely=False)
+    fig,ax = init_accplot(c,leads,labelx=False,labely=False)
     
     for i in plotmodels:
         
@@ -408,14 +478,14 @@ for c in [1,2]:
             plotacc = classacc[i,:,:,c].max(0)
         else:
             plotacc = classacc[i,:,:,c].mean(0)
-        mu        = classacc[i,:50,:,c].mean(0)
-        sigma     = classacc[i,:50,:,c].std(0)
+        mu        = classacc[i,:maxmod,:,c].mean(0)
+        sigma     = classacc[i,:maxmod,:,c].std(0)
         sortacc  = np.sort(classacc[i,:,:,c],0)
         idpct    = sortacc.shape[0] * plotconf
         lobnd   = np.floor(idpct).astype(int)
         hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
         
-        ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],markersize=8,
+        ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],markersize=mks,
                 alpha=1.0,lw=2.5,label=varnamesplot[i],zorder=9)
         if add_conf:
             if plotconf:
@@ -479,19 +549,15 @@ for c in [1,2]:
         
 #     #ax.plot(leads,autodat[::3,c],color='k',ls='dotted',label="AutoML",lw=lwall)
 
-        
-
-        
 # plt.savefig("%sPredictor_Intercomparison_byclass_plotmax%i_%s_AGUver.png"% (figpath,plotmax,expdirs[expnum]),
 #             dpi=200,bbox_inches="tight",transparent=True)
-
 
 # ----------------------------------------------------
 #%% Remake the plots, but for the GRL Paper Outline...
 # ----------------------------------------------------
 
 darkmode = False
-plt.style.use('default')
+plt.style.use('default')#('seaborn_v0-8')
 if darkmode == True:
     dfcol = "w"
 else:
@@ -499,15 +565,19 @@ else:
 
 # Toggles
 plotmodels = [0,1,2,4]
+plotclasses = [0,2]
+classes_new= ["NASST+","Neutral","NASST-"]
+
 expnums    = [1,0]
 detrends   = [0,1]
 add_conf   = True
 plotconf   = 0.68
 plotmax    = False # Set to True to plot maximum
-alpha      = 0.25
+alpha      = 0.15
+legend_sp  = 2
 
 # Initialize figures
-fig,axs =  plt.subplots(2,3,constrained_layout=True,figsize=(18,8))
+fig,axs =  plt.subplots(2,2,constrained_layout=True,figsize=(12,6))
 it = 0
 for iplot,ex in enumerate(expnums):
     
@@ -515,14 +585,20 @@ for iplot,ex in enumerate(expnums):
     axs_row = axs[iplot,:]
     
     # Load the data
-    totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
+    if load_test_metrics:
+        totalacc = np.array([alloutputs[ex][v]['total_acc'] for v in range(nvars)])
+        classacc = np.array([alloutputs[ex][v]['class_acc'] for v in range(nvars)])
+        ypred    = np.array([alloutputs[ex][v]['predictions'] for v in range(nvars)])
+        ylabs    = np.array([alloutputs[ex][v]['targets'] for v in range(nvars)])
+    else:
+        totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
     
     # Indicate detrending
     exp_dt = detrends[ex]
     
-    for c in range(3):
+    for rowid,c in enumerate(plotclasses):
         
-        ax = axs_row[c]
+        ax = axs_row[rowid]
         
         # Initialize plot
         viz.label_sp(it,ax=ax,fig=fig,fontsize=16,alpha=0.2,x=0.02)
@@ -531,12 +607,16 @@ for iplot,ex in enumerate(expnums):
         ax.set_xticks(leads)
         ax.set_ylim([0,1])
         ax.set_yticks(np.arange(0,1.2,.2))
-        ax.grid(True,ls='dotted')
-        ax.minorticks_on()
+        #ax.grid(True,ls='dotted')
+        #ax.minorticks_on()
+        
+        ax = viz.add_ticks(ax,facecolor="#eaeaf2",grid_lw=1.5,grid_col="w",grid_ls="solid",
+                           spinecolor="darkgray",tickcolor="dimgray",
+                           ticklabelcolor="k")
         
         # Add Class Labels
         if iplot == 0:
-            ax.set_title("%s" %(classes[c]),fontsize=16,)
+            ax.set_title("%s" %(classes_new[c]),fontsize=16,)
         
         for i in plotmodels:
             if plotmax:
@@ -554,12 +634,12 @@ for iplot,ex in enumerate(expnums):
             hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
             
             
-            ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnames[i],zorder=9)
+            ax.plot(leads,mu,color=varcolors_dark[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnamesplot[i],zorder=3)
             if add_conf:
                 if plotconf:
-                    ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors[i],zorder=1,label="")
+                    ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors_dark[i],zorder=1,label="")
                 else:
-                    ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors[i],zorder=1)
+                    ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors_dark[i],zorder=1)
             
         ax.plot(leads,persaccclass[exp_dt][:,c],color=dfcol,label="Persistence",ls="dashed")
         ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
@@ -580,13 +660,13 @@ for iplot,ex in enumerate(expnums):
             #             rotation_mode='anchor',transform=ax.transAxes)
 
 
-            ax.text(-0.13, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
-                    rotation_mode='anchor',transform=ax.transAxes,fontsize=20)
-        if (c == 1):
-            if iplot == 0:
-                ax.legend(ncol=2,fontsize=10)
-            elif iplot == 1:
+            ax.text(-0.10, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=14)
+        if (c == 0):
+            if iplot == 1:
                 ax.set_xlabel("Prediction Lead (Years)")
+        if it == legend_sp:
+            ax.legend(ncol=2,fontsize=10)
         it += 1
 
 plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer.png"% (figpath,detrend,plotmax,expdirs[expnum]),
@@ -596,6 +676,8 @@ plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineV
 # --------------------------------------------------------------------------------
 # %% Do comparison plot of CNN vs FNN (Outline Ver, copied from AGU version below)
 # --------------------------------------------------------------------------------
+
+nvar = 4
 
 v            = 0 # Choose the first variable
 justbaseline = False
@@ -631,6 +713,7 @@ for v in range(nvar):
             else:
                 ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=expcolors[ex],zorder=1)
     
+
     
     ax.plot(leads,persacctotal[detrend_plot],color=dfcol,label="Persistence",ls="dashed")
     ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
@@ -644,6 +727,8 @@ for v in range(nvar):
     ax.grid(True,ls='dotted')
     ax.legend(fontsize=fsz)
     ax.minorticks_on()
+    
+    
     ax.set_title("Total Accuracy, Predictor: %s" % (varnames[v]),fontsize=fszb)
     
     if justbaseline:
@@ -654,6 +739,74 @@ for v in range(nvar):
     print(savename)
     plt.savefig(savename,dpi=200,bbox_inches='tight',transparent=False)
     #ax.set_title("")
+    
+    
+#%% Remake above, but for the GRL Outline
+
+v            = 0 # Choose the first variable
+justbaseline = False
+plotconf     = 0.05
+detrend_plot = False
+plot_exs     = [1,2]
+fsz          = 14
+fszt         = 12
+fszb         = 16
+
+
+fig,ax = plt.subplots(1,1,figsize=(9,3),sharex=True,constrained_layout=True)
+
+# Plotting for each experiment
+if justbaseline is False:
+    for ex,expid in enumerate(plot_exs):
+        totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[expid])
+        
+        plotacc   = np.array(classacc)[v,:,:,:]
+        plotacc   = plotacc[:,:,[0,2]].mean(2)#np.array(totalacc)[v,:,:]
+        mu        = np.array(plotacc).mean(0)
+        sigma     = np.array(plotacc).std(0)
+        
+        
+        sortacc  = np.sort(plotacc,0)
+        idpct    = sortacc.shape[0] * plotconf
+        lobnd   = np.floor(idpct).astype(int)
+        hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
+        
+        
+        ax.plot(leads,mu,color=expcolors[ex],marker="o",alpha=1.0,lw=2.5,label=expnames[ex] + " (mean)",zorder=9)
+        if plotconf:
+            ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.3,color=expcolors[ex],zorder=1,label=expnames[ex]+" (95% conf.)")
+        else:
+            ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=expcolors[ex],zorder=1)
+
+
+ax.plot(leads,persacctotal[detrend_plot],color=dfcol,label="Persistence",ls="dashed")
+ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
+ax.set_xlim([0,24])
+ax.set_xticks(leads,fontsize=fszt)
+ax.set_ylim([.25,1])
+ax.set_yticks(np.arange(.30,1.1,.1))
+ax.set_yticklabels((np.arange(.30,1.1,.1)*100).astype(int),fontsize=fszt)
+ax.set_ylabel("Accuracy (%)",fontsize=fsz)
+ax.set_xlabel("Prediction Lead Time (Years)",fontsize=fsz)
+#ax.grid(True,ls='dotted')
+ax.legend(fontsize=fsz,ncol=3)
+#ax.minorticks_on()
+
+ax = viz.add_ticks(ax,facecolor="#eaeaf2",grid_lw=1.5,grid_col="w",grid_ls="solid",
+                   spinecolor="darkgray",tickcolor="dimgray",
+                   ticklabelcolor="k")
+
+#ax.set_title("Total Accuracy, Predictor: %s" % (varnames[v]),fontsize=fszb)
+
+if justbaseline:
+    savename = "%sTotalAcc_CNNvFNN_conf%03i_baselineonly.png" % (figpath,plotconf*100)
+else:
+    savename = "%sTotalAcc_CNNvFNN_%s_conf%03i_PaperVer.svg" % (figpath,varnames[v],plotconf*100)
+
+print(savename)
+plt.savefig(savename,dpi=200,bbox_inches='tight',transparent=False)
+#ax.set_title("")
+
     
 
 

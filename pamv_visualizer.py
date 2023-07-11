@@ -12,10 +12,7 @@ Created on Thu Apr  6 22:46:26 2023
 
 import matplotlib.pyplot as plt
 import numpy as np
-
-
 import cartopy.crs as ccrs
-
 import sys
 
 # Import my own custom module....
@@ -34,18 +31,19 @@ def format_acc_plot(leads,ax=None):
     ax.set_yticks(np.arange(0,1.25,.25))
     ax.grid(True,ls='dotted')
     ax.minorticks_on()
-    ax.set_title(sp_titles[a],fontsize=20)
-    if a == 0:
-        ax.set_ylabel("Accuracy")
-    if a == 1:
-        ax.set_xlabel("Prediction Leadtime (Years)")
+    # if sp_title is not None:
+    #     ax.set_title(sp_titles[a],fontsize=20)
+    # if a == 0:
+    #     ax.set_ylabel("Accuracy")
+    # if a == 1:
+    #     ax.set_xlabel("Prediction Leadtime (Years)")
     return ax
     
 
 def init_classacc_fig(leads,sp_titles=None):
     fig,axs=plt.subplots(1,3,constrained_layout=True,figsize=(18,4),sharey=True)
     if sp_titles is None:
-        sp_titles=["AMV+","Neutral","AMV-"]
+        sp_titles=["NASST+","Neutral","AMV-"]
     for a,ax in enumerate(axs):
         ax.set_xlim([leads[0],leads[-1]])
         if len(leads) == 9:
@@ -83,5 +81,36 @@ def init_ablation_maps(bbox_plot,figsize=(10,8),fill_color="k"):
     
 
 
+def make_count_barplot(count_by_year,lead,target,thresholds_in,leadmax=24,classes=['AMV+', 'Neutral', 'AMV-'],
+                       class_colors=('salmon', 'gray', 'cornflowerblue'),startyr=1870
+                       ):
+    # Target = [ens x year]
+    # Thresholds_in [th1,th2,...,thN]
+    
+    timeaxis      = np.arange(0,len(target.squeeze()))
+    timeaxis_in   = np.arange(leadmax,target.shape[1])
+    
+    fig,ax       = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
+    for c in range(3):
+        label = classes[c]
+        ax.bar(timeaxis_in+startyr,count_by_year[:,c],bottom=count_by_year[:,:c].sum(1),
+               label=label,color=class_colors[c],alpha=0.75,edgecolor="white")
+        
+    ax.set_ylabel("Frequency of Predicted Class")
+    ax.set_xlabel("Year")
+    ax.legend()
+    ax.minorticks_on()
+    ax.grid(True,ls="dotted")
+    #ax.set_xlim([1880,2025])
+    #ax.set_ylim([0,450])
 
+    ax2 = ax.twinx()
+    # ax2.plot(timeaxis,target.squeeze(),color="k",label="HadISST NASST Index")
+    # ax2.set_ylabel("NASST Index ($\degree C$)")
+    # ax2.set_ylim([-1.3,1.3])
+    # for th in thresholds_in:
+    #     ax2.axhline([th],color="k",ls="dashed")
+    # ax2.axhline([0],color="k",ls="solid",lw=0.5)
+    axs = [ax,ax2]
+    return fig,axs
 
