@@ -45,7 +45,7 @@ import predict_amv_params as pparams
 import train_cesm_params as train_cesm_params
 import amv_dataloader as dl
 import amvmod as am
-
+import pamv_visualizer as pviz
 
 # Import LRP package
 lrp_path = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/ml_demo/Pytorch-LRP-master/"
@@ -58,15 +58,18 @@ from innvestigator import InnvestigateModel
 # Shared Information
 varname            = "SST" # Testing variable
 detrend            = False
-leads              = np.arange(0,26,3)
+leads              = np.arange(0,26,1)
 region_name        = "NAT"
 nsamples           = "ALL"
 shuffle_trainsplit = False
 
+# Set Manual Threshold
+manual_threshold   = None#0.37 # Set to None to automatically detect
+
 # CESM1-trained model information
-expdir             = "FNN4_128_SingleVar"
+expdir             = "FNN4_128_SingleVar_PaperRun_detrended"
 modelname          = "FNN4_128"
-nmodels            = 50 # Specify manually how much to do in the analysis
+nmodels            = 100 # Specify manually how much to do in the analysis
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 ens                = 0#eparams['ens']
 runids             = np.arange(0,nmodels)
@@ -129,16 +132,19 @@ inputsize                      = nchannels*nlat*nlon
 
 # Load predictor and labels, lat/lon, cut region
 target         = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
-data,lat,lon   = dl.load_data_cesm([varname,],eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
+#data,lat,lon   = dl.load_data_cesm([varname,],eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
 
 # Subset predictor by ensemble, remove NaNs, and get sizes
-data                           = data[:,0:ens,...]      # Limit to Ens
-data[np.isnan(data)]           = 0                      # NaN Points to Zero
+#data                           = data[:,0:ens,...]      # Limit to Ens
+#data[np.isnan(data)]           = 0                      # NaN Points to Zero
 
 #%% Make the classes from reanalysis data
 
 # Set exact threshold value
-std1         = re_target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
+if manual_threshold is None:
+    std1         = re_target.std(1).mean() * eparams['thresholds'][1] # Multiple stdev by threshold value 
+else:
+    std1         = manual_threshold
 if eparams['quantile'] is False:
     thresholds_in = [-std1,std1]
 else:
@@ -154,6 +160,9 @@ target_class = target_class.reshape(re_target.shape)
 # Get necessary dimension sizes/values
 nclasses     = len(eparams['thresholds'])+1
 nlead        = len(leads)
+
+# Get class count for later...
+_,class_count=am.count_samples(None,target_class[:,25:])
 
 """
 # Output: 
@@ -214,7 +223,6 @@ print("Found %i files per lead for %s using searchstring: %s" % (len(flist),varn
 
 # Print Message
 
-
 # ------------------------
 # 04. Loop by predictor...
 # ------------------------
@@ -225,6 +233,7 @@ class_acc_all         = np.zeros((nmodels,nlead,3)) #
 
 relevances_all        = []
 predictor_all         = []
+sampled_idx           = []
 
 if shuffle_trainsplit:
     y_actual_all      = []
@@ -236,7 +245,7 @@ else:
 # --------------------
 # 05. Loop by runid...
 # --------------------
-for nr,runid in enumerate(runids):
+for nr,runid in tqdm(enumerate(runids)):
     rt = time.time()
     
     # Preallocate Evaluation Metrics...
@@ -269,13 +278,13 @@ for nr,runid in enumerate(runids):
                 y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
             else:
                 print("Select the sample samples")
-                shuffidx = sampled_idx[l-1]
+                shuffidx = sampled_idx[l-1] # This variable didnt exist before so I just added it... might remove this section later.
                 y_class  = y_class[shuffidx,...]
                 X        = X[shuffidx,...]
                 am.count_samples(eparams['nsamples'],y_class)
             shuffidx = shuffidx.astype(int)
         else:
-            print("Using preselected indices")
+            #print("Using preselected indices")
             pred_indices = predictor_indices[l]
             nchan        = predictors.shape[0]
             y_class      = target_class.reshape((ntime*nens,1))[target_indices,:]
@@ -323,7 +332,7 @@ for nr,runid in enumerate(runids):
         y_predicted,y_actual,test_loss = am.test_model(pmodel,test_loader,eparams['loss_fn'],
                                                        checkgpu=checkgpu,debug=False)
         
-        lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=True,verbose=False)
+        lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=False,verbose=False)
         
         
         
@@ -354,11 +363,11 @@ for nr,runid in enumerate(runids):
         del pmodel
         torch.cuda.empty_cache()  # Save some memory
         
-        print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
+        #print("\nCompleted training for %s lead %i of %i" % (varname,lead,leads[-1]))
         # End Lead Loop >>>
     predictor_all.append(predictor_lead)
     relevances_all.append(relevances_lead)
-    print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
+    #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
     # End Runid Loop >>>
 #print("\nPredictor %s finished in %.2fs" % (varname,time.time()-vt))
 # End Predictor Loop >>>
@@ -397,37 +406,78 @@ ax.set_title("Total Accuracy (HadISST Testing, %i samples per class)" % (nsample
 # 
 figname = "%sReanalysis_Test_%s_Total_Acc.png" % (figpath,dataset_name)
 plt.savefig(figname,dpi=150)
-#%% 
 
-fig,axs = plt.subplots(1,3,constrained_layout=True,figsize=(16,4))
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
+#%% Visualize Accuracy by Class (SI_Draft02)
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
+# Note: Took toggles from viz_acc_by_predictor on 2023.07.12
+
+plotconf   = True
+add_conf   = True
+plotconf   = False #0.95
+fill_alpha = 0.20
+plotmax    = False # Set to True to plot maximum
+maxmod     = 100 # Maximum networks to plot
+mks        = 5 # Marker Size
+xtks_lead  = np.arange(0,26,5)
+
+fsz            = 14
+fszt           = 12
+fszb           = 16
+fsz_axlbl      = 18
+
+fig,axs = plt.subplots(1,3,constrained_layout=True,figsize=(18,4))
+ii = 0
 for c in range(3):
     ax = axs[c]
-    for nr in range(nmodels):
-        ax.plot(leads,class_acc_all[nr,:,c],alpha=0.1,color=class_colors[c])
-    ax.plot(leads,class_acc_all.mean(0)[...,c],color=class_colors[c],label="CESM1-trained NN (SST)")
     
-    ax.plot(persleads,pers_class_acc[:,c],color="k",ls="dashed",label="Persistence Baseline")
+    # Calculate mean and stdev
+    mu      = class_acc_all.mean(0)[...,c]
+    sigma   = class_acc_all.std(0)[...,c]
+    
+    # Sort accuracy
+    sortacc = np.sort(class_acc_all[...,c],0) # Sort along runs dimension
+    idpct   = sortacc.shape[0] * plotconf
+    lobnd   = np.floor(idpct).astype(int)
+    hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
+    
+    if add_conf is False: # Just plot all models
+        for nr in range(nmodels):
+            ax.plot(leads,class_acc_all[nr,:,c],alpha=0.1,color=class_colors[c])
+    else:
+        if plotconf: # Plot confidence based on sorted accuracies
+            ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=fill_alpha,color=class_colors[c],zorder=1,label="")
+        else: # Just plot 1stdev
+            ax.fill_between(leads,mu-sigma,mu+sigma,alpha=fill_alpha,color=class_colors[c],zorder=1)
+    
+    ax.plot(leads,mu,color=class_colors[c],label="CESM1-trained NN (SST)")
+    ax.plot(persleads,pers_class_acc[:,c],color="k",ls="solid",label="Persistence Baseline")
     ax.axhline([.33],color="gray",ls="dashed",lw=2,label="Random Chance Baseline")
-    
+    if c == 0:
+        ax.legend(fontsize=fsz)
     if c == 1:
-        ax.legend()
+        ax.set_ylabel("Accuracy")
+    if c == 2:
+        ax.set_xlabel("Prediction Lead (Years)")
+    
+    ax = pviz.format_acc_plot(leads,ax)
     ax.grid(True,ls="dotted")
-    ax.set_xticks(persleads[::3])
-    ax.set_xlim([0,24])
-    ax.set_xlabel("Prediction Lead (Years)")
-    ax.set_ylabel("Accuracy")
+    ax.set_xticks(xtks_lead,fontsize=fszt)
+    ax.set_xlim([0,25])
+    
     ax.set_yticks(np.arange(0,1.25,0.25))
-    ax.set_title(classes[c])
-    ax.minorticks_on()
-figname = "%sReanalysis_Test_%s_Class_Acc.png" % (figpath,dataset_name)
+    ax.set_ylim([-.1,1.1])
+    ax.set_title("%s (N=%i)" % (classes[c],class_count[c]),fontsize=fszb)
+    ax = viz.label_sp(ii,ax=ax,fig=fig,alpha=0.5,fontsize=fsz_axlbl,x=0.01)
+    ii+=1
+figname = "%sReanalysis_Test_%s_Class_Acc_%s.png" % (figpath,dataset_name,expdir)
 plt.savefig(figname,dpi=150)
 
-#%% Visualize the class distribution
+#%% Visualize the HadiSST NASST Index
 
 idx_by_class,count_by_class = am.count_samples(None,target_class)
 
 class_str = "Class Count: AMV+ (%i) | Neutral (%i) | AMV- (%i)" % tuple(count_by_class)
-
 timeaxis = np.arange(0,re_target.shape[1]) + 1870
 fig,ax = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
 
@@ -459,14 +509,19 @@ for l in range(len(leads)):
         correct_mask_lead.append(i_correct*i_class)
     correct_mask.append(correct_mask_lead)
 
-#%% Visualize relevance maps
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
+#%% Visualize relevance maps for HadiSST (SI_Draft02)
+# <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 
 relevances_all = np.array(relevances_all)
 predictor_all = np.array(predictor_all)
 nruns,nleads,nsamples_lead,nlat,nlon = relevances_all.shape
 
-plotleads        = [24,18,12,6,0]
-normalize_sample = 2
+# Options
+plotleads         = [25,20,10,5,0]
+normalize_sample  = 2
+hide_class_labels = False
+
 
 plot_bbox        = [-80,0,0,60]
 
@@ -477,10 +532,8 @@ fsz_title        = 20
 fsz_axlbl        = 18
 fsz_ticks        = 16
 
-
 fig,axs  = plt.subplots(3,len(plotleads),constrained_layout=True,figsize=(18,10),
                         subplot_kw={'projection':ccrs.PlateCarree()})
-
 
 ii = 0
 for c in range(3):
@@ -670,7 +723,6 @@ plt.savefig("%sHadISST_NASST_lead%02i_imodel%03i.png" %(figpath,leads[ilead],imo
 #re_target_in   = re_target[:,leads[ilead]:].squeeze()
 #id_correct     = (y_predicted_in == y_actual_in)
 
-
 count_by_year = np.zeros((ntime-leads[-1],nclasses))
 timeaxis_in   = np.arange(leads[ilead],re_target.shape[1])
 
@@ -681,10 +733,22 @@ for y in range(ntime-leads[ilead]):
     for c in range(3):
         
         count_by_year[y,c] = (y_pred_year == c).sum()
+        
+        
 
-#%% I was up to here. Make the barplot for Draft 1
     
-    
+
+#%% I was up to here. Make the barplotfor Draft 1
+
+darkmode=False
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+    dfcol_r = "k"
+else:
+    plt.style.use('default')
+    dfcol = "k"
+    dfcol_r = "w"
     
 # for c in range(3):
 #     y_predicted_all == 
@@ -697,8 +761,17 @@ for c in range(3):
     label = classes[c]
     #label = "%s (Test Acc = %.2f" % (classes[c],class_acc[c]*100)+"%)"
     
-    ax.bar(timeaxis_in+1870,count_by_year[:,c],bottom=count_by_year[:,:c].sum(1),
-           label=label,color=class_colors[c],alpha=0.75,edgecolor="white")
+    totalnum  = count_by_year.sum(1)[0]
+    plotcount = count_by_year[:,c]
+    plotcount = plotcount/totalnum
+    
+    plotcountbot = count_by_year[:,:c].sum(1)
+    plotcountbot = plotcountbot/totalnum
+    
+    
+    
+    ax.bar(timeaxis_in+1870,plotcount,bottom=plotcountbot,
+           label=label,color=class_colors[c],alpha=0.75,edgecolor=dfcol_r)
 
 ax.set_ylabel("Frequency of Predicted Class")
 ax.set_xlabel("Year")
@@ -706,16 +779,17 @@ ax.legend()
 ax.minorticks_on()
 ax.grid(True,ls="dotted")
 ax.set_xlim([1880,2025])
-ax.set_ylim([0,450])
+ax.set_ylim([0,1])
+#ax.set_ylim([0,450])
 
 ax2 = ax.twinx()
-ax2.plot(timeaxis,re_target.squeeze(),color="k",label="HadISST NASST Index")
+ax2.plot(timeaxis,re_target.squeeze(),color=dfcol,label="HadISST NASST Index")
 ax2.set_ylabel("NASST Index ($\degree C$)")
 ax2.set_ylim([-1.3,1.3])
 for th in thresholds_in:
-    ax2.axhline([th],color="k",ls="dashed")
-ax2.axhline([0],color="k",ls="solid",lw=0.5)
-plt.savefig("%sHadISST_Prediction_Count_AllLeads.png"%figpath,dpi=150,bbox_inches="tight")
+    ax2.axhline([th],color=dfcol,ls="dashed")
+ax2.axhline([0],color=dfcol,ls="solid",lw=0.5)
+plt.savefig("%sHadISST_Prediction_Count_AllLeads.png"%figpath,dpi=150,bbox_inches="tight",transparent=True)
 
 
 #%%
@@ -745,7 +819,7 @@ fig,axs       = plt.subplots(3,1,constrained_layout=True,figsize=(16,8))
 
 
 
-lead_colors = ["lightsteelblue","cornflowerblue","royalblue","mediumblue","midnightblue"]
+lead_colors = ["lightsteelblue","cornflowerblue","royalblue","mediumblue","midnightblue","gray","black","red","orange"]
 for c in range(3):
     ax = axs[c]
     
@@ -769,7 +843,8 @@ for c in range(3):
 plt.savefig("%sHadISST_Class_Prediction_Frequency_byYear.png"%(figpath),dpi=150,bbox_inches="tight")
 
 
-#%% Remake barplot. but for the selected leadtimes
+#%% Remake barplot. but for separately the selected leadtimes
+
 def make_count_barplot(count_by_year,lead,re_target,leadmax=24,classes=['AMV+', 'Neutral', 'AMV-'],
                        class_colors=('salmon', 'gray', 'cornflowerblue')
                        ):
@@ -780,11 +855,12 @@ def make_count_barplot(count_by_year,lead,re_target,leadmax=24,classes=['AMV+', 
     maxcount = count_by_year.sum(-1)
     #print(maxcount)
     fig,ax       = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
+
     for c in range(3):
         label = classes[c]
         plotcount = count_by_year/maxcount[:,None]
         ax.bar(timeaxis_in+1870,plotcount[:,c],bottom=plotcount[:,:c].sum(1),
-               label=label,color=class_colors[c],alpha=0.75,edgecolor="white")
+               label=label,color=class_colors[c],alpha=0.75,edgecolor=dfcol_r)
     
     ax.set_ylabel("Frequency of Predicted Class")
     ax.set_xlabel("Year")
@@ -795,47 +871,114 @@ def make_count_barplot(count_by_year,lead,re_target,leadmax=24,classes=['AMV+', 
     ax.set_ylim([0,1])
     
     ax2 = ax.twinx()
-    ax2.plot(timeaxis+1870,re_target.squeeze(),color="k",label="HadISST NASST Index")
+    ax2.plot(timeaxis+1870,re_target.squeeze(),color=dfcol,label="HadISST NASST Index")
     ax2.set_ylabel("NASST Index ($\degree C$)")
     ax2.set_ylim([-1.3,1.3])
     for th in thresholds_in:
-        ax2.axhline([th],color="k",ls="dashed")
-    ax2.axhline([0],color="k",ls="solid",lw=0.5)
+        ax2.axhline([th],color=dfcol,ls="dashed")
+    ax2.axhline([0],color=dfcol,ls="solid",lw=0.5)
     axs = [ax,ax2]
     return fig,axs
-
-
 
 lagcorr = []
 for ll in range(nleads_sel):
     lead = selected_leads[ll]
     lagcorr.append(np.corrcoef(re_target[0,:(ntime-lead)],re_target[0,lead:])[0,1])
 
-
-
-
-
 for ll in range(nleads_sel):
     lead = selected_leads[ll]
     ilead = list(leads).index(lead)
+    
+    # Plot histogram
+    fig,axs = make_count_barplot(count_by_year_leads[:,:,ll],lead,re_target,leadmax=25)
+    axs[0].set_title("Histogram for Lead %i Years" % (lead))
+    plt.savefig("%sHadISST_Prediction_Count_Lead%02i.png"% (figpath,lead),dpi=150,bbox_inches="tight",transparent=True)
+    
+    # Plot lagocorr with moving bar
+    # fig,ax = plt.subplots(1,1)
+    # ax.set_ylim([0,1])
+    # ax.plot(selected_leads,lagcorr,marker="x")
+    # ax.axvline(lead,color="k",ls='dashed')
+    # ax.set_xticks(selected_leads)
+    # ax.set_title("Lag Correlation of NASST Index")
+    # plt.savefig("%sHadISST_Lag_Correlation_lead%02i.png" % (figpath,lead),dpi=150)
+    # plt.show()
 
-    # fig,axs = make_count_barplot(count_by_year_leads[:,:,ll],lead,re_target,leadmax=24)
+#%% Group Barplot by years (interannual, decadal, multidecadal)
 
-    # axs[0].set_title("Histogram for Lead %i Years" % (lead))
+# count_by_year_leads # [year x class x lead]
 
-    # plt.savefig("%sHadISST_Prediction_Count_Lead%02i.png"% (figpath,lead),dpi=150,bbox_inches="tight")
+interann_count      = count_by_year_leads[:,:,np.arange(1,10)].sum(2) # year x class
+decadal_count       = count_by_year_leads[:,:,np.arange(10,20)].sum(2)
+multidecadal_count  = count_by_year_leads[:,:,np.arange(20,26)].sum(2)
 
 
-    fig,ax = plt.subplots(1,1)
-    ax.set_ylim([0,1])
-    ax.plot(selected_leads,lagcorr,marker="x")
-    ax.axvline(lead,color="k",ls='dashed')
-    ax.set_xticks(selected_leads)
-    ax.set_title("Lag Correlation of NASST Index")
-    plt.savefig("%sHadISST_Lag_Correlation_lead%02i.png" % (figpath,lead),dpi=150)
-    plt.show()
-#%% Quickly look at lag correlation
+counts_in    = [interann_count,decadal_count,multidecadal_count]
+count_labels = ["Interannual (1-9 years)","Decadal (10-19 years)", "Multidecadal (20-26 years)"]
 
+
+# Plot Settings
+leadmax = 25
+
+
+fig,axs = plt.subplots(3,1,constrained_layout=True,figsize=(12,10))
+
+
+
+for ii in range(3):
+    
+    
+    ax = axs[ii]
+
+    # (Copied from function above)
+    # Set up timeaxis
+    timeaxis      = np.arange(0,len(re_target.squeeze()))
+    timeaxis_in   = np.arange(leadmax,re_target.shape[1])
+    
+    # Plot the counts
+    plotcount = counts_in[ii]
+    maxcount  = plotcount.sum(-1)
+    
+    for c in range(3):
+        label = classes[c]
+        plotcount = plotcount
+        print(plotcount[:,c][0])
+        print(plotcount[:,:c].sum(1)[0])
+        ax.bar(timeaxis_in+1870,plotcount[:,c]/maxcount,bottom=plotcount[:,:c].sum(1)/maxcount,
+               label=label,color=class_colors[c],alpha=0.75,edgecolor=dfcol_r)
+    
+    # Label and set ticks
+    if ii == 1:
+        ax.set_ylabel("Frequency of Predicted Class")
+    ax.minorticks_on()
+    ax.grid(True,ls="dotted")
+    ax.set_xlim([1890,2025])
+    ax.set_ylim([0,1.1])
+    if ii == 2:
+        ax.set_xlabel("Year")
+    
+    
+    # Plot NASST Index on Separate Axis
+    ax2 = ax.twinx()
+    ax2.plot(timeaxis+1870,re_target.squeeze(),color=dfcol,label="HadISST NASST Index")
+    if ii == 1:
+        ax2.set_ylabel("NASST Index ($\degree C$)")
+    ax2.set_ylim([-1.3,1.3])
+    for th in thresholds_in:
+        ax2.axhline([th],color=dfcol,ls="dashed")
+    ax2.axhline([0],color=dfcol,ls="solid",lw=0.5)
+    ax = viz.label_sp(ii,ax=ax,fig=fig,alpha=0.5,fontsize=fsz_axlbl,labelstyle="%s) "+count_labels[ii])
+    #axs = [ax,ax2]
+
+figname = "%sHadISST_Prediction_Count_Lead_TimeSplit_%s.png"% (figpath,expdir)
+plt.savefig(figname,dpi=150,bbox_inches="tight",transparent=True)
+
+                                     
+
+
+
+
+#%% WIP BELOW -----------------------------------------------------------------
 
 
 
@@ -844,8 +987,6 @@ for ll in range(nleads_sel):
 #%%
 
 ax.set_title(title)
-ax.set_ylim([0,10])
-
 
 
 plot_mode = 0
