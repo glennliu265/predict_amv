@@ -36,7 +36,7 @@ from torch.utils.data import DataLoader, TensorDataset,Dataset
 
 #%% Load custom packages and setup parameters
 
-machine = 'Astraeus' # Indicate machine (see module packages section in pparams)
+machine = 'stormtrack' # Indicate machine (see module packages section in pparams)
 
 # Import packages specific to predict_amv
 cwd = os.getcwd()
@@ -71,7 +71,6 @@ nn_param_dict      = pparams.nn_param_dict
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
 expdir              = "FNN4_128_SingleVar_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
-
 
 outpath = "../../CESM_data/%s/Metrics/Test_Metrics/" % expdir
 # Processing Options
@@ -423,9 +422,6 @@ for lead in range(26):
     print("Computed Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
             
     # #%% Visualize relevance composites differences between normalized and unnormalized data
-    
-    # lon = load_dict['lon']
-    # lat = load_dict['lat']
     
     
     # Nneed to cimposite and relevan
