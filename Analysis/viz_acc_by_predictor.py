@@ -35,7 +35,7 @@ import pamv_visualizer as pviz
 
 detrend      = True
 expdirs      = ("FNN4_128_Singlevar_PaperRun","FNN4_128_Singlevar_PaperRun_detrended")#("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
-expdirs_long = ("FNN (Undetrended)","FNN (Detrended)",)# "CNN (Undetrended)")
+expdirs_long = ("Forced","Unforced",)# "CNN (Undetrended)")
 skipvars     = ("UOHC","UOSC","HMXL","BSF","NHFLX")#
 #threscolors = ("r","gray","cornflowerblue")
 expnames     = ("FNN","CNN")
@@ -62,7 +62,7 @@ leads     = np.arange(0,26,1)
 # Plotting Parameters
 lwall     = 2.5
 
-darkmode  = True
+darkmode  = False
 if darkmode:
     plt.style.use('dark_background')
     dfcol = "w"
@@ -252,11 +252,10 @@ if load_test_metrics: # New unpacking method (should I put this in a func... :()
     ylabs    = np.array([alloutputs[expnum][v]['targets'] for v in range(nvars)])
     
 else:
-    # old format, need to get it in the shape: # [variable x run? x lead x class]
     
+    # old format, need to get it in the shape: # [variable x run? x lead x class]
     totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[expnum])
-
-
+    
 #%% Check to see how many models are just predicting one or two class (currently 24/10400)
 # --------------------------- ------------------------------------------------------------
 ignore_one_class = np.zeros((4,26,100))
@@ -277,7 +276,7 @@ print("Models predicting only 1 class  : %i" % cnt_pred1)
 print("Models predicting only 2 classes: %i" % cnt_pred1)
 print("Model indices %s" % (str(np.where(ignore_one_class <3))))
                 
-#%% Visualize Accuracy by Class, compare between predictors
+#%% Visualize Accuracy by Class, compare between predictors (this one doesnt seem to work...)
 
 nvar       = len(varnames)
 nruns      = 100#totalacc.shape[1]
@@ -323,72 +322,9 @@ for c in range(3):
         ax.set_xlabel("Prediction Lead (Years)")
         
 plt.savefig("%sPredictor_Intercomparison_byclass_plotmax%i_%s.png"% (figpath,plotmax,expdirs[expnum]),dpi=200)
-#%% Same as above plot, but specificall for AGU
-plotmodels = [0,1,2,3]
-ex         = expnum
-add_conf   = True
-plotconf   = 0.68
-plotmax    = False # Set to True to plot maximum
-alpha      = 0.25
-fig,axs = plt.subplots(1,3,figsize=(18,4))
-
-for c in range(3):
-    
-    # Initialize plot
-    ax = axs[c]
-    ax.set_title("%s" %(classes[c]),fontsize=16,)
-    ax.set_xlim([0,24])
-    ax.set_xticks(leads)
-    ax.set_ylim([0,1])
-    ax.set_yticks(np.arange(0,1.25,.25))
-    ax.grid(True,ls='dotted')
-    
-    for i in plotmodels:
-        if plotmax:
-            plotacc = classacc[i,:,:,c].max(0)
-        else:
-            plotacc = classacc[i,:,:,c].mean(0)
-       # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
-        
-        mu        = classacc[i,:50,:,c].mean(0)
-        sigma     = classacc[i,:50,:,c].std(0)
-        
-        sortacc  = np.sort(classacc[i,:,:,c],0)
-        idpct    = sortacc.shape[0] * plotconf
-        lobnd    = np.floor(idpct).astype(int)
-        hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
-        
-        ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnames[i],zorder=9)
-        if add_conf:
-            if plotconf:
-                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors[i],zorder=1,label="")
-            else:
-                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors[i],zorder=1)
-        
-    ax.plot(leads,persaccclass[detrend][:,c],color=dfcol,label="Persistence",ls="dashed")
-    ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
-    
-        # Add max/min predictability dots (removed this b/c it looks messy)
-        # ax.scatter(leads,classacc[i,:,:,c].max(0),color=varcolors[i])
-        # ax.scatter(leads,classacc[i,:,:,c].min(0),color=varcolors[i])
-    
-    #ax.plot(leads,autodat[::3,c],color='k',ls='dotted',label="AutoML",lw=lwall)
-    #ax.plot(leads,persaccclass[:,c],color='k',label="Persistence",lw=lwall)
-
-    #ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol)
-        
-    if c == 0:
-        ax.legend(ncol=2,fontsize=10)
-        ax.set_ylabel("Accuracy")
-    if c == 1:
-        ax.set_xlabel("Prediction Lead (Years)")
-        
-plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_AGUver.png"% (figpath,detrend,plotmax,expdirs[expnum]),
-            dpi=200,bbox_inches="tight",transparent=True)
-
-#%% Make the same plot as above, but output in increments
 
 
+#%% Make the same plot as above, but output in increments (for AC presentation)
 
 plotmodels = [0,2,1,3]
 ex         = expnum
@@ -502,56 +438,6 @@ for c in [1,2]:
                 dpi=200,bbox_inches="tight",transparent=True)
     pcounter += 1
 
-
-# fig,axs = plt.subplots(1,3,figsize=(18,4))
-
-# for c in range(3):
-    
-#     # Initialize plot
-#     ax = axs[c]
-#     ax.set_title("%s" %(classes[c]),fontsize=16,)
-#     ax.set_xlim([0,24])
-#     ax.set_xticks(leads)
-#     ax.set_ylim([0,1])
-#     ax.set_yticks(np.arange(0,1.25,.25))
-#     ax.grid(True,ls='dotted')
-    
-#     for i in plotmodels:
-#         if plotmax:
-#             plotacc = classacc[i,:,:,c].max(0)
-#         else:
-#             plotacc = classacc[i,:,:,c].mean(0)
-#        # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
-        
-#         mu        = classacc[i,:50,:,c].mean(0)
-#         sigma     = classacc[i,:50,:,c].std(0)
-        
-#         sortacc  = np.sort(classacc[i,:,:,c],0)
-#         idpct    = sortacc.shape[0] * plotconf
-#         lobnd   = np.floor(idpct).astype(int)
-#         hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
-        
-        
-#         ax.plot(leads,mu,color=varcolors[i],marker="o",alpha=1.0,lw=2.5,label=varnames[i],zorder=9)
-#         if add_conf:
-#             if plotconf:
-#                 ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.3,color=varcolors[i],zorder=1,label="")
-#             else:
-#                 ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=varcolors[i],zorder=1)
-        
-#     ax.plot(leads,persacctotal,color=dfcol,label="Persistence",ls="dashed")
-#     ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
-    
-        
-#         # Add max/min predictability dots (removed this b/c it looks messy)
-#         # ax.scatter(leads,classacc[i,:,:,c].max(0),color=varcolors[i])
-#         # ax.scatter(leads,classacc[i,:,:,c].min(0),color=varcolors[i])
-        
-#     #ax.plot(leads,autodat[::3,c],color='k',ls='dotted',label="AutoML",lw=lwall)
-
-# plt.savefig("%sPredictor_Intercomparison_byclass_plotmax%i_%s_AGUver.png"% (figpath,plotmax,expdirs[expnum]),
-#             dpi=200,bbox_inches="tight",transparent=True)
-
 # ----------------------------------------------------
 #%% Remake the plots, but for the GRL Paper Outline...
 # ----------------------------------------------------
@@ -564,11 +450,13 @@ else:
     dfcol = "k"
 
 # Toggles
-plotmodels = [0,1,2,4]
+plotmodels = [0,1,2,3]
 plotclasses = [0,2]
 classes_new= ["NASST+","Neutral","NASST-"]
 
-expnums    = [1,0]
+leadticks  = np.arange(0,26,5)
+
+expnums    = [0,1]
 detrends   = [0,1]
 add_conf   = True
 plotconf   = 0.68
@@ -604,15 +492,15 @@ for iplot,ex in enumerate(expnums):
         viz.label_sp(it,ax=ax,fig=fig,fontsize=16,alpha=0.2,x=0.02)
         
         ax.set_xlim([0,24])
-        ax.set_xticks(leads)
+        ax.set_xticks(leadticks)
         ax.set_ylim([0,1])
         ax.set_yticks(np.arange(0,1.2,.2))
         #ax.grid(True,ls='dotted')
         #ax.minorticks_on()
         
         ax = viz.add_ticks(ax,facecolor="#eaeaf2",grid_lw=1.5,grid_col="w",grid_ls="solid",
-                           spinecolor="darkgray",tickcolor="dimgray",
-                           ticklabelcolor="k")
+                            spinecolor="darkgray",tickcolor="dimgray",
+                            ticklabelcolor="k")
         
         # Add Class Labels
         if iplot == 0:
@@ -672,6 +560,299 @@ for iplot,ex in enumerate(expnums):
 plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer.png"% (figpath,detrend,plotmax,expdirs[expnum]),
             dpi=200,bbox_inches="tight",transparent=False)
 
+#%% Same as above, but just for the Neutral class
+
+
+darkmode = False
+plt.style.use('default')#('seaborn_v0-8')
+if darkmode == True:
+    dfcol = "w"
+else:
+    dfcol = "k"
+
+# Toggles
+plotmodels = [0,1,2,3]
+plotclasses = [1,]
+classes_new= ["NASST+","Neutral","NASST-"]
+
+leadticks  = np.arange(0,26,5)
+#plot_classes = [1,]
+expnums    = [0,1]
+detrends   = [0,1]
+add_conf   = True
+plotconf   = 0.68
+plotmax    = False # Set to True to plot maximum
+alpha      = 0.15
+legend_sp  = 2
+
+# Initialize figures
+fig,axs =  plt.subplots(2,1,constrained_layout=True,figsize=(7,6))
+it = 0
+for iplot,ex in enumerate(expnums):
+    
+    # Get the axes row
+    axs_row = axs[iplot]
+    
+    # Load the data
+    if load_test_metrics:
+        totalacc = np.array([alloutputs[ex][v]['total_acc'] for v in range(nvars)])
+        classacc = np.array([alloutputs[ex][v]['class_acc'] for v in range(nvars)])
+        ypred    = np.array([alloutputs[ex][v]['predictions'] for v in range(nvars)])
+        ylabs    = np.array([alloutputs[ex][v]['targets'] for v in range(nvars)])
+    else:
+        totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
+    
+    # Indicate detrending
+    exp_dt = detrends[ex]
+    
+    for rowid,c in enumerate(plotclasses):
+        
+        ax = axs_row
+        
+        # Initialize plot
+        viz.label_sp(it,ax=ax,fig=fig,fontsize=16,alpha=0.2,x=0.02)
+        
+        ax.set_xlim([0,24])
+        ax.set_xticks(leadticks)
+        ax.set_ylim([0,1])
+        ax.set_yticks(np.arange(0,1.2,.2))
+        #ax.grid(True,ls='dotted')
+        #ax.minorticks_on()
+        
+        ax = viz.add_ticks(ax,facecolor="#eaeaf2",grid_lw=1.5,grid_col="w",grid_ls="solid",
+                            spinecolor="darkgray",tickcolor="dimgray",
+                            ticklabelcolor="k")
+        
+        # Add Class Labels
+        if iplot == 0:
+            ax.set_title("%s" %(classes_new[c]),fontsize=16,)
+        
+        for i in plotmodels:
+            if plotmax:
+                plotacc = classacc[i,:,:,c].max(0)
+            else:
+                plotacc = classacc[i,:,:,c].mean(0)
+           # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
+            
+            mu        = classacc[i,:50,:,c].mean(0)
+            sigma     = classacc[i,:50,:,c].std(0)
+            
+            sortacc  = np.sort(classacc[i,:,:,c],0)
+            idpct    = sortacc.shape[0] * plotconf
+            lobnd    = np.floor(idpct).astype(int)
+            hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
+            
+            ax.plot(leads,mu,color=varcolors_dark[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnamesplot[i],zorder=3)
+            if add_conf:
+                if plotconf:
+                    ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors_dark[i],zorder=1,label="")
+                else:
+                    ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors_dark[i],zorder=1)
+            
+        ax.plot(leads,persaccclass[exp_dt][:,c],color=dfcol,label="Persistence",ls="dashed")
+        ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
+        
+        if c == 1:
+            
+            if iplot == 0:
+                ax.set_ylabel("Test Accuracy")
+            #     ax.text(-0.09, -0.05,"Test Accuracy", va='bottom', ha='center',rotation='vertical',
+            #             rotation_mode='anchor',transform=ax.transAxes)
+
+
+            ax.text(-0.10, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=14)
+        if (c == 1):
+            if iplot == 1:
+                ax.set_xlabel("Prediction Lead (Years)")
+        if it == legend_sp:
+            ax.legend(ncol=2,fontsize=10)
+        it += 1
+
+plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer_NEUTRAL.png"% (figpath,detrend,plotmax,expdirs[expnum]),
+            dpi=200,bbox_inches="tight",transparent=False)
+
+
+
+#%% Same as above, but for all three classes
+
+darkmode = False
+
+if darkmode == True:
+    dfcol = "w"
+    plt.style.use('dark_background')#('seaborn_v0-8')
+else:
+    dfcol = "k"
+    plt.style.use('default')
+    
+# Toggles
+plotmodels = [0,1,2,3]
+plotclasses = [0,1,2]
+classes_new= ["NASST+","Neutral","NASST-"]
+
+expnums    = [0,1]
+detrends   = [0,1]
+add_conf   = True
+plotconf   = 0.68
+plotmax    = False # Set to True to plot maximum
+alpha      = 0.15
+legend_sp  = 2
+mks        = 5
+
+# Initialize figures
+
+fig,axs =  plt.subplots(2,3,constrained_layout=True,figsize=(14,6))
+it = 0
+
+for iplot,ex in enumerate(expnums):
+    
+    # Get the axes row
+    axs_row = axs[iplot,:]
+    
+    # Load the data
+    if load_test_metrics:
+        totalacc = np.array([alloutputs[ex][v]['total_acc'] for v in range(nvars)])
+        classacc = np.array([alloutputs[ex][v]['class_acc'] for v in range(nvars)])
+        ypred    = np.array([alloutputs[ex][v]['predictions'] for v in range(nvars)])
+        ylabs    = np.array([alloutputs[ex][v]['targets'] for v in range(nvars)])
+    else:
+        totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
+    
+    # Indicate detrending
+    exp_dt = detrends[ex]
+    
+    for rowid,c in enumerate(plotclasses):
+        
+        ax = axs_row[rowid]
+        
+        # Initialize plot
+        viz.label_sp(it,ax=ax,fig=fig,fontsize=16,alpha=0.7,x=0.02)
+        
+        ax = pviz.format_acc_plot(leads,ax)
+        ax.grid(False)
+        ax.set_xlim([0,25])
+        ax.set_xticks(np.arange(0,26,5))
+        ax.set_ylim([0,1])
+        ax.set_yticks(np.arange(0,1.2,.2))
+        #ax.grid(True,ls='dotted')
+        #ax.minorticks_on()
+        
+        # ax = viz.add_ticks(ax,facecolor=None,grid_lw=1.5,grid_col="w",grid_ls="solid",
+        #                    spinecolor="darkgray",tickcolor="dimgray",
+        #                    ticklabelcolor="k")
+        
+        # Add Class Labels
+        if iplot == 0:
+            ax.set_title("%s" %(classes_new[c]),fontsize=16,)
+        
+        for i in plotmodels:
+            if plotmax:
+                plotacc = classacc[i,:,:,c].max(0)
+            else:
+                plotacc = classacc[i,:,:,c].mean(0)
+           # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
+            
+            mu        = classacc[i,:50,:,c].mean(0)
+            sigma     = classacc[i,:50,:,c].std(0)
+            
+            sortacc  = np.sort(classacc[i,:,:,c],0)
+            idpct    = sortacc.shape[0] * plotconf
+            lobnd    = np.floor(idpct).astype(int)
+            hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
+            
+            
+            ax.plot(leads,mu,color=varcolors_dark[i],marker=varmarker[i],markersize=mks,alpha=1.0,lw=2.5,label=varnamesplot[i],zorder=3)
+            if add_conf:
+                if plotconf:
+                    ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors_dark[i],zorder=1,label="")
+                else:
+                    ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors_dark[i],zorder=1)
+            
+        ax.plot(leads,persaccclass[exp_dt][:,c],color=dfcol,label="Persistence",ls="solid")
+        ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dashed")
+        
+        if c == 0:
+            
+            if iplot == 0:
+                ax.set_ylabel("Test Accuracy")
+            #     ax.text(-0.09, -0.05,"Test Accuracy", va='bottom', ha='center',rotation='vertical',
+            #             rotation_mode='anchor',transform=ax.transAxes)
+
+
+            ax.text(-0.15, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=14)
+        if (c == 1):
+            if iplot == 1:
+                ax.set_xlabel("Prediction Lead (Years)")
+        if it == legend_sp:
+            ax.legend(ncol=2,fontsize=10)
+        it += 1
+
+plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_PresVer.png"% (figpath,detrend,plotmax,expdirs[expnum]),
+            dpi=200,bbox_inches="tight",transparent=True)
+
+#%% Same as above plot, but specificall for AGU 2022 (outdated now!)
+plotmodels = [0,1,2,3]
+ex         = expnum
+add_conf   = True
+plotconf   = 0.68
+plotmax    = False # Set to True to plot maximum
+alpha      = 0.25
+fig,axs = plt.subplots(1,3,figsize=(18,4))
+
+for c in range(3):
+    
+    # Initialize plot
+    ax = axs[c]
+    ax.set_title("%s" %(classes[c]),fontsize=16,)
+    ax.set_xlim([0,24])
+    ax.set_xticks(leads)
+    ax.set_ylim([0,1])
+    ax.set_yticks(np.arange(0,1.25,.25))
+    ax.grid(True,ls='dotted')
+    
+    for i in plotmodels:
+        if plotmax:
+            plotacc = classacc[i,:,:,c].max(0)
+        else:
+            plotacc = classacc[i,:,:,c].mean(0)
+       # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
+        
+        mu        = classacc[i,:50,:,c].mean(0)
+        sigma     = classacc[i,:50,:,c].std(0)
+        
+        sortacc  = np.sort(classacc[i,:,:,c],0)
+        idpct    = sortacc.shape[0] * plotconf
+        lobnd    = np.floor(idpct).astype(int)
+        hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
+        
+        ax.plot(leads,mu,color=varcolors[i],marker=varmarker[i],alpha=1.0,lw=2.5,label=varnames[i],zorder=9)
+        if add_conf:
+            if plotconf:
+                ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors[i],zorder=1,label="")
+            else:
+                ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors[i],zorder=1)
+        
+    ax.plot(leads,persaccclass[detrend][:,c],color=dfcol,label="Persistence",ls="dashed")
+    ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
+    
+        # Add max/min predictability dots (removed this b/c it looks messy)
+        # ax.scatter(leads,classacc[i,:,:,c].max(0),color=varcolors[i])
+        # ax.scatter(leads,classacc[i,:,:,c].min(0),color=varcolors[i])
+    
+    #ax.plot(leads,autodat[::3,c],color='k',ls='dotted',label="AutoML",lw=lwall)
+    #ax.plot(leads,persaccclass[:,c],color='k',label="Persistence",lw=lwall)
+
+    #ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol)
+        
+    if c == 0:
+        ax.legend(ncol=2,fontsize=10)
+        ax.set_ylabel("Accuracy")
+    if c == 1:
+        ax.set_xlabel("Prediction Lead (Years)")
+        
+plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_AGUver.png"% (figpath,detrend,plotmax,expdirs[expnum]),
+            dpi=200,bbox_inches="tight",transparent=True)
 
 # --------------------------------------------------------------------------------
 # %% Do comparison plot of CNN vs FNN (Outline Ver, copied from AGU version below)
@@ -684,9 +865,9 @@ justbaseline = False
 plotconf     = 0.05
 detrend_plot = False
 plot_exs     = [1,2]
-fsz   = 14
-fszt  = 12
-fszb  = 16
+fsz          = 14
+fszt         = 12
+fszb         = 16
 
 for v in range(nvar):
     fig,ax = plt.subplots(1,1,figsize=(8,5.5),sharex=True,constrained_layout=True)
