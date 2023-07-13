@@ -388,303 +388,301 @@ varname    = varnames[0]
 predictors = data[[0],...]
 
 
-# Indicate which leads to look at
-vt      = time.time()
-
-# ================================
-#% 1. Load model weights + Metrics
-# ================================
-# Get the model weights [lead][run]
-modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
-nmodels = len(modweights_lead[0])
-
-
-# VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-#%% Compute the relevance map with original data and composite
-
-outdict_original = compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_lead,modlist_lead,
-                            nn_param_dict,innexp,innmethod,innbeta,innepsi,
-                            even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=True)
-
-relevances_all      = outdict_original['relevances']
-predictors_all_lead = outdict_original['predictors']
-predictions_all     = outdict_original['predictions']
-targets_all         = outdict_original['targets']
-test_acc_byclass    = outdict_original['class_acc']
-
-
-#%
-# Need to add option to cull models in visualization script...
-st_rel_comp          = time.time()
-composites_ori = composite_relevances_predictors(relevances_all,predictors_all_lead,targets_all,nclasses=3)
-relevance_composites = composites_ori['relevance_composites']
-predictor_composites  = composites_ori['predictor_composites']
-print("Computed Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
-        
-# #%% Visualize relevance composites differences between normalized and unnormalized data
-
-# lon = load_dict['lon']
-# lat = load_dict['lat']
-
-
-# Nneed to cimposite and relevan
-fig,axs = plt.subplots(2,4,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(12,4.5))
-
-for ii in range(2):
-    for c in range(4):
-        
-        ax =axs[ii,c]
-        ax.set_extent(bbox)
-        ax.coastlines()
-        if c < 3:
-            plotvar = relevance_composites[ii,:,c,:,:].mean(0)
-            title   = pparams.classes[c]
-        else:
-            plotvar = relevance_composites[ii,:,:,:,:].mean(1).mean(0)
-            title   = "Class Mean"
-        plotvar = plotvar / np.nanmax(np.abs(plotvar))
-        pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-1,vmax=1,cmap="RdBu_r")
-        
-        if ii == 0:
-            ax.set_title(title)
-        
-        if c == 0:
-            ax.text(-0.05, 0.55, data_names[ii], va='bottom', ha='center',rotation='vertical',
-                    rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
-cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.05)
-cb.set_label("Normalized Relevance")
-plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
-
-savename ="%sNormalizing_Effect_%s_lead%02iyears.png" % (figpath,varname,lead)
-plt.savefig(savename,dpi=150,bbox_inches="tight")
-
-
-#%% Koop....
-
-
-sel_c = [0,2]
-
-# Loop for different relevance thresholds
-test_thresholds = np.arange(0.4,0.9,0.1)
-nthres_rel      = len(test_thresholds)
-inorm           = 0
-debug_plots     = True
-mc_iter         = 50
-
-random_dropped_points_bythres = []
-dropped_points_bythres = []
-random_test_acc        = []
-replacement_test_acc   = []
-random_predictions     = []
-replacement_predictions = []
-for r in range(nthres_rel):
-    rtt = time.time()
-    thres_rel   = test_thresholds[r]
+for lead in range(26):
+    # Indicate which leads to look at
+    vt      = time.time()
     
-    # Plot the histogram
-    # ------------------
-    if debug_plots:
-        
-        fig,axs = plt.subplots(1,4,figsize=(12,4),constrained_layout=True)
-        bins    = np.arange(0,1.1,.1)
+    # ================================
+    #% 1. Load model weights + Metrics
+    # ================================
+    # Get the model weights [lead][run]
+    modweights_lead,modlist_lead=am.load_model_weights(datpath,expdir,leads,varname)
+    nmodels = len(modweights_lead[0])
+    
+    
+    # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+    #%% Compute the relevance map with original data and composite
+    
+    outdict_original = compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_lead,modlist_lead,
+                                nn_param_dict,innexp,innmethod,innbeta,innepsi,
+                                even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=True)
+    
+    relevances_all      = outdict_original['relevances']
+    predictors_all_lead = outdict_original['predictors']
+    predictions_all     = outdict_original['predictions']
+    targets_all         = outdict_original['targets']
+    test_acc_byclass    = outdict_original['class_acc']
+    
+    
+    #%
+    # Need to add option to cull models in visualization script...
+    st_rel_comp          = time.time()
+    composites_ori = composite_relevances_predictors(relevances_all,predictors_all_lead,targets_all,nclasses=3)
+    relevance_composites = composites_ori['relevance_composites']
+    predictor_composites  = composites_ori['predictor_composites']
+    print("Computed Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
+            
+    # #%% Visualize relevance composites differences between normalized and unnormalized data
+    
+    # lon = load_dict['lon']
+    # lat = load_dict['lat']
+    
+    
+    # Nneed to cimposite and relevan
+    fig,axs = plt.subplots(2,4,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(12,4.5))
+    
+    for ii in range(2):
         for c in range(4):
-            ax =axs[c]
-            if c < 3:
-                plotvar = relevance_composites[inorm,:,c,:,:].mean(0)
-                title = pparams.classes[c]
-            else:
-                plotvar = relevance_composites[inorm,:,[0,2],:,:].mean(0).mean(0)
-                title = "NASST+/NASST- Avg."
-            if c == 0:
-                ax.text(-0.25, 0.55, data_names[inorm], va='bottom', ha='center',rotation='vertical',
-                        rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
-            plotvar = (plotvar / np.nanmax(np.abs(plotvar))).flatten()
-            count_above = (plotvar > thres_rel).sum()
-            ax.hist(plotvar,bins=bins,edgecolor="w")
-            ax.axvline([thres_rel],ls='dashed',color="k")
-            ax.set_title("%s \n Count Above %.2f: %i" % (title,thres_rel,count_above))
-            savename ="%sRelevanceAblation_Histogram_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
-            plt.savefig(savename,dpi=150,bbox_inches="tight")
-    
-    # Mask the points
-    # ---------------
-    predictor_in = predictors.reshape(1,nens,ntime,nlat*nlon)
-    plotvar      = relevance_composites[inorm,:,sel_c,:,:].mean(0).mean(0) # Mean over class, then over run
-    plotvar      = plotvar / np.nanmax(np.abs(plotvar))
-    sel_pts      =  np.where(plotvar.flatten() > thres_rel)[0]
-    npts = len(sel_pts)
-    
-    # Plot the relevance mask
-    # -----------------------
-    if debug_plots:
-        fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(12,4.5),
-                               constrained_layout=True)
-        for c in range(3):
-            ax = axs[c]
+            
+            ax =axs[ii,c]
             ax.set_extent(bbox)
             ax.coastlines()
+            if c < 3:
+                plotvar = relevance_composites[ii,:,c,:,:].mean(0)
+                title   = pparams.classes[c]
+            else:
+                plotvar = relevance_composites[ii,:,:,:,:].mean(1).mean(0)
+                title   = "Class Mean"
+            plotvar = plotvar / np.nanmax(np.abs(plotvar))
+            pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-1,vmax=1,cmap="RdBu_r")
+            
+            if ii == 0:
+                ax.set_title(title)
             
             if c == 0:
-                plotvar_in = plotvar
-                pcm = ax.pcolormesh(lon,lat,plotvar_in,vmin=-1,vmax=1,cmap="RdBu_r")
-                title = "Relevance"
-                
-            elif c == 1:
-                plotvar_in = plotvar.copy()
-                plotvar_in[plotvar<thres_rel] = 0
-                pcm = ax.pcolormesh(lon,lat,plotvar_in,vmin=-1,vmax=1,cmap="RdBu_r")
-                title = "Above Threshold"
-            elif c == 2:
-                idlat,idlon=np.unravel_index(sel_pts,(nlat,nlon))
-                ax.scatter(lon[idlon],lat[idlat])
-                title = "Replaced Points"
-            ax.set_title(title)
-        cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.015,pad=0.05)
-        cb.set_label("Normalized Relevance")
-        plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
-        
-        savename ="%sRelevanceAblation_ReplacementSelection_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
-        plt.savefig(savename,dpi=150,bbox_inches="tight")
-        
-    # Create synthetic data with high relevance points
-    # ------------------------------------------------
-    synth_name     = ["white noise","red noise"]
-    synthetic_data = np.zeros((2,nens,ntime,nlat*nlon,))
-    dropped_points = []
-    for pt in tqdm(range(npts)):
-        idx = sel_pts[pt]
-        for e in range(nens):
-            
-            ts_in     = predictor_in[0,e,:,idx] # Get the timeseries
-            
-            # Estimate AR1 coefficient using yule-walker
-            coef,sigma=nitime.algorithms.AR_est_YW(ts_in,1)
-            
-            # Make red noise timeseries
-            X_ar,noise,aph=nitime.utils.ar_generator(ntime,sigma=sigma,coefs=coef)
-            
-            synthetic_data[1,e,:,idx] = X_ar.copy()
-            
-            # Make white noise timeseries
-            synthetic_data[0,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
-        dropped_points.append(idx)
-        
-    synthetic_data = [d[None,...].reshape(1,nens,ntime,nlat,nlon) for d in synthetic_data]
+                ax.text(-0.05, 0.55, data_names[ii], va='bottom', ha='center',rotation='vertical',
+                        rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
+    cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.05)
+    cb.set_label("Normalized Relevance")
+    plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
     
-    # Recompute test accuracy
-    # -----------------------
-    outdict_replaced = compute_relevances_lead(synthetic_data,target_class,lead,eparams,modweights_lead,modlist_lead,
-                                nn_param_dict,innexp,innmethod,innbeta,innepsi,
-                                even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=False,notqdm=True)
-    test_acc_byclass_synth=outdict_replaced['class_acc'] # [data x run x class]
-    rel_predictions = outdict_replaced['predictions']
+    savename ="%sNormalizing_Effect_%s_lead%02iyears.png" % (figpath,varname,lead)
+    plt.savefig(savename,dpi=150,bbox_inches="tight")
     
-    # Compute the output
-    # -----------------------
-    if debug_plots:
-        for method in range(2):
-            remove_singleguesser = True
-            fig,axs = plt.subplots(3,1,constrained_layout=True)
+    
+    #%% Loop....
+    
+    
+    sel_c = [0,2]
+    
+    # Loop for different relevance thresholds
+    test_thresholds = np.arange(0.4,0.9,0.1)
+    nthres_rel      = len(test_thresholds)
+    inorm           = 0
+    debug_plots     = True
+    mc_iter         = 50
+    
+    random_dropped_points_bythres = []
+    dropped_points_bythres = []
+    random_test_acc        = []
+    replacement_test_acc   = []
+    random_predictions     = []
+    replacement_predictions = []
+    for r in range(nthres_rel):
+        rtt = time.time()
+        thres_rel   = test_thresholds[r]
+        
+        # Plot the histogram
+        # ------------------
+        if debug_plots:
             
-            for a in range(3):
-                ax = axs[a]
+            fig,axs = plt.subplots(1,4,figsize=(12,4),constrained_layout=True)
+            bins    = np.arange(0,1.1,.1)
+            for c in range(4):
+                ax =axs[c]
+                if c < 3:
+                    plotvar = relevance_composites[inorm,:,c,:,:].mean(0)
+                    title = pparams.classes[c]
+                else:
+                    plotvar = relevance_composites[inorm,:,[0,2],:,:].mean(0).mean(0)
+                    title = "NASST+/NASST- Avg."
+                if c == 0:
+                    ax.text(-0.25, 0.55, data_names[inorm], va='bottom', ha='center',rotation='vertical',
+                            rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
+                plotvar = (plotvar / np.nanmax(np.abs(plotvar))).flatten()
+                count_above = (plotvar > thres_rel).sum()
+                ax.hist(plotvar,bins=bins,edgecolor="w")
+                ax.axvline([thres_rel],ls='dashed',color="k")
+                ax.set_title("%s \n Count Above %.2f: %i" % (title,thres_rel,count_above))
+                savename ="%sRelevanceAblation_Histogram_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
+                plt.savefig(savename,dpi=150,bbox_inches="tight")
+        
+        # Mask the points
+        # ---------------
+        predictor_in = predictors.reshape(1,nens,ntime,nlat*nlon)
+        plotvar      = relevance_composites[inorm,:,sel_c,:,:].mean(0).mean(0) # Mean over class, then over run
+        plotvar      = plotvar / np.nanmax(np.abs(plotvar))
+        sel_pts      =  np.where(plotvar.flatten() > thres_rel)[0]
+        npts = len(sel_pts)
+        
+        # Plot the relevance mask
+        # -----------------------
+        if debug_plots:
+            fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(12,4.5),
+                                   constrained_layout=True)
+            for c in range(3):
+                ax = axs[c]
+                ax.set_extent(bbox)
+                ax.coastlines()
                 
-                method_acc = test_acc_byclass_synth[method,:,a]
-                
-                perf_acc = np.where((method_acc == 0) | (method_acc == 1))[0]
-                diff     = method_acc - test_acc_byclass[0,:,a]
-                
-                if remove_singleguesser:
-                    ax.bar(runids[perf_acc],diff[perf_acc],color="red")
-                    diff[perf_acc] = np.nan
-                    n_exclude = len(perf_acc)
-                
-                ax.bar(runids,diff)
-                ax.axhline([0],ls='solid',color="k")
-                ax.set_title("%s, Mean Diff: %.2f" % (pparams.classes[a],np.nanmean(diff)*100)+"%" + " (dropped=%i)"%n_exclude)
-                
-                ax.set_ylim([-.75,.75])
-                
-            plt.suptitle("Change in Test Accuracy Using %s Data (Relevance Threshold %.2f)" % (synth_name[method],thres_rel))
-            figname = "%sRelevanceAblation_AccChange_%s_%s_relthres%.2f_classPosNeg_selrand%i.png" % (figpath,expdir,synth_name[method].replace(" ",""),thres_rel,
-                                                                                                  False)
-            plt.savefig(figname,dpi=150,bbox_inches='tight')
-    
-    # Now try replacing with random points
-    #
-    dropped_points_mc = []
-    predictions_mc    = []
-    test_acc_mc       = np.zeros((mc_iter,2,nmodels,3))
-    sel_pts_ori       = np.where(plotvar.flatten() > thres_rel)[0]
-    npts              = len(sel_pts_ori)
-    for mc in tqdm(range(mc_iter)):
-        sel_pts = np.random.choice(np.arange(nlat*nlon),size=npts) # Randomly select some points
-        synthetic_data_mc = np.zeros((2,nens,ntime,nlat*nlon,))
+                if c == 0:
+                    plotvar_in = plotvar
+                    pcm = ax.pcolormesh(lon,lat,plotvar_in,vmin=-1,vmax=1,cmap="RdBu_r")
+                    title = "Relevance"
+                    
+                elif c == 1:
+                    plotvar_in = plotvar.copy()
+                    plotvar_in[plotvar<thres_rel] = 0
+                    pcm = ax.pcolormesh(lon,lat,plotvar_in,vmin=-1,vmax=1,cmap="RdBu_r")
+                    title = "Above Threshold"
+                elif c == 2:
+                    idlat,idlon=np.unravel_index(sel_pts,(nlat,nlon))
+                    ax.scatter(lon[idlon],lat[idlat])
+                    title = "Replaced Points"
+                ax.set_title(title)
+            cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.015,pad=0.05)
+            cb.set_label("Normalized Relevance")
+            plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
+            
+            savename ="%sRelevanceAblation_ReplacementSelection_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
+            plt.savefig(savename,dpi=150,bbox_inches="tight")
+            
+        # Create synthetic data with high relevance points
+        # ------------------------------------------------
+        synth_name     = ["white noise","red noise"]
+        synthetic_data = np.zeros((2,nens,ntime,nlat*nlon,))
         dropped_points = []
-        for pt in range(npts):
+        for pt in tqdm(range(npts)):
             idx = sel_pts[pt]
             for e in range(nens):
                 
                 ts_in     = predictor_in[0,e,:,idx] # Get the timeseries
-                
-                # Make sure land points not selected
-                while np.all(predictor_in[0,e,:,idx]==0):
-                    idx = np.random.choice(np.arange(nlat*nlon),size=1)[0] #+=1
-                    ts_in     = predictor_in[0,e,:,idx]
                 
                 # Estimate AR1 coefficient using yule-walker
                 coef,sigma=nitime.algorithms.AR_est_YW(ts_in,1)
                 
                 # Make red noise timeseries
                 X_ar,noise,aph=nitime.utils.ar_generator(ntime,sigma=sigma,coefs=coef)
-                synthetic_data_mc[1,e,:,idx] = X_ar.copy()
+                
+                synthetic_data[1,e,:,idx] = X_ar.copy()
                 
                 # Make white noise timeseries
-                synthetic_data_mc[0,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
+                synthetic_data[0,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
             dropped_points.append(idx)
-            # End loop e
-        # End loop pt
-        dropped_points_mc.append(dropped_points)
-        synthetic_data_mc = [d[None,...].reshape(1,nens,ntime,nlat,nlon) for d in synthetic_data_mc]
+            
+        synthetic_data = [d[None,...].reshape(1,nens,ntime,nlat,nlon) for d in synthetic_data]
         
         # Recompute test accuracy
         # -----------------------
-        outdict_replaced = compute_relevances_lead(synthetic_data_mc,target_class,lead,eparams,modweights_lead,modlist_lead,
+        outdict_replaced = compute_relevances_lead(synthetic_data,target_class,lead,eparams,modweights_lead,modlist_lead,
                                     nn_param_dict,innexp,innmethod,innbeta,innepsi,
                                     even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=False,notqdm=True)
-        test_acc_mc[mc,:,:,:]=outdict_replaced['class_acc'].copy() # [data x run x class]
-        predictions_mc.append(outdict_replaced['predictions'].copy())
-        # End MC Loop
-    
-    # Save output
-    
-    random_dropped_points_bythres.append(dropped_points_mc)
-    random_test_acc.append(test_acc_mc.copy())
-    random_predictions.append(predictions_mc)
-    replacement_test_acc.append(test_acc_byclass_synth)
-    dropped_points_bythres.append(sel_pts_ori)
-    replacement_predictions.append(rel_predictions)
-    
-    # End relevance threshold loop
-    # Save intermediate
-    savename = "%sRelevance_Replacement_Test_%s_%s_lead%02i_thres%.2f_mciter%i.npz" % (outpath,expdir,varname,lead,thres_rel,mc_iter)
-    np.savez(savename,**{
-        'mc_droppedpoints'   : dropped_points_mc,
-        'mc_test_acc'        : test_acc_mc,
-        'mc_predictions'     : predictions_mc,
+        test_acc_byclass_synth=outdict_replaced['class_acc'] # [data x run x class]
+        rel_predictions = outdict_replaced['predictions']
         
-        'rel_dropped_points' : sel_pts_ori,
-        'rel_test_acc'       : test_acc_byclass_synth,
-        'rel_predictions'    : 
-        ''
-        },allow_pickle=True)
+        # Compute the output
+        # -----------------------
+        if debug_plots:
+            for method in range(2):
+                remove_singleguesser = True
+                fig,axs = plt.subplots(3,1,constrained_layout=True)
+                
+                for a in range(3):
+                    ax = axs[a]
+                    
+                    method_acc = test_acc_byclass_synth[method,:,a]
+                    
+                    perf_acc = np.where((method_acc == 0) | (method_acc == 1))[0]
+                    diff     = method_acc - test_acc_byclass[0,:,a]
+                    
+                    if remove_singleguesser:
+                        ax.bar(runids[perf_acc],diff[perf_acc],color="red")
+                        diff[perf_acc] = np.nan
+                        n_exclude = len(perf_acc)
+                    
+                    ax.bar(runids,diff)
+                    ax.axhline([0],ls='solid',color="k")
+                    ax.set_title("%s, Mean Diff: %.2f" % (pparams.classes[a],np.nanmean(diff)*100)+"%" + " (dropped=%i)"%n_exclude)
+                    
+                    ax.set_ylim([-.75,.75])
+                    
+                plt.suptitle("Change in Test Accuracy Using %s Data (Relevance Threshold %.2f)" % (synth_name[method],thres_rel))
+                figname = "%sRelevanceAblation_AccChange_%s_%s_relthres%.2f_classPosNeg_selrand%i.png" % (figpath,expdir,synth_name[method].replace(" ",""),thres_rel,
+                                                                                                      False)
+                plt.savefig(figname,dpi=150,bbox_inches='tight')
+        
+        # Now try replacing with random points
+        #
+        dropped_points_mc = []
+        predictions_mc    = []
+        test_acc_mc       = np.zeros((mc_iter,2,nmodels,3))
+        sel_pts_ori       = np.where(plotvar.flatten() > thres_rel)[0]
+        npts              = len(sel_pts_ori)
+        for mc in tqdm(range(mc_iter)):
+            sel_pts = np.random.choice(np.arange(nlat*nlon),size=npts) # Randomly select some points
+            synthetic_data_mc = np.zeros((2,nens,ntime,nlat*nlon,))
+            dropped_points = []
+            for pt in range(npts):
+                idx = sel_pts[pt]
+                for e in range(nens):
+                    
+                    ts_in     = predictor_in[0,e,:,idx] # Get the timeseries
+                    
+                    # Make sure land points not selected
+                    while np.all(predictor_in[0,e,:,idx]==0):
+                        idx = np.random.choice(np.arange(nlat*nlon),size=1)[0] #+=1
+                        ts_in     = predictor_in[0,e,:,idx]
+                    
+                    # Estimate AR1 coefficient using yule-walker
+                    coef,sigma=nitime.algorithms.AR_est_YW(ts_in,1)
+                    
+                    # Make red noise timeseries
+                    X_ar,noise,aph=nitime.utils.ar_generator(ntime,sigma=sigma,coefs=coef)
+                    synthetic_data_mc[1,e,:,idx] = X_ar.copy()
+                    
+                    # Make white noise timeseries
+                    synthetic_data_mc[0,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
+                dropped_points.append(idx)
+                # End loop e
+            # End loop pt
+            dropped_points_mc.append(dropped_points)
+            synthetic_data_mc = [d[None,...].reshape(1,nens,ntime,nlat,nlon) for d in synthetic_data_mc]
+            
+            # Recompute test accuracy
+            # -----------------------
+            outdict_replaced = compute_relevances_lead(synthetic_data_mc,target_class,lead,eparams,modweights_lead,modlist_lead,
+                                        nn_param_dict,innexp,innmethod,innbeta,innepsi,
+                                        even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=False,notqdm=True)
+            test_acc_mc[mc,:,:,:]=outdict_replaced['class_acc'].copy() # [data x run x class]
+            predictions_mc.append(outdict_replaced['predictions'].copy())
+            # End MC Loop
+        
+        # Save output
+        
+        random_dropped_points_bythres.append(dropped_points_mc)
+        random_test_acc.append(test_acc_mc.copy())
+        random_predictions.append(predictions_mc)
+        replacement_test_acc.append(test_acc_byclass_synth)
+        dropped_points_bythres.append(sel_pts_ori)
+        replacement_predictions.append(rel_predictions)
+        
+        # End relevance threshold loop
+        # Save intermediate
+        savename = "%sRelevance_Replacement_Test_%s_%s_lead%02i_thres%.2f_mciter%i.npz" % (outpath,expdir,varname,lead,thres_rel,mc_iter)
+        np.savez(savename,**{
+            'mc_droppedpoints'   : dropped_points_mc,
+            'mc_test_acc'        : test_acc_mc,
+            'mc_predictions'     : predictions_mc,
+            
+            'rel_dropped_points' : sel_pts_ori,
+            'rel_test_acc'       : test_acc_byclass_synth,
+            'rel_predictions'    : rel_predictions
+            },allow_pickle=True)
+        
+        print("Completed time loop in %.2fs"% (time.time()-rtt))
+    #%% Examine the output
     
-    print("Completed time loop in %.2fs"% (time.time()-rtt))
     
-
-#%% Examine the output
-
-
 
 
 
