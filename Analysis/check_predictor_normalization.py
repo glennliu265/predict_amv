@@ -13,8 +13,6 @@ Created on Fri Jun 23 17:28:54 2023
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-
-
 import numpy as np
 import sys
 import glob
@@ -92,6 +90,7 @@ runids              = np.arange(0,100,1)    # Which runs to do
 innexp         = 2
 innmethod      ='b-rule'
 innbeta        = 0.1
+innepsi        = 1e-6
 
 # Other toggles
 save_all_relevances = False                # True to save all relevances (~33G per file...)
@@ -103,6 +102,152 @@ savemodel           = True                 # Set to true to save model weights
 eparams['varnames'] = varnames
 eparams['leads']    = leads
 eparams['runids']   = runids
+
+#%% Functions
+
+
+def compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_lead,modlist_lead,
+                            nn_param_dict,innexp,innmethod,innbeta,innepsi,
+                            even_sample=False,debug=False,checkgpu=False,calculate_lrp=True):
+    """
+    Loop through a series of datasets in all_predictors and compute both the relevances and test accuracies
+    
+    all_predictors [dataset][channel x ens x time x lat x lon]
+    target_class   [ens x time]
+    modlist_lead   [lead][runs]
+    modweights_lead [lead][runs]
+    
+    """
+    
+    # Get dimensions
+    nloop               = len(all_predictors)
+    nchannels,nens,ntime,nlat,nlon = all_predictors[0].shape
+    nruns               = len(modlist_lead[0])
+    nclasses            = len(eparams['thresholds']) + 1
+    
+    relevances_all      = []
+    predictors_all_lead = []
+    predictions_all     = []
+    targets_all         = []
+    test_acc_byclass    = np.zeros((nloop,nruns,nclasses)) # [experiment, runid, classes]
+    for ii in range(nloop):
+        vt = time.time()
+        predictors= all_predictors[ii]
+        
+        # ===================================
+        # I. Data Prep
+        # ===================================
+        
+        # IA. Apply lead/lag to data
+        # --------------------------
+        # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
+        X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=nens,tstep=ntime)
+        
+        # ----------------------
+        # IB. Select samples
+        # ----------------------
+        _,class_count = am.count_samples(None,y_class)
+        if even_sample:
+            eparams['nsamples'] = int(np.min(class_count))
+            print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
+            y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+        
+        # ----------------------
+        # IC. Flatten inputs for FNN
+        # ----------------------
+        if "FNN" in eparams['netname']:
+            ndat,nchannels,nlat,nlon = X.shape
+            inputsize                = nchannels*nlat*nlon
+            X_in                     = X.reshape(ndat,inputsize)
+        
+        # -----------------------------
+        # ID. Place data into a data loader
+        # -----------------------------
+        # Convert to Tensors
+        X_torch = torch.from_numpy(X_in.astype(np.float32))
+        y_torch = torch.from_numpy(y_class.astype(np.compat.long))
+        
+        # Put into pytorch dataloaders
+        test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
+        
+        # Preallocate
+        relevances_byrun  = []
+        predictions_byrun = []
+        targets_byrun     = []
+        
+        # --------------------
+        # 05. Loop by runid...
+        # --------------------
+        for nr in tqdm(range(nruns)):
+            
+            # =====================
+            # II. Rebuild the model
+            # =====================
+            # Get the models (now by leadtime)
+            modweights = modweights_lead[0][nr]
+            modlist    = modlist_lead[0][nr]
+            
+            # Rebuild the model
+            pmodel = am.recreate_model(eparams['netname'],nn_param_dict,inputsize,nclasses,nlon=nlon,nlat=nlat)
+            
+            # Load the weights
+            pmodel.load_state_dict(modweights)
+            pmodel.eval()
+            
+            # =======================================================
+            # III. Test the model separately to get accuracy by class
+            # =======================================================
+            y_predicted,y_actual,test_loss = am.test_model(pmodel,test_loader,eparams['loss_fn'],
+                                                           checkgpu=checkgpu,debug=False)
+            lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=debug,verbose=False)
+            
+            test_acc_byclass[ii,nr,:] = class_acc.copy()
+            
+            # Save variables
+            predictions_byrun.append(y_predicted)
+            if nr == 0:
+                targets_byrun.append(y_actual)
+            
+            # ===========================
+            # IV. Perform LRP
+            # ===========================
+            if calculate_lrp:
+                nsamples_lead = len(y_actual)
+                inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
+                                                  epsilon=innepsi,
+                                                  method=innmethod,
+                                                  beta=innbeta)
+                model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
+                model_prediction                    = model_prediction.detach().numpy().copy()
+                sample_relevances                   = sample_relevances.detach().numpy().copy()
+                if "FNN" in eparams['netname']:
+                    predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
+                    sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
+                
+                # Save Variables
+                if nr == 0:
+                    predictors_all_lead.append(predictor_test) # Predictors are the same across model runs
+                relevances_byrun.append(sample_relevances)
+            
+            # Clear some memory
+            del pmodel
+            torch.cuda.empty_cache()  # Save some memory
+            
+            # End Run Loop >>>
+        relevances_all.append(relevances_byrun)
+        predictions_all.append(predictions_byrun)
+        print("\nCompleted training for lead of %i in %.2fs" % (lead,time.time()-vt))
+        # End Data Loop >>>
+    out_dict = {
+        "relevances"    : relevances_all,
+        "predictors"    : predictors_all_lead,
+        "predictions"   : predictions_all,
+        "targets"       : targets_all,
+        "class_acc"     : test_acc_byclass
+        }
+    return out_dict
+
+
 
 # -----------------------------------
 # %% Get some other needed parameters
@@ -198,6 +343,16 @@ nmodels = len(modweights_lead[0])
 #%% Try just for one model first ( THIS SECTION IS WILL BE COPIED BELOW :(
 # Need to turn into a function))
 
+outdict_original = compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_lead,modlist_lead,
+                            nn_param_dict,innexp,innmethod,innbeta,innepsi,
+                            even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=True)
+
+relevances_all      = outdict_original['relevances']
+predictors_all_lead = outdict_original['predictors']
+predictions_all     = outdict_original['predictions']
+targets             = outdict_original['targets']
+test_acc_byclass    = outdict_original['class_acc']
+
 # ===================================
 # I. Data Prep
 # ===================================
@@ -247,7 +402,7 @@ targets_all         = []
 
 test_acc_byclass = np.zeros((2,len(runids),3)) # [experiment, runid, classes]
 
-for ii in range(2):
+for ii in range(1):
     
     predictors= all_predictors[ii]
 
@@ -268,7 +423,6 @@ for ii in range(2):
         eparams['nsamples'] = int(np.min(class_count))
         print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
         y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
-
     
     # ----------------------
     # IC. Flatten inputs for FNN
@@ -364,9 +518,6 @@ for ii in range(2):
     
 #%% Examine if ther eis a difference
 
-
-
-
 # =============================================================================================================================
 #%% Composite the relevances (can look at single events later, it might actually be easier to write a separate script for that)
 # =============================================================================================================================
@@ -376,12 +527,12 @@ for ii in range(2):
 st_rel_comp          = time.time()
 targets_all          = targets_byrun
 
-relevance_composites = np.zeros((2,nmodels,3,nlat,nlon)) * np.nan # [lead x model x class x lat x lon]
+relevance_composites = np.zeros((2,nmodels,3,nlat,nlon)) * np.nan     # [lead x model x class x lat x lon]
 relevance_variances  = relevance_composites.copy()                    # [lead x model x class x lat x lon]
 relevance_range      = relevance_composites.copy()                    # [lead x model x class x lat x lon]
-predictor_composites = np.zeros((2,3,nlat,nlon)) * np.nan         # [lead x class x lat x lon]
+predictor_composites = np.zeros((2,3,nlat,nlon)) * np.nan             # [lead x class x lat x lon]
 predictor_variances  = predictor_composites.copy()                    # [lead x class x lat x lon]
-ncorrect_byclass     = np.zeros((2,nmodels,3))                # [lead x model x class
+ncorrect_byclass     = np.zeros((2,nmodels,3))                        # [lead x model x class
 
 for l in range(2):
     
@@ -448,7 +599,7 @@ plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 #%% Examine relevance histogram and select a threshold
 
-thres_rel   = 0.4
+thres_rel   = 0.8
 fig,axs = plt.subplots(2,3,figsize=(8,4.5),constrained_layout=True)
 bins    = np.arange(0,1.1,.1)
 
@@ -516,7 +667,7 @@ plt.savefig(savename,dpi=150,bbox_inches="tight")
 #%% Choose the dataset to use and replace the points with synthetic data
 
 ii            = 0 # Let's use the un-normalized dataset
-sel_c         = 0 # Select the positive class
+sel_c         = 2 # Select the positive class
 select_random = True
 
 # Get the predictor to use
@@ -531,6 +682,7 @@ sel_pts =  np.where(plotvar.flatten() > thres_rel)[0]
 npts = len(sel_pts)
 if select_random:
     sel_pts = np.random.choice(np.arange(nlat*nlon),size=npts) # Randomly select some points
+    sel_pts_ori = np.where(plotvar.flatten() > thres_rel)[0]
     
 
 # Create Synthetic Data
@@ -583,21 +735,40 @@ synthetic_data = synthetic_data.reshape(3,nens,ntime,nlat,nlon)
 
 #%% Visualize which points where randomly dropped
 
-idlat,idlon=np.unravel_index(dropped_points,(nlat,nlon))
+if select_random:
+    idlat,idlon=np.unravel_index(dropped_points,(nlat,nlon))
+    
+    fig,ax = plt.subplots(1,1,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(8,4.5))
+    ax.set_extent(bbox)
+    ax.coastlines()
+    plotvar = relevance_composites[0,:,sel_c,:,:].mean(0)
+    plotvar = plotvar / np.nanmax(np.abs(plotvar))
+    ax.scatter(lon[idlon],lat[idlat])
+            
+    savename ="%sRelevanceAblation_Randompoints_%s_lead%02iyears_thresrel%.02f_sampletimeseries_pt%i.png" % (figpath,varname,lead,thres_rel,pt)
+    plt.savefig(savename,dpi=150,bbox_inches="tight")
 
-fig,ax = plt.subplots(1,1,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(8,4.5))
-ax.set_extent(bbox)
-ax.coastlines()
-plotvar = relevance_composites[0,:,sel_c,:,:].mean(0)
-plotvar = plotvar / np.nanmax(np.abs(plotvar))
-ax.scatter(lon[idlon],lat[idlat])
-        
-savename ="%sRelevanceAblation_Randompoints_%s_lead%02iyears_thresrel%.02f_sampletimeseries_pt%i.png" % (figpath,varname,lead,thres_rel,pt)
-plt.savefig(savename,dpi=150,bbox_inches="tight")
+    pt_ids         = [dropped_points,sel_pts,sel_pts_ori]
+    relevances_sel = []
+    ptsel_names    = ["Random Dropped + Correction","Random Dropped","Original Relevant"]
+    
+    for zzz in range(3):
+        idlat,idlon=np.unravel_index(pt_ids[zzz],(nlat,nlon))
+        rzzz = relevance_composites[0,:,c,idlat,idlon]
+        relevances_sel.append(rzzz)
+        print("Mean relevance of %s points is %f" % (ptsel_names[zzz],rzzz.mean()))
+    
+    fig,axs = plt.subplots(3,1,sharey=False,sharex=True)
+    for zzz in range(3):
+        ax = axs[zzz]
+        ax.set_title(ptsel_names[zzz])
+        ax.hist(relevances_sel[zzz].flatten(),bins=10)
+    
 
 #%% Below this is copied code from above ^^^^^
 # Need to turn into a function))
 
+skipzero = True
 # ===================================
 # I. Data Prep
 # ===================================
@@ -648,8 +819,10 @@ targets_all         = []
 test_acc_byclass_synth = np.zeros((3,len(runids),3)) # [experiment, runid, classes]
 
 for ii in range(3):
+    if (ii == 0) and skipzero:
+        continue # Skip zero
     
-    predictors= synthetic_data[[ii],...]
+    predictors_input= synthetic_data[[ii],...]
 
     # ===================================
     # I. Data Prep
@@ -658,7 +831,7 @@ for ii in range(3):
     # IA. Apply lead/lag to data
     # --------------------------
     # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-    X,y_class = am.apply_lead(predictors,target_class,lead,reshape=True,ens=nens_test,tstep=ntime)
+    X,y_class = am.apply_lead(predictors_input,target_class,lead,reshape=True,ens=nens_test,tstep=ntime)
     
     # ----------------------
     # IB. Select samples
@@ -761,20 +934,28 @@ for ii in range(3):
 
 #%% Look at the change in skill
 
-method  = 0
+method  = 2
+remove_singleguesser = True
 fig,axs = plt.subplots(3,1,constrained_layout=True)
 
 for a in range(3):
     ax = axs[a]
     
+    method_acc = test_acc_byclass_synth[method,:,a]
     
-    diff = test_acc_byclass_synth[method,:,a] - test_acc_byclass[0,:,a]
+    perf_acc = np.where((method_acc == 0) | (method_acc == 1))[0]
+    diff     = method_acc - test_acc_byclass[0,:,a]
+    
+    if remove_singleguesser:
+        ax.bar(runids[perf_acc],diff[perf_acc],color="red")
+        diff[perf_acc] = np.nan
+        n_exclude = len(perf_acc)
+    
     ax.bar(runids,diff)
     ax.axhline([0],ls='solid',color="k")
-    ax.set_title("%s, Mean Diff: %.2f" % (pparams.classes[a],diff.mean()*100)+"%")
+    ax.set_title("%s, Mean Diff: %.2f" % (pparams.classes[a],np.nanmean(diff)*100)+"%" + " (dropped=%i)"%n_exclude)
     
     ax.set_ylim([-.75,.75])
-
 
 plt.suptitle("Change in Test Accuracy Using %s Data (Relevance Threshold %.2f)" % (synth_name[method],thres_rel))
 
@@ -782,6 +963,39 @@ figname = "%sRelevanceAblation_AccChange_%s_%s_relthres%.2f_class%s_selrand%i.pn
                                                                                       pparams.classes[sel_c],select_random)
 plt.savefig(figname,dpi=150,bbox_inches='tight')
 
+#%% Visualize the accuracies as histograms
+c = 0
+
+fig,axs = plt.subplots(4,1,constrained_layout=True,sharex=True,figsize=(8,8))
+
+bins = np.arange(0,1.05,.05)
+for a in range(4):
+    
+    ax = axs[a]
+    if a < 3:
+        indata = test_acc_byclass_synth[a,:,c]
+        title=synth_name[a]
+    else:
+        indata = test_acc_byclass[0,:,c]
+        title="original"
+        
+    ax.hist(indata.flatten(),bins=bins)
+    ax.axvline(indata.mean(),label="Mean=%.2f" % (indata.mean()*100)+"%",color="k")
+    ax.legend()
+    ax.set_title(title)
+
+#%%
+
+ii    = 2
+c     = 0
+pfm   = np.where(test_acc_byclass_synth[ii,:,c]==1)
+
+#predictions_all[ii][pfm[0]] # [dataset][runs][predictions]
+
+
+predictions_new = []
+for pf in pfm[0]:
+    predictions_new.append(predictions_all[ii][pf])
 
 #%%
 
@@ -831,7 +1045,6 @@ if standardize_input:
     outname = proc.addstrtoext(outname,"_standardizeinput")
 ds_all.to_netcdf(outname,encoding=encodings)
 print("Saved Relevances to %s in %.2fs" % (outname,time.time()-st_rel))
-
 # ===================================================
 #%% Save accuracy and prediction data
 # ===================================================
