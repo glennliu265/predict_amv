@@ -72,6 +72,8 @@ nn_param_dict      = pparams.nn_param_dict
 expdir              = "FNN4_128_SingleVar_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
+
+outpath = "../../CESM_data/%s/Metrics/Test_Metrics/" % expdir
 # Processing Options
 even_sample         = False
 #standardize_input   = True # Set to True to standardize variance at each point
@@ -108,7 +110,7 @@ eparams['runids']   = runids
 
 def compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_lead,modlist_lead,
                             nn_param_dict,innexp,innmethod,innbeta,innepsi,
-                            even_sample=False,debug=False,checkgpu=False,calculate_lrp=True):
+                            even_sample=False,debug=False,checkgpu=False,calculate_lrp=True,notqdm=False):
     """
     Loop through a series of datasets in all_predictors and compute both the relevances and test accuracies
     
@@ -146,7 +148,7 @@ def compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_
         # ----------------------
         # IB. Select samples
         # ----------------------
-        _,class_count = am.count_samples(None,y_class)
+        #_,class_count = am.count_samples(None,y_class)
         if even_sample:
             eparams['nsamples'] = int(np.min(class_count))
             print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
@@ -178,7 +180,7 @@ def compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_
         # --------------------
         # 05. Loop by runid...
         # --------------------
-        for nr in tqdm(range(nruns)):
+        for nr in tqdm(range(nruns),disable=notqdm):
             
             # =====================
             # II. Rebuild the model
@@ -236,7 +238,8 @@ def compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_
             # End Run Loop >>>
         relevances_all.append(relevances_byrun)
         predictions_all.append(predictions_byrun)
-        print("\nCompleted training for lead of %i in %.2fs" % (lead,time.time()-vt))
+        if notqdm is False:
+            print("\nCompleted training for lead of %i in %.2fs" % (lead,time.time()-vt))
         # End Data Loop >>>
     out_dict = {
         "relevances"    : relevances_all,
@@ -290,7 +293,7 @@ def composite_relevances_predictors(relevances_all,predictors_all,targets_all,nc
                 correct_predictors               = predictors_all_lead[0][correct_pred_id,...]
                 predictor_composites[l,c,:,:]    = correct_predictors.mean(0)
                 predictor_variances[l,c,:,:]     = correct_predictors.var(0)
-    print("Saved Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
+    #print("Saved Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
     
     out_composites = {
         "relevance_composites":relevance_composites,
@@ -336,6 +339,10 @@ nlead                          = len(leads)
 # Count Samples...
 am.count_samples(None,target_class)
 
+# Additional loads
+lon = load_dict['lon']
+lat = load_dict['lat']
+
 # --------------------------------------------------------
 #%% Option to standardize input to test effect of variance
 # --------------------------------------------------------
@@ -359,7 +366,7 @@ check =  np.all(np.nanmax(np.abs(std_vars_after)) < 2)
 assert check, "Standardized values are not below 2!"
 
 
-#%% 
+#%% Set up
 
 """
 
@@ -372,7 +379,7 @@ General Procedure
      
 """
 
-all_predictors = [data[[0],...],data_std[[0],...]]
+all_predictors = [data[[0],...],]#data_std[[0],...]] # Just use unstandardized for now
 data_names     = ("Raw","Temporally Standardized")
 
 # Just take the first index, since we are only looking at one lead/variable
@@ -393,8 +400,7 @@ nmodels = len(modweights_lead[0])
 
 
 # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
-#%% Try just for one model first ( THIS SECTION IS WILL BE COPIED BELOW :(
-# Need to turn into a function))
+#%% Compute the relevance map with original data and composite
 
 outdict_original = compute_relevances_lead(all_predictors,target_class,lead,eparams,modweights_lead,modlist_lead,
                             nn_param_dict,innexp,innmethod,innbeta,innepsi,
@@ -407,25 +413,18 @@ targets_all         = outdict_original['targets']
 test_acc_byclass    = outdict_original['class_acc']
 
 
-
-#%% Examine if there is a difference
-
-# =============================================================================================================================
-#%% Composite the relevances (can look at single events later, it might actually be easier to write a separate script for that)
-# =============================================================================================================================
-# the purpose here is to get some quick, aggregate metrics
-
+#%
 # Need to add option to cull models in visualization script...
 st_rel_comp          = time.time()
 composites_ori = composite_relevances_predictors(relevances_all,predictors_all_lead,targets_all,nclasses=3)
 relevance_composites = composites_ori['relevance_composites']
 predictor_composites  = composites_ori['predictor_composites']
-print("Saved Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
+print("Computed Relevance Composites in %.2fs" % (time.time()-st_rel_comp))
         
-#%% Visualize relevance composites differences between normalized and unnormalized data
+# #%% Visualize relevance composites differences between normalized and unnormalized data
 
-lon = load_dict['lon']
-lat = load_dict['lat']
+# lon = load_dict['lon']
+# lat = load_dict['lat']
 
 
 # Nneed to cimposite and relevan
@@ -460,610 +459,365 @@ savename ="%sNormalizing_Effect_%s_lead%02iyears.png" % (figpath,varname,lead)
 plt.savefig(savename,dpi=150,bbox_inches="tight")
 
 
-#%% Examine relevance histogram and select a threshold
-
-thres_rel   = 0.6
-fig,axs = plt.subplots(2,3,figsize=(8,4.5),constrained_layout=True)
-bins    = np.arange(0,1.1,.1)
-
-for ii in range(2):
-    for c in range(3):
-        
-        ax =axs[ii,c]
-        
-        if ii == 0:
-            ax.set_title(pparams.classes[c])
-        
-        if c == 0:
-            ax.text(-0.25, 0.55, data_names[ii], va='bottom', ha='center',rotation='vertical',
-                    rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
-
-        plotvar = relevance_composites[ii,:,c,:,:].mean(0)
-        plotvar = (plotvar / np.nanmax(np.abs(plotvar))).flatten()
-        count_above = (plotvar > thres_rel).sum()
-        
-        ax.hist(plotvar,bins=bins,edgecolor="w")
-        ax.axvline([thres_rel],ls='dashed',color="k")
-        ax.set_title("Count Above %.2f: %i" % (thres_rel,count_above))
+#%% Koop....
 
 
-savename ="%sRelevanceAblation_Histogram_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
-plt.savefig(savename,dpi=150,bbox_inches="tight")
-#%% Apply mask to data to see which regions remain
+sel_c = [0,2]
 
-lon = load_dict['lon']
-lat = load_dict['lat']
+# Loop for different relevance thresholds
+test_thresholds = np.arange(0.4,0.9,0.1)
+nthres_rel      = len(test_thresholds)
+inorm           = 0
+debug_plots     = True
+mc_iter         = 50
 
-
-# Nneed to cimposite and relevance
-
-fig,axs = plt.subplots(2,3,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(8,4.5))
-
-for ii in range(2):
-    for c in range(3):
-        
-        ax =axs[ii,c]
-        ax.set_extent(bbox)
-        ax.coastlines()
-        plotvar = relevance_composites[ii,:,:,:,:].mean(1).mean(0)
-        plotvar = plotvar / np.nanmax(np.abs(plotvar))
-        
-        #relevance_mask = np.where(plotvar.flatten()>thres_rel)[0]
-        
-        plotvar[plotvar < thres_rel] = 0
-        pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-1,vmax=1,cmap="RdBu_r")
-        
-        
-        if ii == 0:
-            ax.set_title(pparams.classes[c])
-        
-        if c == 0:
-            ax.text(-0.05, 0.55, data_names[ii], va='bottom', ha='center',rotation='vertical',
-                    rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
-cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.05)
-cb.set_label("Normalized Relevance")
-plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
-
-savename ="%sRelevanceAblation_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
-plt.savefig(savename,dpi=150,bbox_inches="tight")
-
-#%% Choose the dataset to use and replace the points with synthetic data
-
-ii            = 0 # Let's use the un-normalized dataset
-sel_c         = 2 # Select the positive class
-select_random = True
-
-# Get the predictor to use
-synth_name   = ["zeros","white noise","red noise"]
-synth_colors = ["gray","cornflowerblue","red"]
-predictor_in = predictors.reshape(1,nens,ntime,nlat*nlon)
-
-# Make mask based on selected dataset and class
-plotvar = relevance_composites[ii,:,sel_c,:,:].mean(0)
-plotvar = plotvar / np.nanmax(np.abs(plotvar))
-sel_pts =  np.where(plotvar.flatten() > thres_rel)[0]
-npts = len(sel_pts)
-if select_random:
-    sel_pts = np.random.choice(np.arange(nlat*nlon),size=npts) # Randomly select some points
-    sel_pts_ori = np.where(plotvar.flatten() > thres_rel)[0]
+random_dropped_points_bythres = []
+dropped_points_bythres = []
+random_test_acc        = []
+replacement_test_acc   = []
+random_predictions     = []
+replacement_predictions = []
+for r in range(nthres_rel):
+    rtt = time.time()
+    thres_rel   = test_thresholds[r]
     
-
-# Create Synthetic Data
-dropped_points = []
-synthetic_data = np.zeros((3,nens,ntime,nlat*nlon,))
-for pt in tqdm(range(npts)):
+    # Plot the histogram
+    # ------------------
+    if debug_plots:
+        
+        fig,axs = plt.subplots(1,4,figsize=(12,4),constrained_layout=True)
+        bins    = np.arange(0,1.1,.1)
+        for c in range(4):
+            ax =axs[c]
+            if c < 3:
+                plotvar = relevance_composites[inorm,:,c,:,:].mean(0)
+                title = pparams.classes[c]
+            else:
+                plotvar = relevance_composites[inorm,:,[0,2],:,:].mean(0).mean(0)
+                title = "NASST+/NASST- Avg."
+            if c == 0:
+                ax.text(-0.25, 0.55, data_names[inorm], va='bottom', ha='center',rotation='vertical',
+                        rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
+            plotvar = (plotvar / np.nanmax(np.abs(plotvar))).flatten()
+            count_above = (plotvar > thres_rel).sum()
+            ax.hist(plotvar,bins=bins,edgecolor="w")
+            ax.axvline([thres_rel],ls='dashed',color="k")
+            ax.set_title("%s \n Count Above %.2f: %i" % (title,thres_rel,count_above))
+            savename ="%sRelevanceAblation_Histogram_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
+            plt.savefig(savename,dpi=150,bbox_inches="tight")
     
-    idx = sel_pts[pt]
+    # Mask the points
+    # ---------------
+    predictor_in = predictors.reshape(1,nens,ntime,nlat*nlon)
+    plotvar      = relevance_composites[inorm,:,sel_c,:,:].mean(0).mean(0) # Mean over class, then over run
+    plotvar      = plotvar / np.nanmax(np.abs(plotvar))
+    sel_pts      =  np.where(plotvar.flatten() > thres_rel)[0]
+    npts = len(sel_pts)
     
-    for e in range(nens):
-        
-        ts_in     = predictor_in[0,e,:,idx] # Get the timeseries
-        
-        # Avoid land points
-        if select_random:
-            while np.all(predictor_in[0,e,:,idx]==0):
-                idx = np.random.choice(np.arange(nlat*nlon),size=1)[0] #+=1
-                # if idx > nlat*nlon-1:
-                #     idx = 0
-                ts_in     = predictor_in[0,e,:,idx]
-        
+    # Plot the relevance mask
+    # -----------------------
+    if debug_plots:
+        fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(12,4.5),
+                               constrained_layout=True)
+        for c in range(3):
+            ax = axs[c]
+            ax.set_extent(bbox)
+            ax.coastlines()
             
-        # Estimate AR1 coefficient using yule-walker
-        coef,sigma=nitime.algorithms.AR_est_YW(ts_in,1)
+            if c == 0:
+                plotvar_in = plotvar
+                pcm = ax.pcolormesh(lon,lat,plotvar_in,vmin=-1,vmax=1,cmap="RdBu_r")
+                title = "Relevance"
+                
+            elif c == 1:
+                plotvar_in = plotvar.copy()
+                plotvar_in[plotvar<thres_rel] = 0
+                pcm = ax.pcolormesh(lon,lat,plotvar_in,vmin=-1,vmax=1,cmap="RdBu_r")
+                title = "Above Threshold"
+            elif c == 2:
+                idlat,idlon=np.unravel_index(sel_pts,(nlat,nlon))
+                ax.scatter(lon[idlon],lat[idlat])
+                title = "Replaced Points"
+            ax.set_title(title)
+        cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.015,pad=0.05)
+        cb.set_label("Normalized Relevance")
+        plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
         
-        # Make red noise timeseries
-        X_ar,noise,aph=nitime.utils.ar_generator(ntime,sigma=sigma,coefs=coef)
+        savename ="%sRelevanceAblation_ReplacementSelection_%s_lead%02iyears_thresrel%.02f.png" % (figpath,varname,lead,thres_rel)
+        plt.savefig(savename,dpi=150,bbox_inches="tight")
         
-        synthetic_data[2,e,:,idx] = X_ar.copy()
-        
-        # Make white noise timeseries
-        synthetic_data[1,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
-    dropped_points.append(idx)
-        
-if debug:
-    pt = 22
-    idx = sel_pts[pt]
-    fig,ax = plt.subplots(1,1,figsize=(6,3),constrained_layout=True)
-    ax.plot(predictor_in[0,e,:,idx],label="Original Timeseries",color="k")
-    for zz in range(3):
-        ax.plot(synthetic_data[zz,e,:,idx],label=synth_name[zz],color=synth_colors[zz])
-    ax.legend(ncol=3)
-    
-    
-    savename ="%sRelevanceAblation_%s_lead%02iyears_thresrel%.02f_sampletimeseries_pt%i.png" % (figpath,varname,lead,thres_rel,pt)
-    plt.savefig(savename,dpi=150,bbox_inches="tight")
-    
-
-synthetic_data = synthetic_data.reshape(3,nens,ntime,nlat,nlon)
-
-#%% Visualize which points where randomly dropped
-
-if select_random:
-    idlat,idlon=np.unravel_index(dropped_points,(nlat,nlon))
-    
-    fig,ax = plt.subplots(1,1,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(8,4.5))
-    ax.set_extent(bbox)
-    ax.coastlines()
-    plotvar = relevance_composites[0,:,sel_c,:,:].mean(0)
-    plotvar = plotvar / np.nanmax(np.abs(plotvar))
-    ax.scatter(lon[idlon],lat[idlat])
+    # Create synthetic data with high relevance points
+    # ------------------------------------------------
+    synth_name     = ["white noise","red noise"]
+    synthetic_data = np.zeros((2,nens,ntime,nlat*nlon,))
+    dropped_points = []
+    for pt in tqdm(range(npts)):
+        idx = sel_pts[pt]
+        for e in range(nens):
             
-    savename ="%sRelevanceAblation_Randompoints_%s_lead%02iyears_thresrel%.02f_sampletimeseries_pt%i.png" % (figpath,varname,lead,thres_rel,pt)
-    plt.savefig(savename,dpi=150,bbox_inches="tight")
-
-    pt_ids         = [dropped_points,sel_pts,sel_pts_ori]
-    relevances_sel = []
-    ptsel_names    = ["Random Dropped + Correction","Random Dropped","Original Relevant"]
-    
-    for zzz in range(3):
-        idlat,idlon=np.unravel_index(pt_ids[zzz],(nlat,nlon))
-        rzzz = relevance_composites[0,:,c,idlat,idlon]
-        relevances_sel.append(rzzz)
-        print("Mean relevance of %s points is %f" % (ptsel_names[zzz],rzzz.mean()))
-    
-    fig,axs = plt.subplots(3,1,sharey=False,sharex=True)
-    for zzz in range(3):
-        ax = axs[zzz]
-        ax.set_title(ptsel_names[zzz])
-        ax.hist(relevances_sel[zzz].flatten(),bins=10)
-    
-
-#%% Below this is copied code from above ^^^^^
-# Need to turn into a function))
-
-skipzero = True
-# ===================================
-# I. Data Prep
-# ===================================
-
-# IA. Apply lead/lag to data
-# --------------------------
-# X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-X,y_class = am.apply_lead(synthetic_data,target_class,lead,reshape=True,ens=nens_test,tstep=ntime)
-
-# ----------------------
-# IB. Select samples
-# ----------------------
-_,class_count = am.count_samples(None,y_class)
-if even_sample:
-    eparams['nsamples'] = int(np.min(class_count))
-    print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
-    y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
-
-
-# ----------------------
-# IC. Flatten inputs for FNN
-# ----------------------
-if "FNN" in eparams['netname']:
-    ndat,nchannels,nlat,nlon = X.shape
-    inputsize                = nchannels*nlat*nlon
-    outsize                  = nclasses
-    X_in                     = X.reshape(ndat,inputsize)
+            ts_in     = predictor_in[0,e,:,idx] # Get the timeseries
+            
+            # Estimate AR1 coefficient using yule-walker
+            coef,sigma=nitime.algorithms.AR_est_YW(ts_in,1)
+            
+            # Make red noise timeseries
+            X_ar,noise,aph=nitime.utils.ar_generator(ntime,sigma=sigma,coefs=coef)
+            
+            synthetic_data[1,e,:,idx] = X_ar.copy()
+            
+            # Make white noise timeseries
+            synthetic_data[0,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
+        dropped_points.append(idx)
         
-
-# -----------------------------
-# ID. Place data into a data loader
-# -----------------------------
-# Convert to Tensors
-X_torch = torch.from_numpy(X_in.astype(np.float32))
-y_torch = torch.from_numpy(y_class.astype(np.compat.long))
-
-# Put into pytorch dataloaders
-test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
-
-# ----------------------------------
-#%Compute and composite relevances
-
-relevances_all      = []
-predictors_all_lead = []
-predictions_all     = []
-targets_all         = []
-
-test_acc_byclass_synth = np.zeros((3,len(runids),3)) # [experiment, runid, classes]
-
-for ii in range(3):
-    if (ii == 0) and skipzero:
-        continue # Skip zero
+    synthetic_data = [d[None,...].reshape(1,nens,ntime,nlat,nlon) for d in synthetic_data]
     
-    predictors_input= synthetic_data[[ii],...]
-
-    # ===================================
-    # I. Data Prep
-    # ===================================
+    # Recompute test accuracy
+    # -----------------------
+    outdict_replaced = compute_relevances_lead(synthetic_data,target_class,lead,eparams,modweights_lead,modlist_lead,
+                                nn_param_dict,innexp,innmethod,innbeta,innepsi,
+                                even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=False,notqdm=True)
+    test_acc_byclass_synth=outdict_replaced['class_acc'] # [data x run x class]
+    rel_predictions = outdict_replaced['predictions']
     
-    # IA. Apply lead/lag to data
-    # --------------------------
-    # X -> [samples x channel x lat x lon] ; y_class -> [samples x 1]
-    X,y_class = am.apply_lead(predictors_input,target_class,lead,reshape=True,ens=nens_test,tstep=ntime)
+    # Compute the output
+    # -----------------------
+    if debug_plots:
+        for method in range(2):
+            remove_singleguesser = True
+            fig,axs = plt.subplots(3,1,constrained_layout=True)
+            
+            for a in range(3):
+                ax = axs[a]
+                
+                method_acc = test_acc_byclass_synth[method,:,a]
+                
+                perf_acc = np.where((method_acc == 0) | (method_acc == 1))[0]
+                diff     = method_acc - test_acc_byclass[0,:,a]
+                
+                if remove_singleguesser:
+                    ax.bar(runids[perf_acc],diff[perf_acc],color="red")
+                    diff[perf_acc] = np.nan
+                    n_exclude = len(perf_acc)
+                
+                ax.bar(runids,diff)
+                ax.axhline([0],ls='solid',color="k")
+                ax.set_title("%s, Mean Diff: %.2f" % (pparams.classes[a],np.nanmean(diff)*100)+"%" + " (dropped=%i)"%n_exclude)
+                
+                ax.set_ylim([-.75,.75])
+                
+            plt.suptitle("Change in Test Accuracy Using %s Data (Relevance Threshold %.2f)" % (synth_name[method],thres_rel))
+            figname = "%sRelevanceAblation_AccChange_%s_%s_relthres%.2f_classPosNeg_selrand%i.png" % (figpath,expdir,synth_name[method].replace(" ",""),thres_rel,
+                                                                                                  False)
+            plt.savefig(figname,dpi=150,bbox_inches='tight')
     
-    # ----------------------
-    # IB. Select samples
-    # ----------------------
-    _,class_count = am.count_samples(None,y_class)
-    if even_sample:
-        eparams['nsamples'] = int(np.min(class_count))
-        print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
-        y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
-
-    
-    # ----------------------
-    # IC. Flatten inputs for FNN
-    # ----------------------
-    if "FNN" in eparams['netname']:
-        ndat,nchannels,nlat,nlon = X.shape
-        inputsize                = nchannels*nlat*nlon
-        outsize                  = nclasses
-        X_in                     = X.reshape(ndat,inputsize)
-    
-    # -----------------------------
-    # ID. Place data into a data loader
-    # -----------------------------
-    # Convert to Tensors
-    X_torch = torch.from_numpy(X_in.astype(np.float32))
-    y_torch = torch.from_numpy(y_class.astype(np.compat.long))
-    
-    # Put into pytorch dataloaders
-    test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
-    
-    # Preallocate
-    relevances_byrun  = []
-    predictions_byrun = []
-    targets_byrun     = []
-    
-    # --------------------
-    # 05. Loop by runid...
-    # --------------------
-    for nr,runid in tqdm(enumerate(runids)):
-        rt = time.time()
+    # Now try replacing with random points
+    #
+    dropped_points_mc = []
+    predictions_mc    = []
+    test_acc_mc       = np.zeros((mc_iter,2,nmodels,3))
+    sel_pts_ori       = np.where(plotvar.flatten() > thres_rel)[0]
+    npts              = len(sel_pts_ori)
+    for mc in tqdm(range(mc_iter)):
+        sel_pts = np.random.choice(np.arange(nlat*nlon),size=npts) # Randomly select some points
+        synthetic_data_mc = np.zeros((2,nens,ntime,nlat*nlon,))
+        dropped_points = []
+        for pt in range(npts):
+            idx = sel_pts[pt]
+            for e in range(nens):
+                
+                ts_in     = predictor_in[0,e,:,idx] # Get the timeseries
+                
+                # Make sure land points not selected
+                while np.all(predictor_in[0,e,:,idx]==0):
+                    idx = np.random.choice(np.arange(nlat*nlon),size=1)[0] #+=1
+                    ts_in     = predictor_in[0,e,:,idx]
+                
+                # Estimate AR1 coefficient using yule-walker
+                coef,sigma=nitime.algorithms.AR_est_YW(ts_in,1)
+                
+                # Make red noise timeseries
+                X_ar,noise,aph=nitime.utils.ar_generator(ntime,sigma=sigma,coefs=coef)
+                synthetic_data_mc[1,e,:,idx] = X_ar.copy()
+                
+                # Make white noise timeseries
+                synthetic_data_mc[0,e,:,idx] = np.random.normal(0,np.std(ts_in),ntime)
+            dropped_points.append(idx)
+            # End loop e
+        # End loop pt
+        dropped_points_mc.append(dropped_points)
+        synthetic_data_mc = [d[None,...].reshape(1,nens,ntime,nlat,nlon) for d in synthetic_data_mc]
         
-        # =====================
-        # II. Rebuild the model
-        # =====================
-        # Get the models (now by leadtime)
-        modweights = modweights_lead[0][nr]
-        modlist    = modlist_lead[0][nr]
-        
-        # Rebuild the model
-        pmodel = am.recreate_model(eparams['netname'],nn_param_dict,inputsize,nclasses,nlon=nlon,nlat=nlat)
-        
-        # Load the weights
-        pmodel.load_state_dict(modweights)
-        pmodel.eval()
-        
-        # =======================================================
-        # III. Test the model separately to get accuracy by class
-        # =======================================================
-        y_predicted,y_actual,test_loss = am.test_model(pmodel,test_loader,eparams['loss_fn'],
-                                                       checkgpu=checkgpu,debug=False)
-        lead_acc,class_acc = am.compute_class_acc(y_predicted,y_actual,nclasses,debug=debug,verbose=False)
-        
-        
-        test_acc_byclass_synth[ii,nr,:] = class_acc.copy()
-        
-        # Save variables
-        predictions_byrun.append(y_predicted)
-        if nr == 0:
-            targets_byrun.append(y_actual)
-        
-        # ===========================
-        # IV. Perform LRP
-        # ===========================
-        nsamples_lead = len(y_actual)
-        inn_model = InnvestigateModel(pmodel, lrp_exponent=innexp,
-                                          method=innmethod,
-                                          beta=innbeta)
-        model_prediction, sample_relevances = inn_model.innvestigate(in_tensor=X_torch)
-        model_prediction                    = model_prediction.detach().numpy().copy()
-        sample_relevances                   = sample_relevances.detach().numpy().copy()
-        if "FNN" in eparams['netname']:
-            predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
-            sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
-        
-        # Save Variables
-        if nr == 0:
-            predictors_all_lead.append(predictor_test) # Predictors are the same across model runs
-        relevances_byrun.append(sample_relevances)
-        
-        # Clear some memory
-        del pmodel
-        torch.cuda.empty_cache()  # Save some memory
-        
-        #print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
-        # End Lead Loop >>>
+        # Recompute test accuracy
+        # -----------------------
+        outdict_replaced = compute_relevances_lead(synthetic_data_mc,target_class,lead,eparams,modweights_lead,modlist_lead,
+                                    nn_param_dict,innexp,innmethod,innbeta,innepsi,
+                                    even_sample=even_sample,debug=debug,checkgpu=checkgpu,calculate_lrp=False,notqdm=True)
+        test_acc_mc[mc,:,:,:]=outdict_replaced['class_acc'].copy() # [data x run x class]
+        predictions_mc.append(outdict_replaced['predictions'].copy())
+        # End MC Loop
     
-    relevances_all.append(relevances_byrun)
-    predictions_all.append(predictions_byrun)
-    print("\nCompleted training for lead of %i in %.2fs" % (lead,time.time()-vt))
+    # Save output
+    
+    random_dropped_points_bythres.append(dropped_points_mc)
+    random_test_acc.append(test_acc_mc.copy())
+    random_predictions.append(predictions_mc)
+    replacement_test_acc.append(test_acc_byclass_synth)
+    dropped_points_bythres.append(sel_pts_ori)
+    replacement_predictions.append(rel_predictions)
+    
+    # End relevance threshold loop
+    # Save intermediate
+    savename = "%sRelevance_Replacement_Test_%s_%s_lead%02i_thres%.2f_mciter%i.npz" % (outpath,expdir,varname,lead,thres_rel,mc_iter)
+    np.savez(savename,**{
+        'mc_droppedpoints'   : dropped_points_mc,
+        'mc_test_acc'        : test_acc_mc,
+        'mc_predictions'     : predictions_mc,
+        
+        'rel_dropped_points' : sel_pts_ori,
+        'rel_test_acc'       : test_acc_byclass_synth,
+        'rel_predictions'    : 
+        ''
+        },allow_pickle=True)
+    
+    print("Completed time loop in %.2fs"% (time.time()-rtt))
+    
 
-#%% Look at the change in skill
+#%% Examine the output
 
-method  = 2
-remove_singleguesser = True
-fig,axs = plt.subplots(3,1,constrained_layout=True)
 
-for a in range(3):
-    ax = axs[a]
-    
-    method_acc = test_acc_byclass_synth[method,:,a]
-    
-    perf_acc = np.where((method_acc == 0) | (method_acc == 1))[0]
-    diff     = method_acc - test_acc_byclass[0,:,a]
-    
-    if remove_singleguesser:
-        ax.bar(runids[perf_acc],diff[perf_acc],color="red")
-        diff[perf_acc] = np.nan
-        n_exclude = len(perf_acc)
-    
-    ax.bar(runids,diff)
-    ax.axhline([0],ls='solid',color="k")
-    ax.set_title("%s, Mean Diff: %.2f" % (pparams.classes[a],np.nanmean(diff)*100)+"%" + " (dropped=%i)"%n_exclude)
-    
-    ax.set_ylim([-.75,.75])
 
-plt.suptitle("Change in Test Accuracy Using %s Data (Relevance Threshold %.2f)" % (synth_name[method],thres_rel))
 
-figname = "%sRelevanceAblation_AccChange_%s_%s_relthres%.2f_class%s_selrand%i.png" % (figpath,expdir,synth_name[method].replace(" ",""),thres_rel,
-                                                                                      pparams.classes[sel_c],select_random)
+
+# random_dropped_points_bythres = []
+# dropped_points_bythres = []
+# random_test_acc        = []
+# replacement_test_acc   = []
+# random_predictions     = []
+# replacement_predictions = []
+
+#%% DO some nan flagging
+
+
+lessthan  = 2 # Check if model is predicting less than this # of classes
+replaceSG = False # Replace with nan if so
+
+
+
+rel_test_acc = np.array(replacement_test_acc) # [thres x data x run x class]
+mc_test_acc  = np.array(random_test_acc)       # [thres x mc x data x run x class]
+
+mc_singlepred_flag     = np.zeros((nthres_rel,mc_iter,2,nmodels))
+mc_test_acc_flagged    = mc_test_acc.copy()
+
+rel_singlepred_flag        = np.zeros((nthres_rel,2,nmodels))
+rel_test_acc_flagged   = rel_test_acc.copy()
+#nsamples = random_predictions[0][0][0][0].shape
+# First, make the NaN flags
+for th in range(nthres_rel):
+    
+    for d in range(2):
+        for r in range(nmodels):
+            for mc in range(mc_iter):
+                
+                mc_preds_in = random_predictions[th][mc][d][r]
+                if len(np.unique(mc_preds_in)) < lessthan:
+                    mc_singlepred_flag[th,mc,d,r] = True
+                    mc_test_acc_flagged[th,mc,d,r,:] = np.nan
+            
+            rel_preds_in = replacement_predictions[th][d][r]
+            if len(np.unique(rel_preds_in)) < lessthan:
+                rel_singlepred_flag[th,d,r] = True
+                rel_test_acc_flagged[th,d,r,:] = np.nan
+
+#%% Compare with the differences
+
+
+
+if replaceSG:
+    mc_diff  = mc_test_acc_flagged  - test_acc_byclass[None,None,:,:] # []
+    rel_diff = rel_test_acc_flagged - test_acc_byclass[None,:,:]
+else:
+    mc_diff  = mc_test_acc  - test_acc_byclass[None,None,:,:] # []
+    rel_diff = rel_test_acc - test_acc_byclass[None,:,:]
+
+
+
+#%% Plot the distribution of differences
+
+method = 1
+
+p      = 0.05
+bins   = np.arange(-0.5,.22,0.02)
+fig,axs = plt.subplots(5,3,figsize=(12,8),constrained_layout=True)
+
+for th in range(nthres_rel):
+    for c in range(3):
+        ax = axs[th,c]
+    
+        if th == 0:
+            ax.set_title(pparams.classes[c])
+        if c == 0:
+            ax.set_ylabel("%.2f"% (test_thresholds[th]))
+        
+        plothist_mc  = np.nanmean(mc_diff[th,:,method,:,c],1) # [mc x nmodels]
+        plothist_rel = np.nanmean(rel_diff[th,method,:,c])
+        
+        mu_mc     = np.nanmean(plothist_mc)
+        sort_acc = np.sort(plothist_mc)
+        id_sel = p*mc_iter
+        i0     = np.floor(id_sel).astype(int)
+        sigthres = np.interp(id_sel,[i0,i0+1],[sort_acc[i0],sort_acc[i0+1]])
+        
+        
+        ax.hist(plothist_mc,bins=bins,edgecolor='w',color='gray')
+        ax.axvline([sigthres],color="red",label="%.2f sig.=%.2f"% (p,sigthres*100) + "%")
+        ax.axvline([plothist_rel],color="k",label="Actual Diff.=%.2f"% (plothist_rel*100) + "%")
+        ax.legend()
+        
+        if (c == 1) and (th == nthres_rel-1):
+            ax.set_xlabel("Accuracy Loss")
+            
+figname = "%sRelevanceAblation_AccChangeHistogram_FULL_%s_%s_classPosNeg_replaceSG%i_lessthan%i.png" % (figpath,expdir,synth_name[method].replace(" ",""),
+                                                                                                        replaceSG,lessthan)
 plt.savefig(figname,dpi=150,bbox_inches='tight')
-
-#%% Visualize the accuracies as histograms
-c = 0
-
-fig,axs = plt.subplots(4,1,constrained_layout=True,sharex=True,figsize=(8,8))
-
-bins = np.arange(0,1.05,.05)
-for a in range(4):
-    
-    ax = axs[a]
-    if a < 3:
-        indata = test_acc_byclass_synth[a,:,c]
-        title=synth_name[a]
-    else:
-        indata = test_acc_byclass[0,:,c]
-        title="original"
         
-    ax.hist(indata.flatten(),bins=bins)
-    ax.axvline(indata.mean(),label="Mean=%.2f" % (indata.mean()*100)+"%",color="k")
+    
+#%% Just look at total accuracy
+
+method = 1
+
+p      = 0.05
+bins   = np.arange(-0.5,.22,0.02)
+fig,axs = plt.subplots(5,1,figsize=(10,8),constrained_layout=True)
+
+for th in range(nthres_rel):
+    ax = axs[th]
+
+    if th == 0:
+        ax.set_title("Total Accuracy")
+    ax.set_ylabel("%.2f"% (test_thresholds[th]))
+    
+    plothist_mc  = np.nanmean(mc_diff[th,:,method,:,:][...,[0,2]],(1,2)) # [mc x nmodels]
+    plothist_rel = np.nanmean(rel_diff[th,method,:,:][...,[0,2]],(0,1))
+    
+    mu_mc     = np.nanmean(plothist_mc)
+    sort_acc = np.sort(plothist_mc)
+    id_sel = p*mc_iter
+    i0     = np.floor(id_sel).astype(int)
+    sigthres = np.interp(id_sel,[i0,i0+1],[sort_acc[i0],sort_acc[i0+1]])
+    
+    
+    ax.hist(plothist_mc,bins=bins,edgecolor='w',color='gray')
+    ax.axvline([sigthres],color="red",label="%.2f sig.=%.2f"% (p,sigthres*100) + "%")
+    ax.axvline([plothist_rel],color="k",label="Actual Diff.=%.2f"% (plothist_rel*100) + "%")
     ax.legend()
-    ax.set_title(title)
-
-#%%
-
-ii    = 2
-c     = 0
-pfm   = np.where(test_acc_byclass_synth[ii,:,c]==1)
-
-#predictions_all[ii][pfm[0]] # [dataset][runs][predictions]
-
-
-predictions_new = []
-for pf in pfm[0]:
-    predictions_new.append(predictions_all[ii][pf])
-
-#%%
-
-
-
-#%% Convert this into a loop
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# ===================================================
-#%% Save Relevance Output
-# ===================================================
-#Save as relevance output as a dataset
-
-st_rel = time.time()
-
-lat = load_dict['lat']
-lon = load_dict['lon']
-
-# Save variables
-save_vars      = [relevance_composites,relevance_variances,relevance_range,predictor_composites,predictor_variances,ncorrect_byclass]
-save_vars_name = ['relevance_composites','relevance_variances','relevance_range','predictor_composites','predictor_variances',
-                  'ncorrect_byclass']
-
-# Make Coords
-coords_relevances = {"lead":leads,"runid":runids,"class":pparams.classes,"lat":lat,"lon":lon}
-coords_preds      = {"lead":leads,"class":pparams.classes,"lat":lat,"lon":lon}
-coords_counts     = {"lead":leads,"runid":runids,"class":pparams.classes}
-
-# Convert to dataarray and make encoding dictionaries
-ds_all    = []
-encodings = {}
-for sv in range(len(save_vars)):
     
-    svname = save_vars_name[sv]
-    if "relevance" in svname:
-        coord_in = coords_relevances
-    elif "predictor" in svname:
-        coord_in = coords_preds
-    elif "ncorrect" in svname:
-        coord_in = coords_counts
-    
-    da = xr.DataArray(save_vars[sv],dims=coord_in,coords=coord_in,name=svname)
-    encodings[svname] = {'zlib':True}
-    ds_all.append(da)
-    
-# Merge into dataset
-ds_all = xr.merge(ds_all)
-
-# Save Relevance data
-outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_relevance_maps.nc" % (datpath,expdir,dataset_name,varname,even_sample)
-if standardize_input:
-    outname = proc.addstrtoext(outname,"_standardizeinput")
-ds_all.to_netcdf(outname,encoding=encodings)
-print("Saved Relevances to %s in %.2fs" % (outname,time.time()-st_rel))
-# ===================================================
-#%% Save accuracy and prediction data
-# ===================================================
-st_acc = time.time()
-
-if save_all_relevances:
-    print("Saving all relevances!")
-    save_vars      = [relevances_all,predictor_all,]
-    save_vars_name = ["relevances","predictors",]
-    for sv in range(len(save_vars)):
-        outname    = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_%s.npy" % (datpath,expdir,dataset_name,varname,even_sample,save_vars_name[sv])
-        np.save(outname,save_vars[sv],allow_pickle=True)
-        print("Saved %s to %s in %.2fs" % (save_vars_name[sv],outname,time.time()-st_acc))
-
-save_vars         = [total_acc_all,class_acc_all,predictions_all,targets_all,ens_test,leads,runids]
-save_vars_name    = ["total_acc","class_acc","predictions","targets","ensemble","leads","runids"]
-metrics_dict      = dict(zip(save_vars_name,save_vars))
-outname           = "%s%s/Metrics/Test_Metrics_%s_%s_evensample%i_accuracy_predictions.npz" % (datpath,expdir,dataset_name,varname,even_sample)
-if standardize_input:
-    outname = proc.addstrtoext(outname,"_standardizeinput")
-np.savez(outname,**metrics_dict,allow_pickle=True)
-print("Saved Accuracy and Predictions to %s in %.2fs" % (outname,time.time()-st_acc))
-
-print("Completed calculating metrics for %s in %.2fs" % (varname,time.time()-vt))
-
-
-
-
-
-
-
-#%% Examine the relevance "gain"
-
-
-norm_data = True
-lon = load_dict['lon']
-lat = load_dict['lat']
-
-
-# Nneed to cimposite and relevan
-fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},figsize=(8,4.5))
-
-
-for c in range(3):
-    
-    ax =axs[c]
-    ax.set_extent(bbox)
-    ax.coastlines()
-    plotvar = relevance_composites[1,:,c,:,:].mean(0) - relevance_composites[0,:,c,:,:].mean(0)
-    
-    if norm_data:
-        plotvar = plotvar / np.nanmax(np.abs(plotvar))
-        pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-1,vmax=1,cmap="RdBu_r")
-    else:
-        pcm = ax.pcolormesh(lon,lat,plotvar,vmin=-1e-2,vmax=1e-2,cmap="RdBu_r")
-    
-    if ii == 0:
-        ax.set_title(pparams.classes[c])
-    
-    if c == 0:
-        ax.text(-0.05, 0.55, data_names[ii], va='bottom', ha='center',rotation='vertical',
-                rotation_mode='anchor',transform=ax.transAxes,fontsize=12)
-cb = fig.colorbar(pcm,ax=axs.flatten(),fraction=0.025,pad=0.05)
-cb.set_label("Relevance Gain")
-plt.suptitle("Predicting AMV lead=%i years (%s Predictor)" % (lead,varname))
-
-#savename ="%sNormalizing_Effect_%s_lead%02iyears.png" % (figpath,varname,lead)
-
-
-
-#%% Check accuracy by cclass for both cases
-
-
-fig,axs = plt.subplots(3,1,)
-
-
-for c in range(3):
-    for ii in range(2):
-        plotvar = test_acc_byclass[ii,:,c].mean(0)
-        print("Class Acc for predicting %s for %s is %.3f" % (pparams.classes[c],data_names[ii],plotvar))
-
-#%% Some EOFs fun from paleocamp
-
-from eofs.standard import Eof
-
-# Select data
-ii = 1
-c  = 0
-data_in = relevance_composites[ii,:,c,:,:] #Positive AMV
-
-# Apply Latitude Weights
-wgts    = np.cos(np.deg2rad(lat))
-data_in_wgt = data_in * wgts[None,:,None]
-
-# Create solver and extract PCs
-solver = Eof(data_in_wgt)
-pcs    = solver.pcs(npcs=10,pcscaling=1)
-eof    = solver.eofsAsCorrelation(neofs=10)
-expvar = solver.varianceFraction(neigs=10)
-north  = solver.northTest(neigs=10,vfscaled="true") 
-
-
-#%% Look at the eofs
-
-
-fig,axs = plt.subplots(2,5,subplot_kw={'projection':ccrs.PlateCarree()},
-                       figsize=(18,6),constrained_layout=True)
-for a in range(10):
-    ax = axs.flatten()[a]
-    pcm = ax.pcolormesh(lon,lat,eof[a,...],vmin=0.5,vmax=1,cmap="jet")
-    fig.colorbar(pcm,ax=ax,orientation='horizontal',fraction=0.025)
-    ax.set_title("EOF %i, VarExp=%.2f" % (a+1,expvar[a]*100) + "%")
-plt.suptitle("EOF Across Network Composites")
-
-
-
-fig,axs = plt.subplots(10,1,constrained_layout=True,figsize=(12,33))
-for a in range(10):
-    ax = axs.flatten()[a]
-    ax.plot(np.arange(1,101),pcs[:,a],label="EOF %i" % (a+1))
-    ax.legend()
-
-
-
-
-
-
+    #ax.set_xlim([-.3,.1])
+    if (th == nthres_rel-1):
+        ax.set_xlabel("Accuracy Loss")
+            
+figname = "%sRelevanceAblation_AccChangeHistogram_FULL_%s_%s_classPosNeg_replaceSG%i_lessthan%i_TotalAcc.png" % (figpath,expdir,synth_name[method].replace(" ",""),
+                                                                                                        replaceSG,lessthan)
+plt.savefig(figname,dpi=150,bbox_inches='tight')
 
 
