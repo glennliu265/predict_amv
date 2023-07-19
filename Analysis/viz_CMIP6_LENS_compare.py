@@ -110,16 +110,15 @@ for id_train in range(ndata):
     # Store in overall dict by train_name
     lrp_dicts[train_name] = trained_by_data_dict.copy()
 
-
 #%% Plot Settings
 
 id_topN  = 3  # Top 25 Models
 lead     = 25 # Leadtime to plot
-id_class = 1  #
+id_class = 0  #
 
-
-clims          = [0,1]
-normalize_maps = True
+clims          = [0,1e-2]
+normalize_maps = False
+label_norm     = True
 
 cmap = cmo.cm.amp # "RdBu_r"
 plotname  = ""
@@ -161,6 +160,7 @@ for lead in leads:
             # Make the PLot
             plotlrp = lrp_dicts[train_name][test_name]["composites_lead"] # [Lead x TopN, Class, Channel, Lat, Lon]
             plotlrp = plotlrp[lead,id_topN,id_class,0,:,:]
+            nfactor = np.nanmax(np.abs(plotlrp).flatten())
             if normalize_maps:
                 plotlrp = plotlrp / np.nanmax(np.abs(plotlrp).flatten())
             if clims is None:
@@ -173,7 +173,11 @@ for lead in leads:
             plotacc   = lrp_dicts[train_name][test_name]["modelacc_lead"]  # [Lead, Model, Class]
             plotmu    = plotacc[lead,:,id_class].mean(0)
             plotstd   = plotacc[lead,:,id_class].std(0)
-            splabel   = "%.02f$\pm$%.02f" % (plotmu*100,plotstd*100) + "%"
+            if label_norm:
+                splabel   = "%.02f$\pm$%.02f" % (plotmu*100,plotstd*100) + "%"
+                splabel += ", nfactor=%.02e" % nfactor
+            else:
+                splabel   = "%.02f$\pm$%.02f" % (plotmu*100,plotstd*100) + "%"
             ax = viz.label_sp(splabel,ax=ax,alpha=0.75,labelstyle="%s",usenumber=True)
             
             ax = viz.add_coast_grid(ax,bbox=bbox,proj=proj,
@@ -189,7 +193,7 @@ for lead in leads:
 #%% Plot model accuracies (for each test dataset)
 
 add_conf  = True
-plotconf = 0.95
+plotconf  = 0.95
 
 for id_test in range(ndata):
     test_name = dataset_names[id_test]
@@ -246,10 +250,99 @@ for id_test in range(ndata):
     
             
             
-            
-            
-            #viz.plot_mean_stdev(plotacc,1,ax=ax,x_vals=leads,stdev=1,return_lines)
-            
-            
+#%% Plot overall model performance (across all datasets):
 
+plotconf          = False # Somethin going funky with this...
+mean_bydata_first = True
+nleads,nmodels,nclasses         = lrp_dicts[train_name][test_name]["modelacc_lead"].shape
 
+# Reassign
+mean_acc_all  = np.zeros((nleads,nmodels,nclasses,ndata,ndata)) # [lead,model,class,train_set,test_set]
+#mean_acc_bytrain = mean_acc_bytest.copy()            # Accuracy by Training Set
+for id_test in range(ndata):
+    test_name = dataset_names[id_test]
+    for id_train in range(ndata):
+        train_name = dataset_names[id_train]
+        getacc     = lrp_dicts[train_name][test_name]["modelacc_lead"]
+        mean_acc_all[...,id_train,id_test] = getacc.copy()
+
+            
+# Initialize plot
+fig,axs = plt.subplots(2,3,figsize=(18,6.5),constrained_layout=True)
+for row in range(2): # Looop for groupin by train and grouping by test
+
+    if row == 0: # Plot by train on first row
+        if mean_bydata_first:
+            meanacc = mean_acc_all.mean(4) # Average over testing sets to group results by training
+        ylab    = "Acc. by Trmean_bydata_firstaining Set"
+    else: # Plot by test on second row
+        if mean_bydata_first:
+            meanacc = mean_acc_all.mean(3) # Average over training sets to group results by testing
+        ylab    = "Acc. by Testing Set"
+
+    for c in range(3):
+        
+        ax = axs[row,c]
+        if row == 0:
+            ax.set_title("%s" %(classes[c]),fontsize=16,)
+        if c == 0:
+            ax.text(-0.15, 0.55, ylab, va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes)
+        ax.set_xlim([0,24])
+        ax.set_xticks(leadticks24)
+        ax.set_ylim([0,1])
+        ax.set_yticks(np.arange(0,1.25,.25))
+        ax.grid(True,ls='dotted')    
+        
+        # Loop n plot
+        for id_data in range(ndata):
+            
+            data_name = dataset_names[id_data]
+            
+            # Set plotting colors
+            mrk = cmip6_dict[data_name]['mrk']
+            col = cmip6_dict[data_name]['col']
+            
+            if mean_bydata_first:
+                # Get the plotting accuracies
+                plotacc   = meanacc[:,:,c,id_data]
+                
+                # Compute mean, stdev, low and hi bounds
+                mu        = plotacc.mean(1)
+                sigma     = plotacc.std(1)
+                sortacc   = np.sort(plotacc,1)
+                
+                idpct    = sortacc.shape[0] * plotconf
+                lobnd    = np.floor(idpct).astype(int)
+                hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
+            else: # take mean over datasets last
+                if row == 0:
+                    plotacc = mean_acc_all[:,:,c,id_data,:] # [lead model acc_by_train_set] (for a given train set)
+                else:
+                    plotacc = mean_acc_all[:,:,c,:,id_data] # [lead model acc_by_test_set] (for a given test set)
+                
+                # Compute mean, stdev, low and hi bounds
+                mu        = plotacc.mean(1).mean(1) # [lead acc_by_[row]_set]
+                sigma     = plotacc.std(1).mean(1)  
+                sortacc   = np.sort(plotacc,1)
+                
+                idpct    = sortacc.shape[0] * plotconf
+                lobnd    = np.floor(idpct).astype(int)
+                hibnd    = np.ceil(sortacc.shape[0]-idpct).astype(int)
+                
+            # Plot things
+            lbl = data_name
+            ls  = "solid"
+            
+            ax.plot(leads,mu,color=col,marker=mrk,alpha=1.0,lw=2.5,label=lbl,zorder=9,ls=ls)
+            if add_conf:
+                if plotconf:
+                    ax.fill_between(leads,sortacc[:,lobnd],sortacc[:,hibnd],alpha=.2,color=col,zorder=1,label="")
+                else:
+                    ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.2,color=col,zorder=1)
+            # End Train Loop
+        if c == 0:
+            ax.legend()
+        # End Class Loop
+    savename = "%sAccByClass_TrainTestSetMean_%s.png" % (figpath,varname)
+    plt.savefig(savename,dpi=150,bbox_inches='tight')

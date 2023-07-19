@@ -64,6 +64,11 @@ eparams['varnames'] = varnames
 eparams['leads']    = leads
 eparams['runids']   = runids
 
+
+
+# Check full spread
+
+
 # ============================================================
 # End User Edits ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 # ============================================================
@@ -83,6 +88,157 @@ if checkgpu:
 else:
     device = torch.device('cpu')
 
+
+
+# ----------------------------------------------
+#%% 02. Data Loading, Classify Targets
+# ----------------------------------------------
+
+
+
+# Load data + target
+load_dict    = am.prepare_predictors_target(varnames,eparams,return_nfactors=True,debug=True)
+data         = load_dict['data']
+target_class = load_dict['target_class']
+
+# Get necessary sizes
+nchannels,nens,ntime,nlat,nlon = data.shape             
+inputsize                      = nchannels*nlat*nlon    # Compute inputsize to remake FNN
+nclasses                       = len(eparams['thresholds'])+1
+nlead                          = len(leads)
+
+
+
+
+
+# Debug messages
+if debug:
+    print("Loaded data of size: %s" % (str(data.shape)))
+    
+#%%
+
+# # Check the longest leadtime and count for each ensemble member
+# leadmax = 25
+
+# counts    = []
+# mincounts = []
+# y_in      = []
+# mincounts_applylead = []
+# for e in range(42):
+#     ens_sel = np.arange(0,e+1)
+#     print(ens_sel)
+#     target_in = target_class[ens_sel,leadmax:]
+    
+#     dummypred = target_in.copy()[None,:,:,None,None]
+    
+#     _,target_in2 = am.apply_lead(predictors,target_class,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
+    
+#     _,count   = am.count_samples(None,target_in)
+#     _,count2 = am.count_samples(None,target_in2)
+    
+    
+#     counts.append(count)
+#     mincounts.append(np.nanmin(np.array(count)))
+#     y_in.append(target_in)
+    
+    
+#     mincounts_applylead.append(count2)
+# # Plot Minimum Count by Class
+# fig,ax = plt.subplots(1,1)
+# ax.bar(np.arange(1,43,1),mincounts)
+# ax.axhline([300],color="k")
+
+
+#%% Dumb Indexing Test
+
+ens_sel_slice = []
+ens_sel_index = []
+ensmem  = np.arange(0,41)
+
+for e in range(42):
+    
+    ens_sel_slice.append(np.array(ensmem[:e+1]).shape)
+    ens_sel_index.append(np.arange(0,e+1).shape)
+    
+
+#
+# %% Check above but by leadtime
+#
+
+# Check the longest leadtime and count for each ensemble member
+counts_bylead = []
+mincounts_bylead = []
+y_in_bylead             = []
+for l,lead in enumerate(leads):
+    target_in = target_class[:eparams['ens'],lead:]
+    
+    _,count=am.count_samples(None,target_in)
+    counts_bylead.append(count)
+    mincounts_bylead.append(np.nanmin(np.array(count)))
+    y_in_bylead.append(target_in)
+    
+    
+#
+#%% Test in the actual script
+#
+
+# ------------------------
+# 04. Loop by predictor...
+# ------------------------
+mincounts_loop = []
+v  = 0
+predictors = data[[v],...] # Get selected predictor
+nr = 0
+
+# for v,varname in enumerate(varnames): 
+#     vt = time.time()
+#     predictors = data[[v],...] # Get selected predictor
+    
+#     # --------------------
+#     # 05. Loop by runid...
+#     # --------------------
+#     for nr,runid in enumerate(runids):
+#         rt = time.time()
+
+# -----------------------
+# 07. Loop by Leadtime...
+# -----------------------
+y_class_loop = []
+for l,lead in enumerate(leads):
+
+    
+
+        X,y_class          = am.apply_lead(predictors,target_class,lead,reshape=True,ens=eparams['ens'],tstep=ntime)
+        
+        _,count=am.count_samples(None,y_class)
+        mincounts_loop.append(np.nanmin(np.array(count)))
+        y_class_loop.append(y_class.copy())
+        
+        
+        y_class.shape
+        
+        
+        y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
+        
+                
+#%% Double check inconsistencies between the two
+
+
+mincounts_loop == mincounts_bylead
+print(np.array(mincounts_loop) - np.array(mincounts_bylead))
+
+
+#%%
+e = -1
+fig,ax = plt.subplots(1,1)
+# ax.plot(y_class_loop[-1],label="LOOP")
+# ax.plot(y_in[-1].flatten(),label="FUNC")
+ax.plot(y_in[-1].flatten()==y_class_loop[-1].squeeze(),label="FUNC")
+ax.legend()
+
+
+#%%
+    
 # ----------------------------------------------
 #%% 02. Data Loading...
 # ----------------------------------------------

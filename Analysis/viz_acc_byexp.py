@@ -329,11 +329,13 @@ no_vals                         = [False,]*nexps
 experiment_name     = "FNN4_128_Valsize"
 expdirs             = glob.glob(datpath+experiment_name+"/*")
 expdirs             = [os.path.basename(x) for x in expdirs]
+expdirs.sort()
 nexps               = len(expdirs)
 vname               = "SSH"
 
 
-vcolors = ["purple","cornflowerblue","gold","red"]
+vcolors = ["indigo","purple","violet","b","cornflowerblue",
+           "limegreen","gold","red","gray","k"]
 
 inexps = []
 for exp in range(nexps):
@@ -350,12 +352,142 @@ for exp in range(nexps):
         
         inexps.append(expdict)
     
-compname                        = "FNN4_128_Valsize_SSH"# CHANGE THIS for each new comparison
+compname                        = "FNN4_128_Valsize_SSH_all"# CHANGE THIS for each new comparison
 leads                           = np.arange(0,26,3)
 quartile                        = False
 detrend                         = False
 no_vals                         = [False,]*nexps 
 
+# -----------------------------------
+# %% Compare effect of batch size
+# -----------------------------------
+
+experiment_name     = "FNN_128_Batchsize"
+expdirs             = glob.glob(datpath+experiment_name+"/*")
+expdirs             = [os.path.basename(x) for x in expdirs]
+expdirs.sort()
+nexps               = len(expdirs)
+vname               = "SSH"
+
+vcolors = ["indigo","violet","b","gold","red",]
+
+inexps = []
+for exp in range(nexps):
+        expname       = expdirs[exp]
+        expdict = {"expdir"     : experiment_name + "/" + expname     , # Directory of the experiment
+                "searchstr"     :  "*%s*"   % (vname), # Search/Glob string used for pulling files
+                "expname"       : expname, # Name of the experiment (Short)
+                "expname_long"  : expname, # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[exp]                    , # Color for plotting
+                "marker"        : "x"                   , # Marker for plotting
+                "ls"            : "solid"               , # Linestyle for plotting
+                "no_val"        : False,  # Whether or not there is a validation dataset
+                }
+        
+        inexps.append(expdict)
+    
+compname                        = "FNN4_128_Batchsize_SSH_all"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,3)
+quartile                        = False
+detrend                         = False
+no_vals                         = [False,]*nexps 
+
+
+# -----------------------------------
+#%% Max Epochs and Early Stopping
+# -----------------------------------
+
+experiment_name     = "FNN4_128_NumEpochs"
+expdirs             = glob.glob(datpath+experiment_name+"/*")
+expdirs             = [os.path.basename(x) for x in expdirs]
+expdirs.sort()
+nexps               = len(expdirs)
+vname               = "SSH"
+
+
+reds    = np.array([1,0,0])
+blues   = np.array([0,0,1])
+vcolors = [reds*i for i in np.linspace(0.4,1,10)] + [blues*i for i in np.linspace(0.4,1,10)]
+#vcolors = ["indigo","violet","b","gold","red",]
+
+inexps = []
+for exp in range(nexps):
+        expname       = expdirs[exp]
+        expdict = {"expdir"     : experiment_name + "/" + expname     , # Directory of the experiment
+                "searchstr"     :  "*%s*"   % (vname), # Search/Glob string used for pulling files
+                "expname"       : expname, # Name of the experiment (Short)
+                "expname_long"  : expname, # Long name of the experiment (for labeling on plots)
+                "c"             : vcolors[exp]                    , # Color for plotting
+                "marker"        : "x"                   , # Marker for plotting
+                "ls"            : "solid"               , # Linestyle for plotting
+                "no_val"        : False,  # Whether or not there is a validation dataset
+                }
+        
+        inexps.append(expdict)
+    
+compname                        = "FNN4_128_NumEpochs_SSH_all"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,3)
+quartile                        = False
+detrend                         = False
+no_vals                         = [False,]*nexps 
+
+
+#
+# %% Comparing the effect of normalization
+#
+
+vname               = "SSH"
+vcolors             = ["r","b"]
+inexps              = []
+for i in range(2):
+    expdir = "FNN4_128_SingleVar_Norm%i" % i
+    expdict = {"expdir"     : expdir     , # Directory of the experiment
+            "searchstr"     :  "*%s*"   % (vname), # Search/Glob string used for pulling files
+            "expname"       : expdir, # Name of the experiment (Short)
+            "expname_long"  : expdir, # Long name of the experiment (for labeling on plots)
+            "c"             : vcolors[i]                    , # Color for plotting
+            "marker"        : "x"                   , # Marker for plotting
+            "ls"            : "solid"               , # Linestyle for plotting
+            "no_val"        : False,  # Whether or not there is a validation dataset
+            }
+    inexps.append(expdict)
+    
+compname                        = "FNN4_128_Normalize_Index"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,25,3)
+quartile                        = False
+detrend                         = False
+no_vals                         = [False,]*2
+
+
+
+
+#%%
+exp2 = {"expdir"        : "FNN4_128_SingleVar_PaperRun"   , # Directory of the experiment
+        "searchstr"     :  "*SSH*"               , # Search/Glob string used for pulling files
+        "expname"       : "Raw"       , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Raw)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "gold"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+exp3 = {"expdir"        : "FNN4_128_SingleVar_PaperRun_stdspace" , # Directory of the experiment
+        "searchstr"     :  "*SSH*",                      # Search/Glob string used for pulling files
+        "expname"       : "StdSpc"           ,      # Name of the experiment (Short)
+        "expname_long"  : "SSH (Spatially Standardized)"   ,            # Long name of the experiment (for labeling on plots)
+        "c"             : "cornflowerblue"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+inexps   = (exp2,exp3,)
+compname                        = "StdSpace_PaperRun"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,1)
+quartile                        = False
+detrend                         = True
+no_vals  = [d['no_val'] for d in inexps]
 
 
 #%% [X] --------------- E N D    U S E R    I N P U T-------------------------------
@@ -396,7 +528,6 @@ expdict = am.make_expdict(flists,leads,no_val=no_vals)
 #     else:
 #         _,nruns,nleads,nclasses      = expdict['classacc'].shape
 
-
 # Get Dimensions: classacc = [experiment][runs][lead x class]
 nruns     = len(expdict['classacc'][0])      # Number of runs
 nleads    = len(leads)                       # This will differ by experiment, so best to use leads above
@@ -421,7 +552,6 @@ totalacc,classacc,ypred,ylabs,shuffids = am.unpack_expdict(expdict)
 
 # persleads    = np.arange(0,26,3)
 
-
 persleads,persaccclass,persacctotal = dl.load_persistence_baseline("CESM1",datpath=None,return_npfile=False,region=None,quantile=False,
                               detrend=True,limit_samples=True,nsamples=None,repeat_calc=1,ens=42)
 
@@ -433,7 +563,7 @@ persleads,persaccclass,persacctotal = dl.load_persistence_baseline("CESM1",datpa
 # General plotting options
 lwall      = 2.5
 darkmode   = False
-alpha      = 0.05
+alpha      = 0.01
 
 if darkmode:
     plt.style.use('dark_background')
@@ -447,9 +577,8 @@ plotmax    = False # Set to True to plot maximum
 add_conf   = True  # Add confidence intervals
 plotconf   = 0.95  # Select which intervals to plot
 
-fig,axs = plt.subplots(1,3,figsize=(18,4))
+fig,axs    = plt.subplots(1,3,figsize=(18,4))
 for c in range(3):
-    
     # Initialize plot
     ax = axs[c]
     ax.set_title("%s" %(classes[c]),fontsize=16,)
@@ -489,7 +618,7 @@ for c in range(3):
         hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
         
         # Plot things
-        ax.plot(leads,mu,color=col,marker=mrk,alpha=1.0,lw=2.5,label=lbl,zorder=9,ls=ls)
+        ax.plot(leads,mu,color=col,marker=mrk,alpha=.75,lw=2.5,label=lbl,zorder=9,ls=ls)
         if add_conf:
             if plotconf:
                 ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=col,zorder=-9,label="")

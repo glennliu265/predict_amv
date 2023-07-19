@@ -542,3 +542,67 @@ quartile                        = False
 detrend                         = True
 no_vals                         = [False,True,False,True]
 
+
+# --------------------------------------------------
+#%% Compare FNN and CNN (PaperRun)
+# --------------------------------------------------
+
+exp2 = {"expdir"        : "FNN4_128_SingleVar_PaperRun"   , # Directory of the experiment
+        "searchstr"     :  "*SSH*"               , # Search/Glob string used for pulling files
+        "expname"       : "FNN"       , # Name of the experiment (Short)
+        "expname_long"  : "SSH (FNN)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "gold"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+exp3 = {"expdir"        : "CNN2_PaperRun" , # Directory of the experiment
+        "searchstr"     :  "*SSH*",                      # Search/Glob string used for pulling files
+        "expname"       : "CNN"           ,      # Name of the experiment (Short)
+        "expname_long"  : "SSH (CNN)"   ,            # Long name of the experiment (for labeling on plots)
+        "c"             : "cornflowerblue"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+inexps   = (exp2,exp3,)
+compname                        = "CNN_v_FNN_PaperRun"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,1)
+quartile                        = False
+detrend                         = True
+no_vals  = [d['no_val'] for d in inexps]
+
+# --------------------------------------------------
+# %% Compare particular predictor across experiments for wrtiten version
+# --------------------------------------------------
+
+exp2 = {"expdir"        : "FNN4_128_SingleVar_PaperRun"   , # Directory of the experiment
+        "searchstr"     :  "*SSH*"               , # Search/Glob string used for pulling files
+        "expname"       : "Raw"       , # Name of the experiment (Short)
+        "expname_long"  : "SSH (Raw)"   , # Long name of the experiment (for labeling on plots)
+        "c"             : "gold"                    , # Color for plotting
+        "marker"        : "o"                    , # Marker for plotting
+        "ls"            : "solid"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+exp3 = {"expdir"        : "FNN4_128_SingleVar_PaperRun_stdspace" , # Directory of the experiment
+        "searchstr"     :  "*SSH*",                      # Search/Glob string used for pulling files
+        "expname"       : "StdSpc"           ,      # Name of the experiment (Short)
+        "expname_long"  : "SSH (Spatially Standardized)"   ,            # Long name of the experiment (for labeling on plots)
+        "c"             : "cornflowerblue"                    , # Color for plotting
+        "marker"        : "d"                    , # Marker for plotting
+        "ls"            : "dashed"               , # Linestyle for plotting
+        "no_val"        : True  # Whether or not there is a validation dataset
+        }
+
+inexps   = (exp2,exp3,)
+compname                        = "StdSpace_PaperRun"# CHANGE THIS for each new comparison
+leads                           = np.arange(0,26,1)
+quartile                        = False
+detrend                         = True
+no_vals  = [d['no_val'] for d in inexps]
+#
+#
