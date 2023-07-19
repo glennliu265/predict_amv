@@ -33,9 +33,9 @@ import amv_dataloader as dl
 # ---------------------------------
 
 # Dataset information
-dataset_name  = "HadISST" # [Currently supports HadISST, CESM1]
+dataset_name  = "CESM1" # [Currently supports HadISST, CESM1]
 region        = "NAT"     # Region over which Index was computed
-detrend       = False     # Whether or not data was detrended
+detrend       = True     # Whether or not data was detrended
 quantile      = False
 thresholds    = [-1,1]
 
@@ -45,8 +45,9 @@ nsamples      = None # Subsampling of each class
 percent_train = 1    # Percentage of training data
 repeat_calc   = 1  # Number of times to resample and repeat the calculations
 save_baseline = True
+test_ens      = np.arange(42)[-10:] # Indicate indices of ensemble members reserved for testing (CESM1)
 
-outpath       = "../Data/Metrics/"
+outpath       = "../../CESM_Data/Baselines/"
 savename      = "%spersistence_baseline_%s_%s_detrend%i_quantile%i_nsamples%s_repeat%i.npz" % (outpath,dataset_name,
                                                                                             region,detrend,
                                                                                             quantile,nsamples,repeat_calc)
@@ -61,7 +62,10 @@ if dataset_name == "HadISST":
     target = dl.load_target_reanalysis(dataset_name,region,detrend=detrend)
     target = target[None,:] # ens x year
 elif dataset_name == "CESM1":
-    target = dl.load_target_cesm(detrend=detrend,region=region)
+    
+    target = dl.load_target_cesm(detrend=detrend,region=region,newpath=True,norm=True)
+
+    
 else:
     print("This script only supports computing baselines for: [CESM1, HadISST]")
     
@@ -84,6 +88,12 @@ else:
 y       = target[:nens,:].reshape(nens*ntime,1)
 y_class = am.make_classes(y,in_thresholds,reverse=True,exact_value=True,quantiles=quantile)
 y_class = y_class.reshape(nens,(ntime)) # Reshape to [ens x lead]
+
+# Subset ensemble members if CESM1
+if test_ens is not None and dataset_name == "CESM1":
+    print("Selecting the following ensemble members" % (test_ens))
+    y_class = y_class[test_ens,:]
+    nens=len(test_ens)
 
 # Get necessary dimension sizes/values
 nclasses     = len(thresholds)+1
@@ -115,12 +125,11 @@ if (save_baseline) and (repeat_calc == 1):
     np.savez(savename,**all_dicts,allow_pickle=True)
 else:
     print("Currently only supports repeat_calc=1")
-
-
+    
 #test = np.load(savename,allow_pickle=True)
     
     
-
+    
 # ------------------
 # %% Do some quick visualization
 # ------------------
