@@ -19,7 +19,6 @@ import os
 from tqdm import tqdm
 import cartopy.crs as ccrs
 
-
 #%% Add custom modules and packages
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import proc,viz
@@ -35,6 +34,7 @@ import amv_dataloader as dl
 # Set path to the data 
 mocpath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
 figpath      = pparams.figpath
+outpath      = "../../CESM_data/Regression_Maps/"
 
 # Time_Period
 startyr      = 1920
@@ -46,12 +46,12 @@ coordinate   = "depth"
 icomp        = 0 # 0=Eulerian Mean; 1=Eddy-Induced (Bolus); 2=Submeso
 iregion      = 1 # 0=Global Mean - Marginal Seas; 1= Altantic Ocean + Mediterranean Sea + Labrador Sea + GIN Sea + Arctic Ocean + Hudson Bay
 savename_moc = "%sCESM1_LENS_AMO_%sto%s_comp%i_region%i_%s.npz" % (mocpath,startyr,endyr,icomp,iregion,coordinate)
-leads        = np.arange(0,26,6)
+leads        = np.arange(0,26,1)
 
 
 
 # Set predictor options
-varnames     = ["SSH","SST","SSS","PSL"]
+varnames     = ["SSH","SST","SSS","SLP"]
 detrend      = 0
 bbox         = pparams.bbox
 
@@ -70,7 +70,7 @@ max_moc_annavg = proc.ann_avg(max_moc,1,)
 
 #%% Load the predictors
 
-data,lat,lon   = dl.load_data_cesm(varnames,bbox,detrend=detrend,return_latlon=True) # {Channel x ens x twE, X OLQ }
+data,lat,lon   = dl.load_data_cesm(varnames,bbox,detrend=detrend,return_latlon=True,newpath=True) # {Channel x ens x twE, X OLQ }
 
 
 #%% Make the regression maps
@@ -165,6 +165,24 @@ plt.suptitle("Ensemble Average Predictor Maps regressed to AMOC Index (iAMOC in 
 figname  = "%siAMOC_Predictor_LeadRegression_%ito%i_amooclead%i_detrend%i_%s.png" % (figpath,startyr,endyr,amoc_lead,detrend,coordinate)
 # savename = "%s.png" % (figpath,varname,classes[c],topN,normalize_sample,absval,ge_label_fn,pcount)
 plt.savefig(figname,dpi=150,bbox_inches="tight",transparent=True)
-    
+
+
+#%%
+
+
+#%% Save the output
+
+
+savename = "%sAMOC_Regression_Maps_%ito%i_amooclead%i_detrend%i_%s.npz" % (outpath,startyr,endyr,amoc_lead,detrend,coordinate)
+
+savedict = {
+    "leads"     : leads,
+    "varnames"  : varnames,
+    "ens"       : np.arange(1,43,1),
+    "lon"       : lon,
+    "lat"       : lat,
+    "regression_maps" : regr_maps
+    }
+np.savez(savename,**savedict,allow_pickle=True)
     
 
