@@ -13,21 +13,40 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 from torch import nn
 
-#%% Project paths
+# -----------------------------------------------------------------------
+#%% Set Project Paths
+# -----------------------------------------------------------------------
+# Path to the processed data and output. Assumed to be in same directory as predict_amv repo.
+datpath       = "../../CESM_data/"
 
-datpath       = "../../CESM_data/" # Assumed to be in same directory as predict_amv repo
-figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230602/"
+# Figure output path. This can be anywhere you set.
+figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230720/"
 
+# -----------------------------------------------------------------------
 #%% Module and (Raw) Data Paths
+# -----------------------------------------------------------------------
 
-# Added info from scm. First is the defaults
+# Added info from scm. First is the template
 mdict0 = {
-    "machine"           : None, # Name of the machine
-    "amv_path"          : 0,# Path to amv module (with proc,viz)
-    "datpath_raw_atm"   : 0, # Path to CESM1-LENS Atmospheric Variables
-    "datpath_raw_ocn"   : 0, # Path to CESM1-LENS Ocean Variables
-    "cesm2path"         : 0, # Path to CESM2 Data
-    "lenspath"          : "../../tools/Pytorch-LRP-master/", # Large Ensemble Data (CMIP5)
+    "machine"           : None,     # Name of the machine
+    "amv_path"          : 0,        # Path to amv module (with proc,viz)
+    "datpath_raw_atm"   : 0,        # Path to CESM1-LENS Atmospheric Variables
+    "datpath_raw_ocn"   : 0,        # Path to CESM1-LENS Ocean Variables
+    "cesm2path"         : 0,        # Path to CESM2 Data
+    "lenspath"          : 0,        # Large Ensemble Data (CMIP5)
+    "lrp_path"          : 0,        # Path to Pytorch-LRP module
+    }
+
+# Default, uses relative paths and assumes a particular file structure
+# where the additional modules are in General_Utilities and data in Raw_Data
+mdict0 = {
+    "machine"           : "default", # Name of the machine
+    "amv_path"          : "../../General_Utilities/amv/",# Path to amv module (with proc,viz)
+    "datpath_raw_atm"   : "../../Raw_Data/CESM1/atm/", # Path to CESM1-LENS Atmospheric Variables
+    "datpath_raw_ocn"   : "../../Raw_Data/CESM1/ocn/", # Path to CESM1-LENS Ocean Variables
+    "cesm2path"         : "../../Raw_Data/CESM2/", # Path to CESM2 Data
+    "lenspath"          : "../../Raw_Data/LENS_CMIP5/", # Large Ensemble Data (CMIP5)
+    "lrp_path"          : "../../General_Utilities/Pytorch-LRP-master/",
     }
 
 # Stormtrack Server
@@ -52,10 +71,16 @@ mdict2 = {
     "lrp_path"          : "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/ml_demo/Pytorch-LRP-master/",
     }
 
-machine_path_dicts = (mdict1,mdict2,)
-machine_names      = [d["machine"] for d in machine_path_dicts]
-machine_paths      = dict(zip(machine_names,machine_path_dicts))
-#%% Regions (Bounding Boxes and Names)
+# Make the [machine_paths] dictionary
+machine_path_dicts  = (mdict0,mdict1,mdict2,)
+machine_names       = [d["machine"] for d in machine_path_dicts]
+machine_paths       = dict(zip(machine_names,machine_path_dicts))
+
+# -----------------------------------------------------------------------
+#%% Target and Plotting Regions
+# -----------------------------------------------------------------------
+
+# Regions (Bounding Boxes and Names)
 regions       = ("NAT","SPG","STG","TRO")#("NAT","SPG","STG","TRO")
 rcolors       = ("k","b",'r',"orange")
 bbox_SP       = [-60,-15,40,65]
@@ -66,6 +91,17 @@ bbox_NA_new   = [-80,0,10,65]
 bbox_ST_w     = [-80,-40,20,40]
 bbox_ST_e     = [-40,-10,20,40]
 bboxes        = (bbox_NA,bbox_SP,bbox_ST,bbox_TR,) # Bounding Boxes
+
+# Plotting Information
+proj          = ccrs.PlateCarree()
+bbox          = [-80,0,0,65]
+plotbbox      = [-80,0,0,62]   # Plotting extent
+amvbbox       = [-80,0,0,65]   # AMV Calculation box
+bbox_crop     = [-90,20,0,90]  # Preprocessing box
+
+# -----------------------------------------------------------------------
+#%% Predictor Information (Includes outdated versions...)
+# -----------------------------------------------------------------------
 
 # Variables (allpred)
 allpred       = ("SST","SSS","PSL","SSH")
@@ -116,21 +152,26 @@ varmarker     = ("o",
                   "^",
                   "*",)
 
+# -----------------------------------------------------------------------
+#%% Class Names and Information
+# -----------------------------------------------------------------------
+
 # Class Names and colors
 classes       = ["NASST+","Neutral","NASST-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
 classes_amv   = ["AMV+","Neutral","AMV-"]
 class_colors  = ("salmon","gray","cornflowerblue")
 
-# Plotting (map)
-proj     = ccrs.PlateCarree()
-bbox     = [-80,0,0,65]
-plotbbox = [-80,0,0,62]
-amvbbox  = [-80,0,0,65]
-bbox_crop= [-90,20,0,90] 
+# -----------------------------------------------------------------------
+#%% Plotting Parameters
+# -----------------------------------------------------------------------
 
 # Plotting (acc by leadtime)
 leadticks24 = np.arange(0,25,3)
 leadticks25 = np.arange(0,26,5)
+
+# -----------------------------------------------------------------------
+#%% ML/NN Parameters (Likely outdated, delete soon)
+# -----------------------------------------------------------------------
 
 # ML Training Parameters
 detrend       = 0
@@ -141,8 +182,6 @@ ens           = 40
 thresholds    = [-1,1] 
 quantile      = False
 percent_train = 0.8
-
-
 
 #%% CESM1 Variable Dictionary/Profiles
 
@@ -255,7 +294,10 @@ indicts_vars      = [vdict1,vdict15,vdict2,vdict3,vdict4,vdict5,vdict6]
 indicts_vars_keys = [d["varname"] for d in indicts_vars]
 vars_dict         = dict(zip(indicts_vars_keys,indicts_vars))
 
-#%% LENs Parameters
+
+# -----------------------------------------------------------------------
+#%% LENS Parameters
+# -----------------------------------------------------------------------
 
 # CMIP5
 dataset_names  = ("canesm2_lens" ,"csiro_mk36_lens","gfdl_esm2m_lens","mpi_lens"  ,"CESM1")
@@ -280,21 +322,11 @@ cmip6_varnames_long  = ("Temperature"  ,"Salinity","Sea Surface Height")
 cmip6_names          = ("ACCESS-ESM1-5","CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR","CESM2")
 cmip6_markers        = ("o"            ,"d"      ,"x"           ,"v"     ,"^"            ,"*")
 cmip6_colors         = ("orange"       ,"r"      ,"magenta"     ,"b"     ,"gold"         ,"limegreen")
-
-
 zos_units            = ("m"            ,"m"      ,"m"           ,"cm"    ,"m")
 
-
-
-# Zip everything above into a dictionary
-
-cm6_vars = {}
-cm6_keys = {}
-
-cmip6_dict = {}
-
-#%% Same as above, but organize into a dictionary
-
+# -----------------------------------------------------------------------
+#%% CMIP6 Dictionary
+# -----------------------------------------------------------------------
 
 access_dict = {
     "dataset_name" : "ACCESS-ESM1-5",
@@ -337,7 +369,6 @@ cesm_dict = {
     "col"          : "limegreen",
     "zos_units"    : "cm",
     }
-
 
 indicts_cmip6      = [access_dict    ,canesm_dict,ispl_dict     ,miroc_dict, mpi_dict       ,cesm_dict]
 indicts_cmip6_keys = [d["dataset_name"] for d in indicts_cmip6]
