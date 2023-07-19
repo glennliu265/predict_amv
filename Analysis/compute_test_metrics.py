@@ -76,6 +76,7 @@ eparams             = train_cesm_params.train_params_all[expdir] # Load experime
 # Processing Options
 even_sample         = False
 standardize_input   = False # Set to True to standardize variance at each point
+calc_lrp            = True # Set to True to calculate relevance composites
 
 # Get some paths
 datpath             = pparams.datpath
@@ -87,16 +88,15 @@ leads               = np.arange(0,26,1)    # Prediction Leadtimes
 runids              = np.arange(0,100,1)    # Which runs to do
 
 
-
 # LRP Parameters
-calc_lrp       = False # Set to True to calculate relevance composites
+
 innexp         = 2
 innmethod      ='b-rule'
 innbeta        = 0.1
 innepsilon     = 1e-2
 
 # Other toggles
-save_all_relevances = True                # True to save all relevances (~33G per file...)
+save_all_relevances = False                # True to save all relevances (~33G per file...)
 checkgpu            = True                 # Set to true to check if GPU is availabl
 debug               = False                 # Set verbose outputs
 savemodel           = True                 # Set to true to save model weights
@@ -302,7 +302,6 @@ for v in range(nvars):
             predictions_lead.append(y_predicted)
             if nr == 0:
                 targets_all.append(y_actual)
-            
             
             if calc_lrp:
                 # ===========================
