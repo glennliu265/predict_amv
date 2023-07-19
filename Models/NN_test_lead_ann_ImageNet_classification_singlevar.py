@@ -27,7 +27,7 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset,Dataset
 import os
 import copy
-import timm
+#import timm
 import xarray as xr
 
 # -------------
@@ -38,10 +38,10 @@ import xarray as xr
 #expdir         = "CNN2_singlevar"
 
 # # Create Experiment Directory
-expdir             = "FNN4_128_SingleVar_Exact_Thres"
+expdir             = "FNN4_128_SingleVar_Exact_Thres_debugtest"
 
 # Data preparation settings
-for varname in ("SST","SSH","SSS"):
+for varname in ("SSH",):
     #varname       = "SST"               # Select which variable to use
     bbox           = [-80,0,0,65]        # Bounding box of predictor
     leads          = np.arange(0,25,3)#(0,)#np.arange(0,25,3)   # Time ahead (in years) to forecast AMV
@@ -55,7 +55,7 @@ for varname in ("SST","SSH","SSS"):
     
     # Training/Testing Subsets
     percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-    runids         = np.arange(0,51,1) #np.arange(11,50,1) # Which runs to do
+    runids         = np.arange(0,21,1) #np.arange(11,50,1) # Which runs to do
     
     #numruns      = 10    # Number of times to train for each leadtime
     
@@ -77,9 +77,9 @@ for varname in ("SST","SSH","SSS"):
     
     # Hyperparameters (FNN)
     # ----------------
-    nlayers     = 4
-    nunits      = [128,128,128,128]
-    activations = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
+    nlayers       = 4
+    nunits        = [128,128,128,128]
+    activations   = [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()]
     #netname     = "FNN2"
     
     # Toggle Options
@@ -303,10 +303,12 @@ for varname in ("SST","SSH","SSS"):
                 correct     = 0
                 total       = 0
                 for i,data in enumerate(data_loader):
+                    
                     # Get mini batch
                     batch_x, batch_y = data
                     batch_x = batch_x.to(device)
                     batch_y = batch_y.to(device)
+                    
                     # Set gradients to zero
                     opt.zero_grad()
                     
@@ -318,8 +320,8 @@ for varname in ("SST","SSH","SSS"):
                     
                     # Track accuracy
                     _,predicted = torch.max(pred_y.data,1)
-                    total   += batch_y.size(0)
-                    correct += (predicted == batch_y[:,0]).sum().item()
+                    total       += batch_y.size(0)
+                    correct     += (predicted == batch_y[:,0]).sum().item()
                     #print("Total is now %.2f, Correct is now %.2f" % (total,correct))
                     
                     # Update weights
@@ -338,7 +340,7 @@ for varname in ("SST","SSH","SSS"):
     
                 # Save model if this is the best loss
                 if (runningloss/len(data_loader) < bestloss) and (mode == 'eval'):
-                    bestloss = runningloss/len(data_loader)
+                    bestloss  = runningloss/len(data_loader)
                     bestmodel = copy.deepcopy(model)
                     if verbose:
                         print("Best Loss of %f at epoch %i"% (bestloss,epoch+1))
@@ -968,7 +970,26 @@ for varname in ("SST","SSH","SSS"):
                          'thresholds_all' : thresholds_all
                          }
                          )
-    
+                savename_final = "../../CESM_data/"+expdir+"/"+"Metrics"+outname
+                outdict_final ={
+                         'train_loss': train_loss_grid,
+                         'test_loss': test_loss_grid,
+                         'train_acc' : train_acc_grid,
+                         'test_acc' : test_acc_grid,
+                         'total_acc': total_acc,
+                         'acc_by_class': acc_by_class,
+                         'yvalpred': yvalpred,
+                         'yvallabels' : yvallabels,
+                         'sampled_idx': sampled_idx,
+                         'thresholds_all' : thresholds_all
+                         }
             print("Saved data to %s%s. Finished variable %s in %ss"%(outpath,outname,varname,time.time()-start))
         print("\nRun %i finished in %.2fs" % (runid,time.time()-rt))
     print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
+    
+    
+    
+#%%
+
+
+acac
