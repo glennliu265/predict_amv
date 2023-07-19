@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-amvmod
+
+Predict AMV Module (amvmod)
 
 Module containing functions for predict_amv. Contents are below:
 
@@ -27,6 +28,7 @@ Module containing functions for predict_amv. Contents are below:
     retrieve_lead                   : Get prediction leadtime/index from shuffled indices
     
 <><><> NN Training + Wrapper Functions <><><><><><><><><><><><><><><><><><>
+    
         ~~~ Predictors/Target Prep
     normalize_ds                    : Compute mean and standard deviation for a dataarray (xarray)
     compute_persistence_baseline    : Calculate the persistence baseline given the classified target indices [make_classes] output
@@ -71,6 +73,7 @@ Module containing functions for predict_amv. Contents are below:
     
 <><><> amv.proc copy <><><><><><><><><><><><><><><><><><><><><><><><><><><>
     
+        ~~~ Copies from the amv.proc module. Delete this eventually...
     find_nan                        : Remove points where there is NaN along a dimension
     eof_simple                      : Simple EOF function by Yu-Chiao
     coarsen_byavg                   : Coarsen input variable to specified resolution
@@ -106,6 +109,8 @@ import glob
 import torch
 from tqdm import tqdm
 import copy
+
+#%% Import Custom DataLoader Module
 
 import sys
 sys.path.append("..")
