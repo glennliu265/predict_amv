@@ -18,39 +18,38 @@ Current Experiments
 -------------------
     
         ~ Set 1: Cross-Validation Experiments
-    FNN4_128_Rewrite            : Testing (20 epochs) for rewritten NN training script in late March 2023. Uses [train_NN_CESM1.py]
-    FNN4_128_SingleVar_CV       : k-fold Cross Validation script, where testing % = 0.30. Uses [train_NN_CESM1_CV.py], copies FNN4_128_SingleVar_Rewrite
-    FNN4_128_SingleVar_CV_consistent : Use consistent sample. Copies FNN4_128_SingleVar_Rewrite.
+    FNN4_128_Rewrite                                        : Testing (20 epochs) for rewritten NN training script in late March 2023. Uses [train_NN_CESM1.py]
+    FNN4_128_SingleVar_CV                                   : k-fold Cross Validation script, where testing % = 0.30. Uses [train_NN_CESM1_CV.py], copies FNN4_128_SingleVar_Rewrite
+    FNN4_128_SingleVar_CV_consistent                        : Use consistent sample. Copies FNN4_128_SingleVar_Rewrite.
     
         ~ Set 2: Old Parametersfrom before the script rewrite
-    FNN4_128_SingleVar          : Old script training FNN4_128 for single predictors, preior to rewrite. Uses [NN_test_lead_ann_ImageNet_classification_singlevar.py]
-    FNN4_128_SingleVar_detrend  : Same as above, detrended. Copies FNN4_128_SingleVar
-    FNN4_128_SingleVar_Rerun100 : Rerun old script by with 100 networks instead of 50.
+    FNN4_128_SingleVar                                      : Old script training FNN4_128 for single predictors, preior to rewrite. Uses [NN_test_lead_ann_ImageNet_classification_singlevar.py]
+    FNN4_128_SingleVar_detrend                              : Same as above, detrended. Copies FNN4_128_SingleVar
+    FNN4_128_SingleVar_Rerun100                             : Rerun old script by with 100 networks instead of 50.
     
          ~ Set 3: Debugging new script (large inter-model differences, testing consistent sampling)
-    FNN4_128_SingleVar_Rerun100_consistent : Same as FNN4_128_SingleVar_Rerun100 but uses consistent sampling
-    FNN4_128_SingleVar_debug1_shuffle_all  : Same as FNN4_128_SingleVar_Rerun100, but with shuffled samples
-    FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs: Copies FNN4_128_SingleVar_debug1_shuffle_all, but switch to old number of epochs, earlystopping, batch size
-    FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs: Copies above, but reduce batchsize to 16
-    FNN4_128_SingleVar_debug1_shuffle_all_no_val : Copies above, but remove validation set
-    FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020 : Copies above, but changes Test-Train split to the old 20-80
+    FNN4_128_SingleVar_Rerun100_consistent                  : Same as FNN4_128_SingleVar_Rerun100 but uses consistent sampling
+    FNN4_128_SingleVar_debug1_shuffle_all                   : Same as FNN4_128_SingleVar_Rerun100, but with shuffled samples
+    FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs     : Copies FNN4_128_SingleVar_debug1_shuffle_all, but switch to old number of epochs, earlystopping, batch size
+    FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs     : Copies above, but reduce batchsize to 16
+    FNN4_128_SingleVar_debug1_shuffle_all_no_val            : Copies above, but remove validation set
+    FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020       : Copies above, but changes Test-Train split to the old 20-80
     
          ~ Set 4: Trying PiC training
-    FNN4_128_SingleVar_PIC      : Training script for PiC data, same settings as original FNN4_128_SingleVar
+    FNN4_128_SingleVar_PIC                                  : Training script for PiC data, same settings as original FNN4_128_SingleVar
     
          ~ Set 5: Regaining my senses in June after writing up the draft....
-    FNN4_128_SingleVar_Rewrite_June : Copies FNN4_128_SingleVar exactly to rerun in June 2023
-    FNN4_128_SingleVar_Testing      : Copies FNN4_128_SingleVar, trying new Train.Val split of 60-10
-    
+    FNN4_128_SingleVar_Rewrite_June                         : Copies FNN4_128_SingleVar exactly to rerun in June 2023
+    FNN4_128_SingleVar_Testing                              : Copies FNN4_128_SingleVar, trying new Train.Val split of 60-10
     
          ~ Set 6: Testing Index Normalization
-    FNN4_128_SingleVar_Norm0    : FNN4 run with UNnormalized index, 32 ensemble members
-    FNN4_128_SingleVar_Norm1    : FNN4 run with normalized index, 32 ensemble members
+    FNN4_128_SingleVar_Norm0                                : FNN4 run with UNnormalized index, 32 ensemble members
+    FNN4_128_SingleVar_Norm1                                : FNN4 run with normalized index, 32 ensemble members
     
          ~ Set 7: Reducing training to 32 ens members for training run
-    FNN4_128_SingleVar_PaperRun           : 100-epoch run for Predict AMV Draft
-    FNN4_128_SingleVar_PaperRun_detrended : Detrended version of above run
-    CNN2_PaperRun                         : Corresponding CNN2 run with architecture that works with Captum
+    FNN4_128_SingleVar_PaperRun                             : 100-epoch run for Predict AMV Draft
+    FNN4_128_SingleVar_PaperRun_detrended                   : Detrended version of above run
+    CNN2_PaperRun                                           : Corresponding CNN2 run with architecture that works with Captum
     
 """
 
@@ -77,6 +76,7 @@ train_params_all = {}
 # Note: Copy section below and change parameters. These are stored in a dict [expdict]
 #       that can be accessed via a unique key of your choosing [expname]
 
+#%% FNN4_128_SingleVar_Rewrite
 """
 
 FNN4_128_SingleVar_Rewrite
@@ -147,7 +147,7 @@ expdict['unfreeze_all']  = True                 # Set to true to unfreeze all la
 
 
 train_params_all[expname] = expdict.copy()
-#%%
+#%% FNN4_128_SingleVar_CV
 """
 FNN4_128_SingleVar_CV
 
@@ -170,7 +170,7 @@ expdict['shuffle_trainsplit']   = True             # Set to False to maintain sa
 
 train_params_all[expname] = expdict.copy()
 
-#%%
+#%% FNN4_128_SingleVar_CV_consistent
 """
 FNN4_128_SingleVar_CV_consistent
 
@@ -193,7 +193,8 @@ expdict['shuffle_trainsplit']   = False             # Set to False to maintain s
 
 train_params_all[expname] = expdict.copy()
 
-#%%
+#%% FNN4_128_SingleVar
+
 """
 
 FNN4_128_SingleVar
@@ -264,15 +265,11 @@ expdict['unfreeze_all']  = True                 # Set to true to unfreeze all la
 
 train_params_all[expname] = expdict.copy()
 
-#%%
+#%% FNN4_128_detrend
 """
-
 FNN4_128_SingleVar_detrend
 
 Old Singlevar Script (withdetrend), prior to rewrite
-
-
-
 """
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
@@ -286,7 +283,7 @@ expdict['detrend']         = 1        # True if the target was detrended
 
 train_params_all[expname] = expdict.copy()
 
-#%%
+#%% FNN4_128_SingleVar_Rerun100
 """
 
 FNN4_128_SingleVar_Rerun100
@@ -356,7 +353,7 @@ expdict['unfreeze_all']  = True                 # Set to true to unfreeze all la
 
 train_params_all[expname] = expdict.copy()
 
-#%%
+#%% FNN4_128_SingleVar_Rerun100_consistent
 """
 FNN4_128_SingleVar_Rerun100_consistent
 
@@ -376,7 +373,7 @@ expdict['shuffle_trainsplit']   = False             # Set to False to maintain s
 
 train_params_all[expname]       = expdict.copy()
 
-#%%
+#%% FNN4_128_SingleVar_debug1_shuffle_all
 """
 FNN4_128_SingleVar_debug1_shuffle_all
 
@@ -398,8 +395,8 @@ expdict['shuffle_trainsplit']   = False              # Set to False to maintain 
 train_params_all[expname]       = expdict.copy()
 
 
-#%% Sme as above, but adapt the old amount of epochs
-
+#%% FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs
+""" Same as above, but adapt the old amount of epochs"""
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
 expname= "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_32bs"
@@ -413,8 +410,8 @@ expdict['batch_size']    = 32                     # Pairs of predictions
 
 train_params_all[expname] = expdict.copy()
 
-
-#%% Sme as above, but reduce batch size
+#%% FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs
+"""Sme as above, but reduce batch size"""
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
 expname                  = "FNN4_128_SingleVar_debug1_shuffle_all_20ep_3ES_16bs"
@@ -426,12 +423,11 @@ expdict['early_stop']    = 3#10                   # Number of epochs where valid
 expdict['max_epochs']    = 20#100                  # Maximum # of Epochs to train for
 expdict['batch_size']    = 16                   # Pairs of predictions
 
-
-
 train_params_all[expname] = expdict.copy()
 
+#%% FNN4_128_SingleVar_debug1_shuffle_all_no_val
 
-#%% Sme as above, but remove validation set
+"""Sme as above, but remove validation set"""
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
 expname                  = "FNN4_128_SingleVar_debug1_shuffle_all_no_val"
@@ -443,7 +439,8 @@ expdict['percent_val']   = 0
 
 train_params_all[expname] = expdict.copy()
 
-#%% Sme as above, but increase training size
+#%% FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020
+"""Sme as above, but increase training size"""
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
 expname                  = "FNN4_128_SingleVar_debug1_shuffle_all_no_val_8020"
@@ -457,9 +454,8 @@ expdict['percent_val']     = 0
 train_params_all[expname] = expdict.copy()
 
 
-#%%
+#%% FNN4_128_SingleVar_PIC
 """
-
 FNN4_128_SingleVar_PIC
 
 Old Singlevar Script, but for PiC Data
@@ -529,11 +525,11 @@ expdict['unfreeze_all']  = True                 # Set to true to unfreeze all la
 
 train_params_all[expname] = expdict.copy()
 
-#%% 2023.06.02 Trying to Debug Again
+#%% FNN4_128_SingleVar_Rewrite_June 
 """
 
 FNN4_128_SingleVar_Rewrite_June
-
+2023.06.02 Trying to Debug Again 
 Forgot what is going on, so I'm going to try again...
 
 """
@@ -546,7 +542,7 @@ expdict                   = train_params_all["FNN4_128_SingleVar"].copy()
 train_params_all[expname] = expdict.copy()
 
 
-#%% 2023.06.02 Trying to Debug Again
+#%% FNN4_128_SingleVar_Testing
 """
 
 FNN4_128_SingleVar_Testing
@@ -567,11 +563,12 @@ expdict["percent_val"]     = 0.10
 
 train_params_all[expname] = expdict.copy()
 
-#%% 2023.06.06 Rerun
+#%% FNN4_128_SingleVar_PaperRun
+
 """
 
 FNN4_128_SingleVar_PaperRun
-
+2023.06.06 Rerun
 Old Singlevar Script, prior to rewrite
 
 """
@@ -638,11 +635,12 @@ expdict['unfreeze_all']   = True                 # Set to true to unfreeze all l
 
 train_params_all[expname] = expdict.copy()
 
-#%% 2023.06.06 Rerun
-"""
+#%% FNN4_128_SingleVar_PaperRun_detrended
 
+"""
 FNN4_128_SingleVar_PaperRun_detrended
 
+2023.06.06 Rerun
 Same as above, but with detrended data
 
 """
@@ -657,11 +655,12 @@ expdict                   = train_params_all["FNN4_128_SingleVar_PaperRun"].copy
 expdict['detrend']        = 1
 train_params_all[expname] = expdict.copy()
 
-#%% 2023.06.08 Rerun with new parameters, test normalization
+#%% FNN4_128_SingleVar_Norm0
+
 """
 
 FNN4_128_SingleVar_Norm0
-
+2023.06.08 Rerun with new parameters, test normalization
 """
 
 # # Create Experiment Directory (note that expname = expdir in the original script)
@@ -678,11 +677,12 @@ expdict['percent_val']   = 0.00
 
 train_params_all[expname] = expdict.copy()
 
-#%% 2023.06.08 Rerun with new parameters, test normalization
+#%% FNN4_128_SingleVar_Norm1
+
 """
 
 FNN4_128_SingleVar_Norm1
-
+2023.06.08 Rerun with new parameters, test normalization
 Copy above, but with normalization in index
 
 """
@@ -699,11 +699,11 @@ train_params_all[expname] = expdict.copy()
 
 
 
-#%% CNN2_LRP Paper Run
+#%% CNN2_PaperRun
 """
 
 CNN2_PaperRun
-
+CNN2_LRP Paper Run
 Old Singlevar Script, prior to rewrite
 
 """
@@ -771,8 +771,7 @@ expdict['unfreeze_all']   = True                 # Set to true to unfreeze all l
 train_params_all[expname] = expdict.copy()
 
 
-#%%
-
+#%% FNN4_128_SingleVar_PaperRun_stdspace
 
 """
 "FNN4_128_SingleVar_PaperRun_stdspace"
@@ -792,13 +791,11 @@ expdict['stdspace']       = True
 train_params_all[expname] = expdict.copy()
 
 
-#%%
+#%% Some Notes on Parameters and subdivisions
 
 """
 
 Some Notes on Parameters and subdivisions
-
-
 
 Thinking of 3 major categories
 
