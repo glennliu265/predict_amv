@@ -3,8 +3,21 @@
 """
 Predict AMV, Parameter File
 
-Created on Mon Jan 16 13:32:37 2023
+Sections
 
+    Set Project Paths                       : Path to figures and processed data
+    Module and (Raw) Data Paths             : Machine paths to raw data, modules
+    ML Model Parameters/Dictionary          : NN Architecture Parameter Dictionaries
+    Target and Plotting Regions             : Regional Names and bounding boxes
+    Predictor Information                   : Predictor/variable names, colors, plotting info, etc
+    Class Names and Information             : Names and colors of the classes
+    Plotting Parameters                     : Plotting parameters/ticks
+    CESM1 Variable Dictionary/Profiles      : Same as [Predictor Information] but as a dictionary
+    LENS Parameters                         : CMIP5 and some CMIP6 information
+    CMIP6 Dictionary                        : CMIP6 variable and dictionary information
+    Reanalysis Dictionary                   : Information on reanalysis datasets
+
+Created on Mon Jan 16 13:32:37 2023
 @author: gliu
 """
 
@@ -75,6 +88,48 @@ mdict2 = {
 machine_path_dicts  = (mdict0,mdict1,mdict2,)
 machine_names       = [d["machine"] for d in machine_path_dicts]
 machine_paths       = dict(zip(machine_names,machine_path_dicts))
+
+# -----------------------------------------------------------------------
+#%% ML Model Parameters/Dictionary
+# -----------------------------------------------------------------------
+
+"""
+Descriptions taken from NN training script
+cnndropout : Set to 1 to test simple CNN with dropout layer
+"""
+
+# FNN2
+FNN2_dict={
+    "nlayers"     : 2,
+    "nunits"      : [20,20],
+    "activations" : [nn.ReLU(),nn.ReLU()],
+    "dropout"     : 0.5}
+
+# FNN4_120
+FNN120_dict={
+    "nlayers"     : 4,
+    "nunits"      : [120,120,120,120],
+    "activations" : [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()],
+    "dropout"     : 0.5}
+
+# FNN4_128
+FNN128_dict={
+    "nlayers"     : 4,
+    "nunits"      : [128,128,128,128],
+    "activations" : [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()],
+    "dropout"     : 0.5}
+
+# simplecnn
+simplecnn_dict={
+    "cnndropout"     : True,
+    "num_classes"    : 3, # 3 AMV States
+    "num_inchannels" : 1, # Single Predictor
+    }
+
+# Assemble the dictionaries ...
+modelnames = ("FNN2"   , "FNN4_120"   , "FNN4_128"   , "simplecnn", "CNN2_LRP")
+indicts    = (FNN2_dict, FNN120_dict  , FNN128_dict  , simplecnn_dict, simplecnn_dict)
+nn_param_dict = dict(zip(modelnames,indicts))
 
 # -----------------------------------------------------------------------
 #%% Target and Plotting Regions
@@ -157,33 +212,21 @@ varmarker     = ("o",
 # -----------------------------------------------------------------------
 
 # Class Names and colors
-classes       = ["NASST+","Neutral","NASST-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
-classes_amv   = ["AMV+","Neutral","AMV-"]
-class_colors  = ("salmon","gray","cornflowerblue")
+classes         = ["NASST+","Neutral","NASST-"] # [Class1 = AMV+, Class2 = Neutral, Class3 = AMV-]
+classes_amv     = ["AMV+","Neutral","AMV-"]
+class_colors    = ("salmon","gray","cornflowerblue")
 
 # -----------------------------------------------------------------------
 #%% Plotting Parameters
 # -----------------------------------------------------------------------
 
 # Plotting (acc by leadtime)
-leadticks24 = np.arange(0,25,3)
-leadticks25 = np.arange(0,26,5)
+leadticks24     = np.arange(0,25,3)
+leadticks25     = np.arange(0,26,5)
 
 # -----------------------------------------------------------------------
-#%% ML/NN Parameters (Likely outdated, delete soon)
-# -----------------------------------------------------------------------
-
-# ML Training Parameters
-detrend       = 0
-leads         = np.arange(0,27,3)
-regrid        = None
-tstep         = 86
-ens           = 40
-thresholds    = [-1,1] 
-quantile      = False
-percent_train = 0.8
-
 #%% CESM1 Variable Dictionary/Profiles
+# -----------------------------------------------------------------------
 
 vdict0 = {
     "varname"     : 0, #Name of the variable
@@ -263,7 +306,6 @@ vdict4 = {
     "datpath"     : None,  # Location of variable
     }
 
-
 vdict5 = {
     "varname"     : "BSF", #Name of the variable
     "other_names" : ["bsf"], # Other Names
@@ -294,7 +336,6 @@ indicts_vars      = [vdict1,vdict15,vdict2,vdict3,vdict4,vdict5,vdict6]
 indicts_vars_keys = [d["varname"] for d in indicts_vars]
 vars_dict         = dict(zip(indicts_vars_keys,indicts_vars))
 
-
 # -----------------------------------------------------------------------
 #%% LENS Parameters
 # -----------------------------------------------------------------------
@@ -305,7 +346,7 @@ dataset_long   = ("CCCma-CanESM2","CSIRO-MK3.6"    ,"GFDL-ESM2M"     ,"MPI-ESM-L
 dataset_colors = ("r"            ,"b"              ,"magenta"        ,"gold" ,"limegreen")
 dataset_starts = (1950           ,1920             ,1950             ,1920        ,1920)
 
-# CMIP6
+# CMIP6 (Potentially delete this section as I have organized this into dictionaries later on)
 """
 "CESM2"
 "IPSL-CM6A-LR"
@@ -317,7 +358,6 @@ cmip6_varnames       = ("tos","sos","zos")
 cmip6_varnames_remap = ("sst","sss","ssh") # Also the CESM2 variable names...
 cmip6_varcolors      = ("r"  ,"violet","dodgerblue")
 cmip6_varnames_long  = ("Temperature"  ,"Salinity","Sea Surface Height")
-
 
 cmip6_names          = ("ACCESS-ESM1-5","CanESM5","IPSL-CM6A-LR","MIROC6","MPI-ESM1-2-LR","CESM2")
 cmip6_markers        = ("o"            ,"d"      ,"x"           ,"v"     ,"^"            ,"*")
@@ -374,72 +414,10 @@ indicts_cmip6      = [access_dict    ,canesm_dict,ispl_dict     ,miroc_dict, mpi
 indicts_cmip6_keys = [d["dataset_name"] for d in indicts_cmip6]
 cmip6_dict         = dict(zip(indicts_cmip6_keys,indicts_cmip6))
 
-#%% Data Regridding Settings
-
-# cmip6_dict={
-#     "regrid"   : None
-#     "quantile" : True
-#     "ens"      : 
-#     "ens"
-#     }
-
-# # Data Settings
-# regrid         = None
-# quantile       = False
-# ens            = 40
-# tstep          = 86
-# percent_train  = 0.8              # Percentage of data to use for training (remaining for testing)
-# detrend        = 0
-# bbox           = [-80,0,0,65]
-# thresholds     = [-1,1]
-# outsize        = len(thresholds) + 1
-
-#%% ML Model Parameters/Dictionary
-
-
-"""
-Descriptions taken from NN training script
-cnndropout : Set to 1 to test simple CNN with dropout layer
-"""
-
-# FNN2
-FNN2_dict={
-    "nlayers"     : 2,
-    "nunits"      : [20,20],
-    "activations" : [nn.ReLU(),nn.ReLU()],
-    "dropout"     : 0.5}
-
-# FNN4_120
-FNN120_dict={
-    "nlayers"     : 4,
-    "nunits"      : [120,120,120,120],
-    "activations" : [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()],
-    "dropout"     : 0.5}
-
-# FNN4_128
-FNN128_dict={
-    "nlayers"     : 4,
-    "nunits"      : [128,128,128,128],
-    "activations" : [nn.ReLU(),nn.ReLU(),nn.ReLU(),nn.ReLU()],
-    "dropout"     : 0.5}
-
-# simplecnn
-simplecnn_dict={
-    "cnndropout"     : True,
-    "num_classes"    : 3, # 3 AMV States
-    "num_inchannels" : 1, # Single Predictor
-    }
-
-# Assemble the dictionaries ...
-modelnames = ("FNN2"   , "FNN4_120"   , "FNN4_128"   , "simplecnn", "CNN2_LRP")
-indicts    = (FNN2_dict, FNN120_dict  , FNN128_dict  , simplecnn_dict, simplecnn_dict)
-nn_param_dict = dict(zip(modelnames,indicts))
-
-#%%
-
-
-
-#%% Dictionary for reanalysis variable names
+# -----------------------------------------------------------------------
+#%% Reanalysis Dictionary
+# -----------------------------------------------------------------------
+#% Dictionary for reanalysis variable names
 
 had_dict = {
     'dataset_name' : 'HadISST',
@@ -452,29 +430,3 @@ had_dict = {
 indicts          = (had_dict,)
 reanalysis_names = [d['dataset_name'] for d in indicts]
 reanalysis_dict  = dict(zip(reanalysis_names,indicts))
-#%%
-# # Darkmode Settings
-# darkmode  = True
-# if darkmode:
-#     plt.style.use('dark_background')
-#     dfcol = "w"
-# else:
-#     plt.style.use('default')
-#     dfcol = "k"
-
-# # ==========
-# #%% Exp 1
-# # ==========
-
-# expdir         = "CNN2_singlevar"
-# allpred        = ("SST","SSS","PSL","SSH")
-
-# #%%
-# #%% Simple CNN
-# modelname = "simplecnn"
-
-# nchannels     = [32,64]
-# filtersizes   = [[2,3],[3,3]]
-# filterstrides = [[1,1],[1,1]]
-# poolsizes     = [[2,3],[2,3]]
-# poolstrides   = [[2,3],[2,3]]
