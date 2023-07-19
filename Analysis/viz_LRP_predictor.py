@@ -91,7 +91,6 @@ nmodels        = 100 # Specify manually how much to do in the analysis
 # Compositing options
 topN           = 50 # Top models to include
 
-
 #modelname     = "FNN4_128"
 #leads         = np.arange(0,25,3)
 #nleads        = len(leads)
@@ -151,8 +150,8 @@ nclasses = 3
 #%% Load the data and target (copied from [test_predictor_uncertainty.py] on 2023.04.12)
 
 # Load predictor and labels, lat/lon, cut region
-target                          = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'])
-data_all,lat,lon                = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True)
+target                          = dl.load_target_cesm(detrend=eparams['detrend'],region=eparams['region'],newpath=True)
+data_all,lat,lon                = dl.load_data_cesm(varnames,eparams['bbox'],detrend=eparams['detrend'],return_latlon=True,newpath=True)
 
 # Apply Preprocessing
 target_all                      = target[:eparams['ens'],:]
@@ -238,7 +237,7 @@ for v in range(nvars):
 #%% Make plot of selected leadtimes (copied from below)
 
 # Set darkmode
-darkmode = True
+darkmode = False
 if darkmode:
     plt.style.use('dark_background')
     dfcol = "w"
@@ -328,9 +327,7 @@ for c in range(3): # Loop for class
         savename = proc.addstrtoext(savename,"_darkmode")
     plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
 
-
-
-_#%% Section below is the old script, where the relevance is explicilty calculated-----------------
+#%% Section below is the old script, where the relevance is explicilty calculated-----------------
 
 #%% Quick sanity check
 
