@@ -5,8 +5,6 @@
 Copied from prepare_training_validation.py
 Essentially only does the SST component and averages over particular regions
 
-
-
 Created on Fri Dec  2 11:48:40 2022
 
 Update: 2023.06.06 -> Works with new output from prep_data_byvariable

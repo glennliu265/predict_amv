@@ -21,20 +21,20 @@ import sys
 #%% User Edits
 # ------------
 
-machine  = "stormtrack"
-varnames = ["SLP","NHFLX","BSF","HMXL"] # "SST","SSH","SSS",
-datpath  = "../../CESM_data/Predictors/" # Path to SST data processed by prep_data_byvariable.py
+machine       = "stormtrack"
+varnames      = ["SLP","NHFLX","BSF","HMXL"] # "SST","SSH","SSS",
+datpath       = "../../CESM_data/Predictors/" # Path to SST data processed by prep_data_byvariable.py
 
 # Information to access file "[datpath]CESM1LE_[varname]_NAtl_[ystart]0101_[yend]1201_[method]_detrend0_regrid[regrid].nc"
-ystart   = 1920 # Start year
-yend     = 2005 # End year
-method   = "bilinear" # regridding method for POP ocean data
-regrid   = None # Set to desired resolution. Set None for no regridding.
-
+ystart        = 1920 # Start year
+yend          = 2005 # End year
+method        = "bilinear" # regridding method for POP ocean data
+regrid        = None # Set to desired resolution. Set None for no regridding.
 
 # Other settings
 save_ensavg   = False # If True, save recalculated ensemble average to : "[datpath]CESM1LE_[varname]_FULL_HTR_[method]_ensavg_[ystart]to[yend].nc}
 debug         = True
+
 # -----------------------------------------------------------------------------
 #%% Import Packages + Paths based on machine
 # -----------------------------------------------------------------------------

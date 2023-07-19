@@ -240,7 +240,7 @@ def calc_distance_sklearn(x,y):
 # %% Looping for runid
 # ------------------------------------------------------------
 
-use_target_value = False
+use_target_value = True
 
 # Print Message
 print("Running [train_NN_CESM1.py] with the following settings:")

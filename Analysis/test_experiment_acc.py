@@ -283,8 +283,8 @@ for exp in range(nexps): # Predictor Variable
     for l,lead in enumerate(leads):
         
         # Get the models (now by variable and by leadtime)
-        modweights = modweights_byvar[exp][l]
-        modlist    = modlist_byvar[exp][l]
+        modweights = modweights_byexp[exp][l]
+        modlist    = modlist_byexp[exp][l]
         
         # ---------------------
         # 08. Apply Lead
@@ -453,7 +453,6 @@ for exp in range(nexps): # Predictor Variable
     # End Experiment loop >>>
 
 #%% Visualize recomputed accuracy
-
 
 def init_classacc_fig(leads,sp_titles=None):
     fig,axs=plt.subplots(1,3,constrained_layout=True,figsize=(18,4),sharey=True)

@@ -241,7 +241,6 @@ for v in range(nvars):
             print("Using %i samples, the size of the smallest class" % (eparams['nsamples']))
             y_class,X,shuffidx = am.select_samples(eparams['nsamples'],y_class,X,verbose=debug,shuffle=eparams['shuffle_class'])
         
-        
         # ----------------------
         # IC. Flatten inputs for FNN
         # ----------------------

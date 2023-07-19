@@ -102,7 +102,6 @@ from amv import loaders,proc
 # Get experiment bounding box for preprocessing
 if bbox is None:
     bbox  = pparams.bbox_crop
-
 nvars = len(varnames)
 
 #%% Start variable loop

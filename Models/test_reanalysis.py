@@ -579,8 +579,8 @@ for c in range(3):
         
             
         # Do the plotting
-        pcm=ax.pcolormesh(lon,lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r")
-        cl = ax.contour(lon,lat,plotvar,levels=clvl,colors="k",linewidths=0.75)
+        pcm=ax.pcolormesh(re_lon,re_lat,plotrel,vmin=-cmax,vmax=cmax,cmap="RdBu_r")
+        cl = ax.contour(re_lon,re_lat,plotvar,levels=clvl,colors="k",linewidths=0.75)
         ax.clabel(cl,clvl[::2])
         
             
@@ -598,7 +598,7 @@ plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
 #%% Make a scatterplot of the event distribution and 
 
 imodel = 6
-ilead  = 8
+ilead  = 25
 msize  = 100
 timeaxis = np.arange(0,re_target.shape[1]) + 1870
 
@@ -907,7 +907,6 @@ for ll in range(nleads_sel):
 #%% Group Barplot by years (interannual, decadal, multidecadal)
 
 # count_by_year_leads # [year x class x lead]
-
 interann_count      = count_by_year_leads[:,:,np.arange(1,10)].sum(2) # year x class
 decadal_count       = count_by_year_leads[:,:,np.arange(10,20)].sum(2)
 multidecadal_count  = count_by_year_leads[:,:,np.arange(20,26)].sum(2)
@@ -922,8 +921,6 @@ leadmax = 25
 
 
 fig,axs = plt.subplots(3,1,constrained_layout=True,figsize=(12,10))
-
-
 
 for ii in range(3):
     
@@ -948,6 +945,8 @@ for ii in range(3):
                label=label,color=class_colors[c],alpha=0.75,edgecolor=dfcol_r)
     
     # Label and set ticks
+    if ii == 0:
+        ax.legend(loc='lower right')
     if ii == 1:
         ax.set_ylabel("Frequency of Predicted Class")
     ax.minorticks_on()
