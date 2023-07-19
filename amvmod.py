@@ -22,6 +22,63 @@ Working on updating documentation...
     
     --- 
     retrieve_lead      : Get prediction leadtime/index from shuffled indices
+    
+    
+    --- I think these are copied from proc. can potentially delete
+    find_nan           : Remove points where there is NaN along a dimension
+    eof_simple         : Simple EOF function by Yu-Chiao
+    coarsen_byavg      : Coarsen input variable to specified resolution
+    regress_2d         : Regresses 2 2-D variables
+    sel_region         : Select points within a region
+    calc_AMV           : Compute AMV Index for detrended/anomalized SST data
+    detrend_poly       : Matrix version of polynomial detrend
+    lon360to180        : Flip longitude from degrees east to west
+    area_avg           : Compute area-weighted average
+    regress2ts         : regress variable to timeseries
+    plot_AMV           : Plot AMV time series
+    plot_AMV_spatial   : Plot AMV Pattern
+    deseason_lazy      : Xarray deseason function without reading out values
+    init_map           : quickly initialize a map for plotting
+    
+    --- These should be unique to amvmod
+    make_classes       : Create classes for an index based on given thresholds
+    build_FNN_simple   : Build a feed-forward network
+    get_barcount       : Get count of existing classes along an axis
+    calc_confmat       : Calculate the confusion matrices
+    calc_confmat_loop  : Given predictions+labels, retrieves confusion matrix indices
+    get_topN           : Get indices for topN values of an array, searching along last dimension
+    transfer_model     : Load pretrained weights and architectures for simplecnn, cnn2_lrp, and timm (no longer supported)
+    build_simplecnn    : Construct a simple CNN based on inputs
+    calc_layerdims     : Compute size of first fully-connected layer after N convolutional layers
+    count_samples      : Counts classes and returns indices for each class
+    select_samples     : Sample even amounts from each class with option to shuffle data
+    apply_lead         : Apply leadtime to data and predictor
+    train_test_split   : Splits data into train/test/validation
+    prep_traintest_classification: Wrapper function that (1) applies lead, (2) makes + (3) samples classes,  (4) splits samples into subsets
+    get_ensyr          : Get the ensemble and year for reshaped validation (or training) indices after it has already been subsetted
+    make_ensyr         : Create meshgrid or array index for [nens] x [nyr]
+    select_ensyr_linearids : Given an array of [sample x 2] where 0=ens, 1=year retrieve corresponding linear indices
+    consistent_sample  : Select the same samples of a target predictor dataset based on the maximum leadtime.
+    get_ensyr_linear   : Given linear indices for an ens x year array with the lead/lag appplied, retrieve corresponding linear indices for a reference lead/lag
+    retrieve_ensyr_shuffid : Given shuffled indices from [select_samples], get linear indices, ensemble, and year labels accounting for offset and leadtimes (older script)
+    recreate_model     : Recreate NN model for loading weights based on <modelname>, <nn_param_dict> from [predict_amv_params.py], <inputsize> and <outsize>
+    load_cmip6_data    : Load predictor and target values processed with [prep_data_lens.py]
+    load_model_weights : Use string glob to get model weights/file structure produced by [train_NN_CESM1.py]
+    compute_LRP_composites : Composites relevance for correct predictions of top N (by test acc) models and optionally normalizes output
+    train_ResNet       : Training script for CNN or ResNet. Includes support for LR scheduler, etc
+    test_model         : Given model and testing set, returns the predicted + actual values and loss
+    compute_class-acc  : Calculate the accuracy by each class and the total accuracy given output of [test_model]
+    train_NN_lead      : Wrapper function that 1) Subsets data train/test 2) Put into dataloaders 3) build model w/[build_FNN_sample]/[transfer_model] 4) train the model [train_ResNet] 5) compute test accuracy
+    compute_persistence_baseline : Calculate the persistence baseline given the classified target indices [make_classes] output
+    normalize_ds       : Compute mean and standard deviation for a dataarray (xarray)
+    prepare_predictors_target : Wrapper that 1) loads data 2) applies landice mask 3) normalizes data 4) change NaN to zero 5) get thresholds 6) standardize predictors 7) make classes 8) subset to ensemble
+    CNN2 (class)       : CNN2 class that supports the captum interpretability package with separate pool and convolutional layers 
+    
+    
+    
+    
+    
+    
 
 @author: gliu
 """
