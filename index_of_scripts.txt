@@ -22,6 +22,8 @@ Symbology
 
     regrid_reanalysis_cesm1 :: (!)      Regrid reanalysis datasets (HadISST) to CESM1 resolution using xesmf_env 
     prep_data_reanalysis    :: (x)(!)   Preprocess reanalysis datasets regridded by CDO (wip)
+    regrid_ocean_variables  :: Regrid ocean variables in CESM1
+    make_landice_mask       :: Make land-ice (and pacific) mask, cropped to region
 
 # ----------------
 ## Models
@@ -52,6 +54,16 @@ Symbology
 
 
 (1) Preprocessing
+    >> Regrid Ocean Variables    :: regrid_ocean_variables
+    >> Make Land/Ice Mask        :: make_landice_mask
+    >> Compute QNet              :: calc_nhflx_predictor
+    >> Preprocessing             :: prep_data_byvariable
+
+   	>> Combine variables and crop to time/region
+    	>> Compute Annual mean
+    	>> Standardize
+    >> Compute Index             :: prepare_regional_targets
+
 
 
 
