@@ -70,19 +70,19 @@ nn_param_dict      = pparams.nn_param_dict
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "CNN2_PaperRun"#"FNN4_128_SingleVar_PaperRun_detrended"
+expdir              = "FNN4_128_SingleVar_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Processing Options
 even_sample         = False
-standardize_input   = True # Set to True to standardize variance at each point
+standardize_input   = False # Set to True to standardize variance at each point
 
 # Get some paths
 datpath             = pparams.datpath
 dataset_name        = "CESM1"
 
 # Set some looping parameters and toggles
-varnames            = ["SSH","SST","SLP","SSS","NHFLX"]       # Names of predictor variables
+varnames            = ["TAUCURL","TAUX","TAUY"]       # Names of predictor variables
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 runids              = np.arange(0,100,1)    # Which runs to do
 
@@ -96,7 +96,7 @@ innbeta        = 0.1
 innepsilon     = 1e-2
 
 # Other toggles
-save_all_relevances = False                # True to save all relevances (~33G per file...)
+save_all_relevances = True                # True to save all relevances (~33G per file...)
 checkgpu            = True                 # Set to true to check if GPU is availabl
 debug               = False                 # Set verbose outputs
 savemodel           = True                 # Set to true to save model weights
