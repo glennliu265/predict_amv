@@ -1,22 +1,80 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Some data loading scripts
+Predict AMV Dataloader (amv_dataloader)
+
+Functions for loading datasets, predictors, targets, baselines, and other things.
+
+<><><> List of Functions  <><><><><><><><><><><><><><><><><><><><><><><><>
     
-    load_target_cesm : Load Target for CESM1-LENS training/testing
+        ~~~ Predictors + Target
+    load_data_cesm              : Load Predictors for CESM1-LENS training/testing from [prep_data_byvariable.py]
+    load_target_cesm            : Load Target for CESM1-LENS training/testing from [prepare_regional_targets.py]
+    load_data_reanalysis        : Load Predictors for HadISST Reanalysis from [regrid_reanalysis_cesm1.py].
+    load_target_reanalysis      : Load Target for HadiSST Reanalysis from [regrid_reanalysis_cesm1.py]
+    
+        ~~~ Baselines
+    load_persistence_baseline   : Load persistence baseline calculated by [calculate_persistence_baseline.py]
+    
+        ~~~ Others (masks, normalization factors)
+    load_nfactors               : Load normalization factors for data
+    load_limask                 : Load land-ice mask created by [make_landice_mask.py]
     
 Created on Thu Mar  2 21:40:28 2023
 
 @author: gliu
 """
 
-#%% Modules
-
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#%% Load Modules
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 import numpy as np
 import xarray as xr
 from tqdm import tqdm
 
-#%%
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#%% Predictors + Target
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False,PIC=False,newpath=True,debug=False):
+    """
+    Load inputs for AMV prediction, as calculated from the script [prep_data_byvariable.py]
+        
+    Inputs:
+        varnames [LIST]  : Name of variable in CESM
+        bbox     [LIST]  : Bounding Box in the order [LonW,lonE,latS,latN]
+        datpath  [STR]   : Path to the dataset. Default is "../../CESM_data/"
+        detrend  [BOOL]  : Set to True if data was detrended. Default is False
+        regrid   [STR]   : Regridding Option. Default is the default grid.
+    Output:
+        data     [ARRAY: channel x ens x yr x lat x lon] : Target index values
+    
+    """
+    if datpath is None:
+        if newpath:
+            datpath = "../../CESM_data/Predictors/"
+        else:
+            datpath = "../../CESM_data/"
+    for v,varname in enumerate(varnames):
+        if PIC is True: # Load CESM-PiControl Run
+            ncname = '%s/CESM1_PIC/CESM1-PIC_%s_NAtl_0400_2200_bilinear_detrend%i_regrid%s.nc' % (datpath,varname,detrend,"CESM1")
+        else:
+            ncname = '%sCESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (datpath,varname,detrend,regrid)
+        ds        = xr.open_dataset(ncname)
+        ds        = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
+        outdata   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
+        if debug:
+            print(outdata.shape)
+        if v == 0:
+            data = outdata.copy()
+        else:
+            data = np.concatenate([data,outdata],axis=0)
+    if PIC is True:
+        data = data[:,None,...] # Add extra singleton "ensemble" dimension
+    if return_latlon:
+        return data, ds.lat.values,ds.lon.values
+    return data
 
 def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=False,newpath=True,norm=True):
     """
@@ -55,45 +113,6 @@ def load_target_cesm(datpath=None,region=None,detrend=False,regrid=None,PIC=Fals
         target = np.load("../../CESM_data/CESM1_PIC/%s" % (fn))[None,:] # Add extra ens dimension
     return target
 
-def load_data_cesm(varnames,bbox,datpath=None,detrend=False,regrid=None,return_latlon=False,PIC=False,newpath=True,debug=False):
-    """
-    Load inputs for AMV prediction, as calculated from the script:
-        
-    Inputs:
-        varnames [LIST]  : Name of variable in CESM
-        bbox     [LIST]  : Bounding Box in the order [LonW,lonE,latS,latN]
-        datpath  [STR]   : Path to the dataset. Default is "../../CESM_data/"
-        detrend  [BOOL]  : Set to True if data was detrended. Default is False
-        regrid   [STR]   : Regridding Option. Default is the default grid.
-    Output:
-        data     [ARRAY: channel x ens x yr x lat x lon] : Target index values
-    
-    """
-    if datpath is None:
-        if newpath:
-            datpath = "../../CESM_data/Predictors/"
-        else:
-            datpath = "../../CESM_data/"
-    for v,varname in enumerate(varnames):
-        if PIC is True: # Load CESM-PiControl Run
-            ncname = '%s/CESM1_PIC/CESM1-PIC_%s_NAtl_0400_2200_bilinear_detrend%i_regrid%s.nc' % (datpath,varname,detrend,"CESM1")
-        else:
-            ncname = '%sCESM1LE_%s_NAtl_19200101_20051201_bilinear_detrend%i_regrid%s.nc'% (datpath,varname,detrend,regrid)
-        ds        = xr.open_dataset(ncname)
-        ds        = ds.sel(lon=slice(bbox[0],bbox[1]),lat=slice(bbox[2],bbox[3]))
-        outdata   = ds[varname].values[None,...] # [channel x ens x yr x lat x lon]
-        if debug:
-            print(outdata.shape)
-        if v == 0:
-            data = outdata.copy()
-        else:
-            data = np.concatenate([data,outdata],axis=0)
-    if PIC is True:
-        data = data[:,None,...] # Add extra singleton "ensemble" dimension
-    if return_latlon:
-        return data, ds.lat.values,ds.lon.values
-    return data
-
 def load_data_reanalysis(dataset_name,varname,bbox,datpath=None,detrend=False,regrid="CESM1",return_latlon=False):
     """
     Load predictors for a selected reanalysis dataset, preprocessed by [regrid_reanalysis_cesm1.py].
@@ -121,27 +140,40 @@ def load_target_reanalysis(dataset_name,region_name,datpath=None,detrend=False,)
     fn     = "%s%s_label_%s_amv_index_detrend%i_regridCESM1.npy" % (datpath,dataset_name,region_name,detrend)
     target = np.load(fn)
     return target
-    
+
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#%% Baselines
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,region=None,quantile=False,
                               detrend=False,limit_samples=True,nsamples=None,repeat_calc=1,ens=42):
-    
+    """
+    Load persistence baseline calculated by [calculate_persistence_baseline.py]
+    """
     if datpath is None:
         datpath = "../Data/Metrics/"
     if dataset_name == "CESM1":
         # Taken from viz_acc_byexp, generated using [Persistence_Classification_Baseline.py]
-        datpath = "../../CESM_data/Metrics/"
+        datpath = "../../CESM_data/Baselines/"
         
         #fn_base   = "leadtime_testing_ALL_AMVClass3_PersistenceBaseline_1before_nens40_maxlead24_"
         #fn_extend = "detrend%i_noise0_nsample400_limitsamples1_ALL_nsamples1.npz" % (detrend)
         #ldp       = np.load(datpath+fn_base+fn_extend,allow_pickle=True)
         
-        fn_base   = "Classification_Persistence_Baseline_ens%02i_RegionNone_maxlead24_step3_" % ens
-        fn_extend = "nsamples%s_detrend%i_100pctdata.npz" % (nsamples,detrend)
+        #fn_base   = "Classification_Persistence_Baseline_ens%02i_RegionNone_maxlead24_step3_" % ens
+        #fn_extend = "nsamples%s_detrend%i_100pctdata.npz" % (nsamples,detrend)
+        if region is None:
+            region = "NAT"
+        fn_base    = "persistence_baseline_CESM1_"
+        fn_extend  = "%s_detrend%i_quantile%i_nsamples%s_repeat%i.npz" % (region,detrend,quantile,nsamples,repeat_calc)
+        
         
         ldp       = np.load(datpath+fn_base+fn_extend,allow_pickle=True)
-        class_acc = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
-        total_acc = np.array(ldp['arr_0'][None][0]['total_acc'])
+        print(ldp.files)
+        #class_acc = np.array(ldp['arr_0'][None][0]['acc_by_class']) # [Lead x Class]}
+        #total_acc = np.array(ldp['arr_0'][None][0]['total_acc'])
+        class_acc = np.array(ldp['acc_by_class']) # [Lead x Class]}
+        total_acc = np.array(ldp['total_acc'])
         
         if len(total_acc) == 9:
             persleads = np.arange(0,25,3)
@@ -163,6 +195,10 @@ def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,regi
     else:
         return persleads,class_acc,total_acc
     
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#%% Others
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def load_nfactors(varnames,datpath=None,detrend=0,regrid=None):
     """Load normalization factors for data"""
     if datpath is None:
