@@ -183,29 +183,45 @@ varnames      = ("SST",
                   "SSS",
                   "SLP",
                   "SSH",
-                  "NHFLX",)
+                  "NHFLX",
+                  "TAUX",
+                  "TAUY",
+                  "TAUCURL")
 varnamesplot  = varnames
 varnames_long = ("Temperature",
                   "Salinity",
                   "Pressure",
                   "Sea Surface Height",
-                  "Net Heat Flux",)
+                  "Net Heat Flux",
+                  "Zonal Wind Stress",
+                  "Meridional Wind Stress",
+                  "Wind Stress Curl")
 vunits        = ("$\degree$C",
                   "psu",
                   "mb",
                   "cm",
-                  "$W m^{-2}$")
+                  "$W m^{-2}$",
+                  "N m^{-2}$",
+                  "N m^{-2}$",
+                  "N m^{-3}$",)
 varcolors          = ("r",
                       "violet",
                       "gold",
                       "dodgerblue",
-                      "cyan")
+                      "cyan",
+                      "limegreen",
+                      "darkblue",
+                      "pink",
+                      )
 varcolors_dark     = varcolors
 varmarker     = ("o",
                   "d",
                   "x",
                   "^",
-                  "*",)
+                  "*",
+                  "1",
+                  "2",
+                  "3")
 
 # -----------------------------------------------------------------------
 #%% Class Names and Information

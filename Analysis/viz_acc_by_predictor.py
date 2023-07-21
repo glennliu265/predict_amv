@@ -22,8 +22,9 @@ import sys
 # Load my own custom modules
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import viz,proc
-import amv_dataloader as dl
 
+sys.path.append("..")
+import amv_dataloader as dl
 import pamv_visualizer as pviz
 
 #%% User Edits
@@ -34,9 +35,9 @@ import pamv_visualizer as pviz
 # varmarker    = ("o","d","x","v","^","*")
 
 detrend      = True
-expdirs      = ("FNN4_128_Singlevar_PaperRun","FNN4_128_Singlevar_PaperRun_detrended")#("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
+expdirs      = ("FNN4_128_Singlevar_PaperRun",)#"FNN4_128_Singlevar_PaperRun_detrended")#("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
 expdirs_long = ("Forced","Unforced",)# "CNN (Undetrended)")
-skipvars     = ("UOHC","UOSC","HMXL","BSF","NHFLX")#
+skipvars     = ("UOHC","UOSC","HMXL","BSF",)#
 #threscolors = ("r","gray","cornflowerblue")
 expnames     = ("FNN","CNN")
 expcolors    = ("gold","dodgerblue")
@@ -204,6 +205,9 @@ for c in range(3):
     # Label Legend
     if c == 1:
         ax.legend(ncol=4)
+
+savename = "%sAccuracy_by_Predictor_%s.png" % (figpath,expdir)
+plt.savefig(savename,dpi=150,bbox_inches='tight')
 #%% Load the case for all predictors
 # ======================================
 
