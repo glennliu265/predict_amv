@@ -16,6 +16,9 @@ Functions for loading datasets, predictors, targets, baselines, and other things
         ~~~ Baselines
     load_persistence_baseline   : Load persistence baseline calculated by [calculate_persistence_baseline.py]
     
+        ~~~ Test Metrics
+    load_test_accuracy          : Load the test accuracy computed by [compute_test_metrics.py]
+    
         ~~~ Others (masks, normalization factors)
     load_nfactors               : Load normalization factors for data
     load_limask                 : Load land-ice mask created by [make_landice_mask.py]
@@ -195,6 +198,45 @@ def load_persistence_baseline(dataset_name,datpath=None,return_npfile=False,regi
     else:
         return persleads,class_acc,total_acc
     
+    
+    
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#%% Test Metrics
+# ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+def load_test_accuracy(expdir,varnames,datpath=None,evensample=0):
+    """
+    Load test accuracies and predictions computed by [compute_test_metrics.py].
+
+    Parameters
+    ----------
+    expdir : STR
+        Name of the experiment.
+    varnames : LIST OF STR
+        Predictor names to search for .
+    datpath : STR, optional
+        Path to the test metrics. The default is  "../CESM_data/<expdir>/Metrics/Test_Metrics/".
+    evensample : BOOL, optional
+        True if even samples were selected for each class. The default is 0.
+
+    Returns
+    -------
+    flist : LIST of STR
+        File names that were loaded.
+    npz_list : LIST of npz files
+        Loaded NPZ files.
+        
+    """
+    if datpath is None:
+        datpath = "../../CESM_data/%s/Metrics/Test_Metrics/" % expdir
+    flist    = []
+    npz_list = []
+    for varname in varnames:
+        ldname  = "%sTest_Metrics_CESM1_%s_evensample%i_accuracy_predictions.npz" % (datpath,varname,evensample)
+        npz     = np.load(ldname,allow_pickle=True)
+        flist.append(ldname)
+        npz_list.append(npz)
+    return flist,npz_list
+
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #%% Others
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
