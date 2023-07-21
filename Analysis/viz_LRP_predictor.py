@@ -78,9 +78,9 @@ nn_param_dict = pparams.nn_param_dict
 # Indicate settings (Network Name)
 
 # Data and variable settings
-varnames       = ("SST","SSH","SSS","SLP")
-varnames_plot  = ("SST","SSH","SSS","SLP")
-expdir         = "FNN4_128_SingleVar_PaperRun_detrended"
+varnames       = pparams.varnames #("SST","SSH","SSS","SLP")
+varnames_plot  = pparams.varnames #("SST","SSH","SSS","SLP")
+expdir         = "FNN4_128_SingleVar_PaperRun"
 eparams        = train_cesm_params.train_params_all[expdir]
 
 leads          = np.arange(0,26,1)
@@ -234,7 +234,7 @@ for v in range(nvars):
             rcomps_topN[v,l,c,:,:] = rcomp_in.mean(0) # Mean along run dimension
 
 
-#%% Make plot of selected leadtimes (copied from below)
+#%% Make plot of selected leadtimes (copied from below), note this only plots the FIRST 4 Variables
 
 # Set darkmode
 darkmode = False
@@ -326,6 +326,109 @@ for c in range(3): # Loop for class
     if darkmode:
         savename = proc.addstrtoext(savename,"_darkmode")
     plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
+
+
+#%% Make a plot for a specific variable
+
+v = varnames.index('SSS')
+
+# Set darkmode
+darkmode = False
+if darkmode:
+    plt.style.use('dark_background')
+    dfcol = "w"
+    transparent      = True
+else:
+    plt.style.use('default')
+    dfcol = "k"
+    transparent      = False
+
+#Same as above but reduce the number of leadtimes
+plot_bbox        = [-80,0,0,60]
+leadsplot        = np.arange(25,-1,-5)
+
+normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
+absval           = False
+cmax             = 1
+cmin             = 1
+clvl             = np.arange(-2.1,2.1,0.3)
+no_sp_label      = True
+fsz_title        = 20
+fsz_axlbl        = 18
+fsz_ticks        = 16
+cmap='cmo.balance'
+
+
+fig,axs = plt.subplots(3,6,figsize=(24,12),
+                       subplot_kw={'projection':proj},constrained_layout=True)
+    
+for c in range(3): # Loop for class
+    ia = 0
+    
+    varname = varnames[v]
+
+
+    # Loop for leadtime
+    for l,lead in enumerate(leadsplot):
+        
+        # Get lead index
+        id_lead    = list(leads).index(lead)
+        
+        if debug:
+            print("Lead %02i, idx=%i" % (lead,id_lead))
+        
+        # Axis Formatting
+        ax = axs[c,l]
+        blabel = [0,0,0,0]
+        
+        #ax.set_extent(plot_bbox)
+        #ax.coastlines()
+        
+        if c == 0:
+            ax.set_title("Lead %02i Years" % (leads[id_lead]),fontsize=fsz_title)
+        if l == 0:
+            blabel[0] = 1
+            ax.text(-0.15, 0.55, classes[c], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=fsz_axlbl)
+        if c == (len(varnames)-1):
+            blabel[-1]=1
+        
+        ax = viz.add_coast_grid(ax,bbox=plot_bbox,blabels=blabel,fill_color="k")
+        if no_sp_label is False:
+            ax = viz.label_sp(ia,ax=ax,fig=fig,alpha=0.8,fontsize=fsz_axlbl)
+        # -----------------------------
+        
+        # --------- Composite the Relevances and variables
+        plotrel = rcomps_topN[v,id_lead,c,:,:]
+        if normalize_sample == 2:
+            plotrel = plotrel/np.max(np.abs(plotrel))
+        plotvar = pcomps[v][id_lead,c,:,:]
+        #plotvar = plotvar/np.max(np.abs(plotvar))
+        
+        
+        # Set Land Points to Zero
+        plotrel[plotrel==0] = np.nan
+        plotvar[plotrel==0] = np.nan
+        
+        # Do the plotting
+        pcm=ax.pcolormesh(lon,lat,plotrel*data_mask,vmin=-cmin,vmax=cmax,cmap=cmap)
+        cl = ax.contour(lon,lat,plotvar*data_mask,levels=clvl,colors="k",linewidths=0.75)
+        ax.clabel(cl,clvl[::2])
+        ia += 1
+        # Finish Leadtime Loop (Column)
+        
+# Finish Variable Loop (Row)
+cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.025,pad=0.01)
+cb.set_label("Normalized Relevance",fontsize=fsz_axlbl)
+cb.ax.tick_params(labelsize=fsz_ticks)
+plt.suptitle("Relevance Maps for %s" % varname,fontsize=fsz_title)
+#plt.suptitle("Mean LRP Maps for Predicting %s using %s, \n Composite of Top %02i FNNs per leadtime" % (classes[c],varname,topN,))
+savename = "%sPredictorComparison_LRP_AllClasses_%s_%s_top%02i_normalize%i_abs%i_%s_Draft2.png" % (figpath,expdir,varname,topN,normalize_sample,absval,ge_label_fn)
+if darkmode:
+    savename = proc.addstrtoext(savename,"_darkmode")
+plt.savefig(savename,dpi=150,bbox_inches="tight",transparent=transparent)
+
+
 
 #%% Section below is the old script, where the relevance is explicilty calculated-----------------
 
