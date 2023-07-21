@@ -77,13 +77,19 @@ expdir      = "FNN4_128_SingleVar_PaperRun"
 #varnames    = ['SSH', 'SST', 'SSS', 'SLP']  ("SST","SSH","SSS","SLP")
 varcolors   = ['dodgerblue','r','violet','gold']
 
-# AMOC Loading Information
+# AMOC Maps Loading Information
 amocpath    = "../../CESM_data/Regression_Maps/"
 detrend     = 0
 startyr     = 1920
 endyr       = 2005
 coordinate  = "depth"
 amoc_lead   = False
+
+# AMOC Index Loading Ifnromation
+mocpath      = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/01_Data/AMOC/"
+icomp        = 0 # 0=Eulerian Mean; 1=Eddy-Induced (Bolus); 2=Submeso
+iregion      = 1 # 0=Global Mean - Marginal Seas; 1= Altantic Ocean + Mediterranean Sea + Labrador Sea + GIN Sea + Arctic Ocean + Hudson Bay
+savename_moc = "%sCESM1_LENS_AMO_%sto%s_comp%i_region%i_%s.npz" % (mocpath,startyr,endyr,icomp,iregion,coordinate)
 
 # Get experiment Information and other parameters
 eparams     = train_cesm_params.train_params_all[expdir]
@@ -112,8 +118,13 @@ lat       = ld['lat']
 #%% Get information from the experiment
 
 
+# Load AMOC Indices
 
+ld           = np.load(savename_moc,allow_pickle=True)
+max_moc      = ld['max_moc'] # {Ens x Time}
 
+# Take the Annual averages
+max_moc_annavg = proc.ann_avg(max_moc,1,)
 
 
 #%% Load the data and target (copied from [viz_LRP_predictor.py] on 2023.07.14)
@@ -183,7 +194,90 @@ rcomps = np.array(rcomps) # [variable x lead x run x class x lat x lon]
 pcomps = np.array(pcomps) # [variable x lead       x class x lat x lon]
 class_accs  = np.array([acc_dict[v]['class_acc'] for v in range(nvars)]) # (4, 100, 26, 3)
 
-#%%
+# ----------------------------------------------------------------
+#%% Look at the lag regression between AMOC and the NASST Indices
+# ----------------------------------------------------------------
+
+nleads          = len(leads)
+nens,ntime      = max_moc_annavg.shape
+moc_nasst_corr  = np.zeros((nens,nleads,2))
+
+for ii in range(2):
+    
+    if ii == 0:
+        leads_in = leads
+    else:
+        leads_in = leads
+    
+    for e in range(nens):
+        
+        for l in range(nleads):
+            lead = leads_in[l]
+            
+            if ii == 0: # NASST Leads
+                moc_in   = max_moc_annavg[e,lead:]
+                nasst_in = target[e,:(ntime-lead)]
+            else:
+                moc_in   = max_moc_annavg[e,:(ntime-lead)]
+                nasst_in = target[e,lead:]
+                
+            moc_nasst_corr[e,l,ii] = np.corrcoef(nasst_in,moc_in)[0,1]
+            
+#%% Plot the result
+
+rhocrit = proc.ttest_rho(0.05,2,86)
+
+fig,ax = plt.subplots(1,1)
+
+for ii in range(2):
+    
+    
+    for e in range(nens):
+        
+        plotcorrs = moc_nasst_corr[e,:,ii]
+        if ii == 0:
+            plotcorrs = np.flip(plotcorrs)
+            leads_plot = np.flip(leads) * -1
+        else:
+            leads_plot = leads
+        ax.plot(leads_plot,plotcorrs,color="gray",alpha=0.25,label="")
+    
+# Plot the ensemble mean
+leads_flipped  = np.flip(leads) * -1
+neg_ensavg = np.flip(moc_nasst_corr[:,:,0].mean(0))
+pos_ensavg = moc_nasst_corr[:,:,1].mean(0)
+
+ax.plot(leads_flipped,neg_ensavg,color="k")
+ax.plot(leads,pos_ensavg,color="k",label="ens avg.")
+
+# Label max values
+idmax_neg = np.argmax(np.abs(neg_ensavg))
+idmax_pos  = np.argmax(np.abs(pos_ensavg))
+ax.axvline([leads_flipped[idmax_neg]],color='violet',label="l=%i, r=%.02f" % (leads_flipped[idmax_neg],
+                                                                              neg_ensavg[idmax_neg]))
+ax.axvline([leads[idmax_pos]],color='orange',label="l=%i, r=%.02f" % (leads[idmax_pos],
+                                                                              pos_ensavg[idmax_pos]))
+
+# Other Stuff
+ax.axvline(0,color='darkblue')
+ax.axhline(0,color='darkblue')
+
+ax.axhline(rhocrit,color="r",ls='dashed')
+ax.axhline(-rhocrit,color="r",ls='dashed',label="p=0.05,n=86,tails=2")
+
+ax.set_title("NASST Leads (-) << and >> AMOC Leads (+)")
+
+ax.set_ylabel("Correlation")
+ax.set_xlabel("AMOC Lead Year (Years)")
+ax.legend()
+
+viz.add_ticks(ax)
+ax.set_xlim([-25,25])
+ax.set_ylim([-.5,.5])
+
+
+figname = "%sAMOC_NASST_Lead_Lag_CESM1_undetrended.png" % figpath
+plt.savefig(figname,dpi=150,bbox_inches='tight')
 
 
 #%% First, lets visualize key leadtimes of the AMOC Map
@@ -309,9 +403,10 @@ for c in range(3): # Loop for class
 amoc_maps = (26, 4, 42, 69, 65)
 rcomps    = (4, 26, 100, 3, 69, 65)
 """
+
+l_ref = 0
 nmodels         = rcomps.shape[2]
 amoc_map_ensavg = amoc_maps.mean(2) # (26, 4, 69, 65)
-
 
 flag_pts = np.zeros(rcomps.shape)
 R_calc   = np.zeros((nvars,nleads,nclasses,nmodels)) * np.nan
@@ -319,7 +414,8 @@ R_calc   = np.zeros((nvars,nleads,nclasses,nmodels)) * np.nan
 for v in range(nvars):
     for l in range(nleads):
         #l_ref = l
-        l_ref = l
+        if l_ref is None:
+            l_ref = l
         ref_map   = amoc_map_ensavg[l_ref,v,:,:]
         targ_maps = rcomps[v,l,:,:,:,:].reshape(nclasses*nmodels,nlat,nlon) # [3*100 x lat x lon] 
         targ_maps[targ_maps == 0] = np.nan
@@ -345,8 +441,9 @@ var_maps   = np.nanvar(data_all,2).mean(1) # [varname, lat, lon]
 R_baseline = np.zeros((nvars,nleads,))
 for v in range(nvars):
     for l in range(nleads):
-        
-        R_baseline[v,l] = proc.patterncorr(amoc_map_ensavg[l,v,:,:],var_maps[v,:,:])
+        if l_ref is None:
+            l_ref = l
+        R_baseline[v,l] = proc.patterncorr(amoc_map_ensavg[l_ref,v,:,:],var_maps[v,:,:])
 
 #%% Now, examine the distribution of pattern correlation for leadtime and variable
 
@@ -386,7 +483,7 @@ for c in range(3):
 plt.suptitle("Pattern Correlation (Relevance Composite,Ens. Avg. AMOC Regression Map)",fontsize=fsz_title)
 
 
-figname = "%sAMOC_Relevance_PatternCorr_%s_amocdetrend%i_bylead.png" % (figpath,expdir,detrend,)
+figname = "%sAMOC_Relevance_PatternCorr_%s_amocdetrend%i_bylead_lref%i.png" % (figpath,expdir,detrend,l_ref+1)
 plt.savefig(figname,dpi=150,bbox_inches='tight')
 
 #%% Lets look at the distributions of leadtime
@@ -416,19 +513,16 @@ for v in range(4):
                 ax.legend()
         if c == 0:
             ax.set_ylabel(varnames[v])
-    
 
 plt.suptitle("Histogram of Relevance Composite-AMOC-Regression Pattern Correlations")
-figname = "%sAMOC_Relevance_PatternCorr_%s_amocdetrend%i_Histograms_bypredictor.png" % (figpath,expdir,detrend,)
+figname = "%sAMOC_Relevance_PatternCorr_%s_amocdetrend%i_Histograms_bypredictor_lref%i.png" % (figpath,expdir,detrend,l_ref+1)
 plt.savefig(figname,dpi=150,bbox_inches='tight')
+
 #plt.savefig("")
-
-
 #fig,ax = plt.subplots(1)
 
 #%% What is the correlation between pattern correlation and test accuracy
 # Is there a strong relationship between AMOC pattern correlation and accuracy?
-
 
 fig,axs = plt.subplots(4,3,constrained_layout=True,figsize=(12,12),sharex=True,sharey=True)
 
@@ -452,9 +546,7 @@ for v in range(4):
             ax.set_xlabel("Test Accuracy")
             
 plt.suptitle("Test Accuracy vs. AMOC Pattern Correlation")
-figname = "%sTestAcc_v_AMOC_Relevance_PatternCorr_%s_amocdetrend%i_Scatter.png" % (figpath,expdir,detrend,)
+figname = "%sTestAcc_v_AMOC_Relevance_PatternCorr_%s_amocdetrend%i_Scatter_lref%i.png" % (figpath,expdir,detrend,l_ref+1)
 plt.savefig(figname,dpi=150,bbox_inches='tight')
-            
-            
-        
-        
+
+
