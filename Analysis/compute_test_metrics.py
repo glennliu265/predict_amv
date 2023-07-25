@@ -70,7 +70,7 @@ nn_param_dict      = pparams.nn_param_dict
 # Set machine and import corresponding paths
 
 # Set experiment directory/key used to retrieve params from [train_cesm_params.py]
-expdir              = "FNN4_128_SingleVar_PaperRun"
+expdir              = "CNN2_PaperRun"
 eparams             = train_cesm_params.train_params_all[expdir] # Load experiment parameters
 
 # Processing Options
@@ -83,13 +83,11 @@ datpath             = pparams.datpath
 dataset_name        = "CESM1"
 
 # Set some looping parameters and toggles
-varnames            = ["TAUCURL","TAUX","TAUY"]       # Names of predictor variables
+varnames            = ["SSH","SST","SLP","SSS","NHFLX"]       # Names of predictor variables
 leads               = np.arange(0,26,1)    # Prediction Leadtimes
 runids              = np.arange(0,100,1)    # Which runs to do
 
-
 # LRP Parameters
-
 innexp         = 2
 innmethod      ='b-rule'
 innbeta        = 0.1
@@ -317,6 +315,10 @@ for v in range(nvars):
                 if "FNN" in eparams['netname']:
                     predictor_test    = X_torch.detach().numpy().copy().reshape(nsamples_lead,nlat,nlon)
                     sample_relevances = sample_relevances.reshape(nsamples_lead,nlat,nlon) # [test_samples,lat,lon] 
+                else: # Assume CNN
+                    predictor_test    = X_torch.detach().numpy().copy().squeeze() # [test samples x lat x lon]
+                    sample_relevances = sample_relevances.squeeze()
+                    
                 
                 # Save Variables
                 if nr == 0:
