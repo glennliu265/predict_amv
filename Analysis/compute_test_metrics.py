@@ -27,14 +27,11 @@ import xarray as xr
 import torch
 from torch import nn
 
-
-
 from tqdm import tqdm
 import time
 import os
 
 from torch.utils.data import DataLoader, TensorDataset,Dataset
-
 #%% Load custom packages and setup parameters
 
 machine = 'stormtrack' # Indicate machine (see module packages section in pparams)

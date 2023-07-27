@@ -486,6 +486,7 @@ def consistent_sample(data,target_class,leads,nsamples,leadmax=None,
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # ~~~ Ensemble Year Indexing 
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 def get_ensyr(id_val,lead,ens=40,tstep=86,percent_train=0.8,get_train=False):
     # Get ensemble and year of reshaped valdation indices (or training if get_train=True)
     # Assume target is of the order [ens  x time] (default is (40,86))
@@ -1545,7 +1546,6 @@ def recreate_model(modelname,nn_param_dict,inputsize,outsize,nlat=180,nlon=360):
     pmodel          (torch.NN): Pytorch model with structure loaded (weights are NOT loaded!)
 
     """
-    
     
     # Retrieve Parameters
     param_dict = nn_param_dict[modelname]

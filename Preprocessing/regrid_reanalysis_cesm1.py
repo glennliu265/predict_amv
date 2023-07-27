@@ -96,7 +96,6 @@ else:
 
 stall         = time.time()
 
-
 #%% User Edits
 
 # File Information

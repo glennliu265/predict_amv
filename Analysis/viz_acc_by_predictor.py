@@ -23,7 +23,7 @@ import sys
 sys.path.append("/Users/gliu/Downloads/02_Research/01_Projects/01_AMV/00_Commons/03_Scripts/amv/")
 import viz,proc
 
-sys.path.append("..")
+sys.path.append("../")
 import amv_dataloader as dl
 import pamv_visualizer as pviz
 
@@ -35,9 +35,9 @@ import pamv_visualizer as pviz
 # varmarker    = ("o","d","x","v","^","*")
 
 detrend      = True
-expdirs      = ("FNN4_128_Singlevar_PaperRun",)#"FNN4_128_Singlevar_PaperRun_detrended")#("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
+expdirs      = ("FNN4_128_Singlevar_PaperRun","FNN4_128_Singlevar_PaperRun_detrended")#("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
 expdirs_long = ("Forced","Unforced",)# "CNN (Undetrended)")
-skipvars     = ("UOHC","UOSC","HMXL","BSF",)#
+skipvars     = ("UOHC","UOSC","HMXL","BSF","TAUX","TAUY","TAUCURL")#
 #threscolors = ("r","gray","cornflowerblue")
 expnames     = ("FNN","CNN")
 expcolors    = ("gold","dodgerblue")
@@ -463,10 +463,11 @@ leadticks  = np.arange(0,26,5)
 expnums    = [0,1]
 detrends   = [0,1]
 add_conf   = True
-plotconf   = 0.68
+plotconf   = False #0.68
 plotmax    = False # Set to True to plot maximum
 alpha      = 0.15
 legend_sp  = 2
+plotstderr = True
 
 # Initialize figures
 fig,axs =  plt.subplots(2,2,constrained_layout=True,figsize=(12,6))
@@ -515,10 +516,13 @@ for iplot,ex in enumerate(expnums):
                 plotacc = classacc[i,:,:,c].max(0)
             else:
                 plotacc = classacc[i,:,:,c].mean(0)
-           # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
             
-            mu        = classacc[i,:50,:,c].mean(0)
-            sigma     = classacc[i,:50,:,c].std(0)
+            
+            mu        = classacc[i,:,:,c].mean(0)
+            if plotstderr:
+                sigma = 2*classacc[i,:,:,c].std(0) / np.sqrt(classacc.shape[1])
+            else:
+                sigma = np.array(plotacc).std(0)
             
             sortacc  = np.sort(classacc[i,:,:,c],0)
             idpct    = sortacc.shape[0] * plotconf
@@ -545,23 +549,19 @@ for iplot,ex in enumerate(expnums):
         #ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol)
         
         if c == 0:
-            
-            if iplot == 0:
-                ax.set_ylabel("Test Accuracy")
-            #     ax.text(-0.09, -0.05,"Test Accuracy", va='bottom', ha='center',rotation='vertical',
-            #             rotation_mode='anchor',transform=ax.transAxes)
+            ax.set_ylabel("Test Accuracy") # Label Y-axis for first column
 
 
             ax.text(-0.10, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
                     rotation_mode='anchor',transform=ax.transAxes,fontsize=14)
-        if (c == 0):
-            if iplot == 1:
-                ax.set_xlabel("Prediction Lead (Years)")
+        
+        if (ex == 1):
+            ax.set_xlabel("Prediction Lead (Years)")
         if it == legend_sp:
             ax.legend(ncol=2,fontsize=10)
         it += 1
 
-plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer.png"% (figpath,detrend,plotmax,expdirs[expnum]),
+plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer_stderr%i.png"% (figpath,detrend,plotmax,expdirs[expnum],plotstderr),
             dpi=200,bbox_inches="tight",transparent=False)
 
 #%% Same as above, but just for the Neutral class
@@ -638,8 +638,8 @@ for iplot,ex in enumerate(expnums):
                 plotacc = classacc[i,:,:,c].mean(0)
            # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
             
-            mu        = classacc[i,:50,:,c].mean(0)
-            sigma     = classacc[i,:50,:,c].std(0)
+            mu        = classacc[i,:,:,c].mean(0)
+            sigma     = classacc[i,:,:,c].std(0)
             
             sortacc  = np.sort(classacc[i,:,:,c],0)
             idpct    = sortacc.shape[0] * plotconf
@@ -698,6 +698,7 @@ expnums    = [0,1]
 detrends   = [0,1]
 add_conf   = True
 plotconf   = 0.68
+plotstderr = True
 plotmax    = False # Set to True to plot maximum
 alpha      = 0.15
 legend_sp  = 2
@@ -756,8 +757,11 @@ for iplot,ex in enumerate(expnums):
                 plotacc = classacc[i,:,:,c].mean(0)
            # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
             
-            mu        = classacc[i,:50,:,c].mean(0)
-            sigma     = classacc[i,:50,:,c].std(0)
+            mu        = classacc[i,:,:,c].mean(0)
+            if plotstderr:
+                sigma = 2*classacc[i,:,:,c].std(0) / np.sqrt(classacc.shape[1])
+            else:
+                sigma = classacc[i,:,:,c].std(0)
             
             sortacc  = np.sort(classacc[i,:,:,c],0)
             idpct    = sortacc.shape[0] * plotconf
@@ -822,8 +826,8 @@ for c in range(3):
             plotacc = classacc[i,:,:,c].mean(0)
        # ax.plot(leads,plotacc,color=varcolors[i],alpha=1,lw=lwall,label=varnames[i])
         
-        mu        = classacc[i,:50,:,c].mean(0)
-        sigma     = classacc[i,:50,:,c].std(0)
+        mu        = classacc[i,:,:,c].mean(0)
+        sigma     = classacc[i,:,:,c].std(0)
         
         sortacc  = np.sort(classacc[i,:,:,c],0)
         idpct    = sortacc.shape[0] * plotconf
@@ -936,6 +940,7 @@ plot_exs     = [1,2]
 fsz          = 14
 fszt         = 12
 fszb         = 16
+plotstderr   = True
 
 
 fig,ax = plt.subplots(1,1,figsize=(9,3),sharex=True,constrained_layout=True)
@@ -948,7 +953,8 @@ if justbaseline is False:
         plotacc   = np.array(classacc)[v,:,:,:]
         plotacc   = plotacc[:,:,[0,2]].mean(2)#np.array(totalacc)[v,:,:]
         mu        = np.array(plotacc).mean(0)
-        sigma     = np.array(plotacc).std(0)
+        
+
         
         
         sortacc  = np.sort(plotacc,0)
