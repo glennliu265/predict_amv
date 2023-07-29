@@ -446,6 +446,7 @@ for c in [1,2]:
 #%% Remake the plots, but for the GRL Paper Outline...
 # ----------------------------------------------------
 
+# Set Color Mode
 darkmode = False
 plt.style.use('default')#('seaborn_v0-8')
 if darkmode == True:
@@ -453,24 +454,25 @@ if darkmode == True:
 else:
     dfcol = "k"
 
-# Toggles
-plotmodels = [0,1,2,3]
-plotclasses = [0,2]
-classes_new= ["NASST+","Neutral","NASST-"]
+# Toggles and ticks
+plotmodels   = [0,1,2,3] # Which predictors to plot
+plotclasses  = [0,2]     # Just plot positive/negative
+classes_new  = pparams.classes
+expnums      = [0,1]     # Which Experiments to Plot
+detrends     = [0,1]     # Whether or not it was detrended
+leadticks    = np.arange(0,26,5)
+legend_sp    = 2         # Subplot where legend is included
+ytks         = np.arange(0,1.2,.2)
 
-leadticks  = np.arange(0,26,5)
-
-expnums    = [0,1]
-detrends   = [0,1]
-add_conf   = True
-plotconf   = False #0.68
-plotmax    = False # Set to True to plot maximum
-alpha      = 0.15
-legend_sp  = 2
-plotstderr = True
+# Error Bars
+plotstderr   = True  # If True, plot standard error (95%)
+add_conf     = True  # If True, add empirical error bars. If false, compute stdev
+plotconf     = False # If a value (ex. 0.66), include number of models within that range 
+plotmax      = False # Set to True to plot maximum rather than the mean
+alpha        = 0.25  # Alpha of error bars
 
 # Initialize figures
-fig,axs =  plt.subplots(2,2,constrained_layout=True,figsize=(12,6))
+fig,axs =  plt.subplots(2,2,constrained_layout=True,figsize=(12.5,6))
 it = 0
 for iplot,ex in enumerate(expnums):
     
@@ -494,22 +496,22 @@ for iplot,ex in enumerate(expnums):
         ax = axs_row[rowid]
         
         # Initialize plot
-        viz.label_sp(it,ax=ax,fig=fig,fontsize=16,alpha=0.2,x=0.02)
+        viz.label_sp(it,ax=ax,fig=fig,fontsize=pparams.fsz_splbl,
+                     alpha=0.2,x=0.02)
         
+        # Set Ticks/limits
         ax.set_xlim([0,24])
-        ax.set_xticks(leadticks)
+        ax.set_xticks(leadticks,fontsize=pparams.fsz_ticks)
         ax.set_ylim([0,1])
-        ax.set_yticks(np.arange(0,1.2,.2))
-        #ax.grid(True,ls='dotted')
-        #ax.minorticks_on()
-        
+        ax.set_yticks(ytks,fontsize=pparams.fsz_ticks)
+        ax.set_yticklabels((ytks*100).astype(int),)
         ax = viz.add_ticks(ax,facecolor="#eaeaf2",grid_lw=1.5,grid_col="w",grid_ls="solid",
                             spinecolor="darkgray",tickcolor="dimgray",
-                            ticklabelcolor="k")
+                            ticklabelcolor="k",fontsize=pparams.fsz_ticks)
         
         # Add Class Labels
         if iplot == 0:
-            ax.set_title("%s" %(classes_new[c]),fontsize=16,)
+            ax.set_title("%s" %(classes_new[c]),fontsize=pparams.fsz_title,)
         
         for i in plotmodels:
             if plotmax:
@@ -536,7 +538,7 @@ for iplot,ex in enumerate(expnums):
                     ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors_dark[i],zorder=1,label="")
                 else:
                     ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors_dark[i],zorder=1)
-            
+        
         ax.plot(leads,persaccclass[exp_dt][:,c],color=dfcol,label="Persistence",ls="dashed")
         ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
         
@@ -549,16 +551,14 @@ for iplot,ex in enumerate(expnums):
         #ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol)
         
         if c == 0:
-            ax.set_ylabel("Test Accuracy") # Label Y-axis for first column
-
-
-            ax.text(-0.10, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
-                    rotation_mode='anchor',transform=ax.transAxes,fontsize=14)
-        
+            ax.set_ylabel("Prediction Accuracy (%)",fontsize=pparams.fsz_axlbl,) # Label Y-axis for first column
+            ax.text(-0.14, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=pparams.fsz_title)
+            
         if (ex == 1):
-            ax.set_xlabel("Prediction Lead (Years)")
+            ax.set_xlabel("Prediction Lead (Years)",fontsize=pparams.fsz_axlbl,) # Label Y-axis for first column
         if it == legend_sp:
-            ax.legend(ncol=2,fontsize=10)
+            ax.legend(ncol=2,fontsize=pparams.fsz_legend)
         it += 1
 
 plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer_stderr%i.png"% (figpath,detrend,plotmax,expdirs[expnum],plotstderr),

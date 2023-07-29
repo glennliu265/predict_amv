@@ -236,9 +236,17 @@ class_colors    = ("salmon","gray","cornflowerblue")
 #%% Plotting Parameters
 # -----------------------------------------------------------------------
 
+# Font sizes (adjust to accuracy by predictor)
+fsz_sptitle      = 22 # Overall title across all subplots
+fsz_title        = 20 # Subplot Title
+fsz_splbl        = 16 # Axis Subplot (numbering) labels
+fsz_axlbl        = 14 # Axis Labels
+fsz_ticks        = 12 # Axis Tick labels
+fsz_legend       = 12 # Legend Text
+
 # Plotting (acc by leadtime)
-leadticks24     = np.arange(0,25,3)
-leadticks25     = np.arange(0,26,5)
+leadticks24      = np.arange(0,25,3)
+leadticks25      = np.arange(0,26,5)
 
 # -----------------------------------------------------------------------
 #%% CESM1 Variable Dictionary/Profiles

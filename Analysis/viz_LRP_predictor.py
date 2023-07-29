@@ -650,9 +650,9 @@ cmax             = 1
 
 clvl             = np.arange(-2.2,2.2,0.2)
 
-fsz_title        = 20
-fsz_axlbl        = 18
-fsz_ticks        = 16
+fsz_title        = pparams.fsz_title
+fsz_axlbl        = pparams.fsz_axlbl
+fsz_ticks        = pparams.fsz_ticks
 
 #cmax            = 0.5
 
