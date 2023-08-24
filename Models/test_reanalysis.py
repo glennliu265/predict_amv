@@ -54,7 +54,6 @@ from innvestigator import InnvestigateModel
 
 #%% User Edits
 
-
 # Shared Information
 varname            = "SST" # Testing variable
 detrend            = False
@@ -904,7 +903,9 @@ for ll in range(nleads_sel):
     # plt.savefig("%sHadISST_Lag_Correlation_lead%02i.png" % (figpath,lead),dpi=150)
     # plt.show()
 
+# <0><0><0><0><0><0> <0><0><0><0><0><0> <0><0><0><0><0><0> <0><0><0><0><0><0>
 #%% Group Barplot by years (interannual, decadal, multidecadal)
+# Predict AMV Draft 03
 
 # count_by_year_leads # [year x class x lead]
 interann_count      = count_by_year_leads[:,:,np.arange(1,10)].sum(2) # year x class
@@ -912,12 +913,14 @@ decadal_count       = count_by_year_leads[:,:,np.arange(10,20)].sum(2)
 multidecadal_count  = count_by_year_leads[:,:,np.arange(20,26)].sum(2)
 
 
-counts_in    = [interann_count,decadal_count,multidecadal_count]
-count_labels = ["Interannual (1-9 years)","Decadal (10-19 years)", "Multidecadal (20-26 years)"]
+counts_in           = [interann_count,decadal_count,multidecadal_count]
+count_labels        = ["Interannual (1-9 years)","Decadal (10-19 years)", "Multidecadal (20-26 years)"]
 
 
 # Plot Settings
 leadmax = 25
+fsz_axlbl = 20
+fsz_ticks = 14
 
 
 fig,axs = plt.subplots(3,1,constrained_layout=True,figsize=(12,10))
@@ -948,29 +951,34 @@ for ii in range(3):
     if ii == 0:
         ax.legend(loc='lower right')
     if ii == 1:
-        ax.set_ylabel("Frequency of Predicted Class")
+        ax.set_ylabel("Frequency of Predicted Class",fontsize=fsz_axlbl)
     ax.minorticks_on()
     ax.grid(True,ls="dotted")
     ax.set_xlim([1890,2025])
     ax.set_ylim([0,1.1])
     if ii == 2:
-        ax.set_xlabel("Year")
-    
+        ax.set_xlabel("Year",fontsize=fsz_axlbl)
+
     
     # Plot NASST Index on Separate Axis
     ax2 = ax.twinx()
     ax2.plot(timeaxis+1870,re_target.squeeze(),color=dfcol,label="HadISST NASST Index")
     if ii == 1:
-        ax2.set_ylabel("NASST Index ($\degree C$)")
+        ax2.set_ylabel("NASST Index ($\degree C$)",fontsize=fsz_axlbl)
     ax2.set_ylim([-1.3,1.3])
     for th in thresholds_in:
         ax2.axhline([th],color=dfcol,ls="dashed")
     ax2.axhline([0],color=dfcol,ls="solid",lw=0.5)
     ax = viz.label_sp(ii,ax=ax,fig=fig,alpha=0.5,fontsize=fsz_axlbl,labelstyle="%s) "+count_labels[ii])
     #axs = [ax,ax2]
+    
+    # Final adjustment of font sizes
+    ax.tick_params(labelsize=fsz_ticks)
+    ax2.tick_params(labelsize=fsz_ticks)
+
 
 figname = "%sHadISST_Prediction_Count_Lead_TimeSplit_%s.png"% (figpath,expdir)
-plt.savefig(figname,dpi=150,bbox_inches="tight",transparent=True)
+plt.savefig(figname,dpi=150,bbox_inches="tight",transparent=False)
 
                                      
 
