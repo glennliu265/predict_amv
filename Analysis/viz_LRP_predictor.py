@@ -236,19 +236,6 @@ for v in range(nvars):
 
 #%% Make plot of selected leadtimes (copied from below), note this only plots the FIRST 4 Variables
 
-
-# SMALL_SIZE = 8
-# MEDIUM_SIZE = 10
-# BIGGER_SIZE = 12
-
-# plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-# plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-# plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-# plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-# plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-# plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-# plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
 # Set darkmode
 darkmode = False
 if darkmode:
@@ -273,13 +260,12 @@ absval           = False
 cmax             = 1
 cmin             = 1
 clvl             = np.arange(-2.1,2.1,0.3)
-no_sp_label      = True
+no_sp_label      = False
 fsz_title        = 32
 fsz_axlbl        = 32
 fsz_ticks        = 22
 fsz_contourlbl   = 18
 cmap='cmo.balance'
-
 
 debug = False
 
@@ -328,6 +314,11 @@ for c in range(3): # Loop for class
             if normalize_sample == 2:
                 plotrel = plotrel/np.max(np.abs(plotrel))
             plotvar = pcomps[iv][id_lead,c,:,:]
+            
+            
+            # Boost SSS values by 1.5
+            if varnames_plot[iv] == "SSS":
+                plotrel = plotrel*2
             #plotvar = plotvar/np.max(np.abs(plotvar))
             
             
