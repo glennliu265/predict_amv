@@ -78,9 +78,9 @@ nn_param_dict = pparams.nn_param_dict
 # Indicate settings (Network Name)
 
 # Data and variable settings
-varnames       = pparams.varnames #("SST","SSH","SSS","SLP")
-varnames_plot  = pparams.varnames #("SST","SSH","SSS","SLP")
-expdir         = "FNN4_128_SingleVar_PaperRun"
+varnames       = ("SST","SSH","SSS","SLP") # pparams.varnames #
+varnames_plot  = ("SST","SSH","SSS","SLP") #pparams.varnames #
+expdir         = "FNN4_128_SingleVar_PaperRun_detrended"
 eparams        = train_cesm_params.train_params_all[expdir]
 
 leads          = np.arange(0,26,1)

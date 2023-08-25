@@ -56,7 +56,7 @@ from innvestigator import InnvestigateModel
 
 # Shared Information
 varname            = "SST" # Testing variable
-detrend            = False
+detrend            = True
 leads              = np.arange(0,26,1)
 region_name        = "NAT"
 nsamples           = "ALL"
@@ -111,6 +111,13 @@ else:
 
 
 #%% Load the datasets
+
+# Check to detrended
+if "detrend" in expdir:
+    detrend = True
+else:
+    detrend = False
+    
 
 # Load reanalysis datasets [channel x ensemble x year x lat x lon]
 re_data,re_lat,re_lon=dl.load_data_reanalysis(dataset_name,varname,bbox,
@@ -737,7 +744,7 @@ for y in range(ntime-leads[ilead]):
 
     
 
-#%% I was up to here. Make the barplotfor Draft 1
+#%% General Settings
 
 darkmode=False
 if darkmode:
@@ -749,10 +756,13 @@ else:
     dfcol = "k"
     dfcol_r = "w"
     
-# for c in range(3):
-#     y_predicted_all == 
-#     y_predicted_all
+# Copied from below
+selected_leads      = leads.copy() #[0,6,12,18,24]
+nleads_sel          = len(selected_leads)
+
     
+#%% I was up to here. Make the barplotfor Draft 1
+
 
 fig,ax       = plt.subplots(1,1,constrained_layout=True,figsize=(12,4))
 
@@ -944,18 +954,18 @@ for ii in range(3):
         plotcount = plotcount
         print(plotcount[:,c][0])
         print(plotcount[:,:c].sum(1)[0])
-        ax.bar(timeaxis_in+1870,plotcount[:,c]/maxcount,bottom=plotcount[:,:c].sum(1)/maxcount,
+        ax.bar(timeaxis_in+1870,plotcount[:,c]/maxcount*100,bottom=plotcount[:,:c].sum(1)/maxcount*100,
                label=label,color=class_colors[c],alpha=0.75,edgecolor=dfcol_r)
     
     # Label and set ticks
     if ii == 0:
         ax.legend(loc='lower right')
     if ii == 1:
-        ax.set_ylabel("Frequency of Predicted Class",fontsize=fsz_axlbl)
+        ax.set_ylabel("Frequency of Predicted Class (%)",fontsize=fsz_axlbl)
     ax.minorticks_on()
     ax.grid(True,ls="dotted")
     ax.set_xlim([1890,2025])
-    ax.set_ylim([0,1.1])
+    ax.set_ylim([0,110])
     if ii == 2:
         ax.set_xlabel("Year",fontsize=fsz_axlbl)
 
