@@ -33,10 +33,21 @@ import pamv_visualizer as pviz
 # varnamesplot = ("SST","SSS","SLP","BSF","SSH","MLD")
 # varcolors    = ("r","violet","yellow","darkblue","dodgerblue","cyan")
 # varmarker    = ("o","d","x","v","^","*")
+"""
+Notes on experiments 
 
+expdirs
+    - For comparing undetrended and detrended: 
+        expdirs         = ("FNN4_128_Singlevar_PaperRun","FNN4_128_Singlevar_PaperRun_detrended")
+        expdirs_long    = ("Forced","Unforced",)
+    - For comparing CNN and FNN:
+        expdirs         = ("FNN4_128_Singlevar_PaperRun","CNN2_PaperRun")
+        expdirs_long    = ("FNN","CNN")
+
+"""
 detrend      = True
-expdirs      = ("FNN4_128_Singlevar_PaperRun","FNN4_128_Singlevar_PaperRun_detrended")#("FNN4_128_detrend","FNN4_128_Singlevar","CNN2_singlevar",)#)
-expdirs_long = ("Forced","Unforced",)# "CNN (Undetrended)")
+expdirs      = ("FNN4_128_Singlevar_PaperRun","CNN2_PaperRun")
+expdirs_long = ("FNN","CNN")# "CNN (Undetrended)")
 skipvars     = ("UOHC","UOSC","HMXL","BSF","TAUX","TAUY","TAUCURL")#
 #threscolors = ("r","gray","cornflowerblue")
 expnames     = ("FNN","CNN")
@@ -443,9 +454,10 @@ for c in [1,2]:
     pcounter += 1
 
 # ----------------------------------------------------
-#%% Remake the plots, but for the GRL Paper Outline...
+#%% Remake the plots, but for the GRL Paper Outline... + Draft 3
 # ----------------------------------------------------
 
+# Set Color Mode
 darkmode = False
 plt.style.use('default')#('seaborn_v0-8')
 if darkmode == True:
@@ -453,24 +465,25 @@ if darkmode == True:
 else:
     dfcol = "k"
 
-# Toggles
-plotmodels = [0,1,2,3]
-plotclasses = [0,2]
-classes_new= ["NASST+","Neutral","NASST-"]
+# Toggles and ticks
+plotmodels   = [0,1,2,3] # Which predictors to plot
+plotclasses  = [0,2]     # Just plot positive/negative
+classes_new  = pparams.classes
+expnums      = [0,1]     # Which Experiments to Plot
+detrends     = [0,1]     # Whether or not it was detrended
+leadticks    = np.arange(0,26,5)
+legend_sp    = 2         # Subplot where legend is included
+ytks         = np.arange(0,1.2,.2)
 
-leadticks  = np.arange(0,26,5)
-
-expnums    = [0,1]
-detrends   = [0,1]
-add_conf   = True
-plotconf   = False #0.68
-plotmax    = False # Set to True to plot maximum
-alpha      = 0.15
-legend_sp  = 2
-plotstderr = True
+# Error Bars
+plotstderr   = True  # If True, plot standard error (95%)
+add_conf     = True  # If True, add empirical error bars. If false, compute stdev
+plotconf     = False # If a value (ex. 0.66), include number of models within that range 
+plotmax      = False # Set to True to plot maximum rather than the mean
+alpha        = 0.25  # Alpha of error bars
 
 # Initialize figures
-fig,axs =  plt.subplots(2,2,constrained_layout=True,figsize=(12,6))
+fig,axs =  plt.subplots(2,2,constrained_layout=True,figsize=(12.5,6))
 it = 0
 for iplot,ex in enumerate(expnums):
     
@@ -494,29 +507,28 @@ for iplot,ex in enumerate(expnums):
         ax = axs_row[rowid]
         
         # Initialize plot
-        viz.label_sp(it,ax=ax,fig=fig,fontsize=16,alpha=0.2,x=0.02)
+        viz.label_sp(it,ax=ax,fig=fig,fontsize=pparams.fsz_splbl,
+                     alpha=0.2,x=0.02)
         
+        # Set Ticks/limits
         ax.set_xlim([0,24])
-        ax.set_xticks(leadticks)
+        ax.set_xticks(leadticks,fontsize=pparams.fsz_ticks)
         ax.set_ylim([0,1])
-        ax.set_yticks(np.arange(0,1.2,.2))
-        #ax.grid(True,ls='dotted')
-        #ax.minorticks_on()
-        
+        ax.set_yticks(ytks,fontsize=pparams.fsz_ticks)
+        ax.set_yticklabels((ytks*100).astype(int),)
         ax = viz.add_ticks(ax,facecolor="#eaeaf2",grid_lw=1.5,grid_col="w",grid_ls="solid",
                             spinecolor="darkgray",tickcolor="dimgray",
-                            ticklabelcolor="k")
+                            ticklabelcolor="k",fontsize=pparams.fsz_ticks)
         
         # Add Class Labels
         if iplot == 0:
-            ax.set_title("%s" %(classes_new[c]),fontsize=16,)
+            ax.set_title("%s" %(classes_new[c]),fontsize=pparams.fsz_title,)
         
         for i in plotmodels:
             if plotmax:
                 plotacc = classacc[i,:,:,c].max(0)
             else:
                 plotacc = classacc[i,:,:,c].mean(0)
-            
             
             mu        = classacc[i,:,:,c].mean(0)
             if plotstderr:
@@ -536,7 +548,7 @@ for iplot,ex in enumerate(expnums):
                     ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=alpha,color=varcolors_dark[i],zorder=1,label="")
                 else:
                     ax.fill_between(leads,mu-sigma,mu+sigma,alpha=alpha,color=varcolors_dark[i],zorder=1)
-            
+        
         ax.plot(leads,persaccclass[exp_dt][:,c],color=dfcol,label="Persistence",ls="dashed")
         ax.axhline(chance_baseline[c],color=dfcol,label="Random Chance",ls="dotted")
         
@@ -549,22 +561,20 @@ for iplot,ex in enumerate(expnums):
         #ax.hlines([0.33],xmin=-1,xmax=25,ls="dashed",color=dfcol)
         
         if c == 0:
-            ax.set_ylabel("Test Accuracy") # Label Y-axis for first column
-
-
-            ax.text(-0.10, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
-                    rotation_mode='anchor',transform=ax.transAxes,fontsize=14)
-        
+            ax.set_ylabel("Prediction Accuracy (%)",fontsize=pparams.fsz_axlbl,) # Label Y-axis for first column
+            ax.text(-0.14, 0.55,expdirs_long[ex], va='bottom', ha='center',rotation='vertical',
+                    rotation_mode='anchor',transform=ax.transAxes,fontsize=pparams.fsz_title)
+            
         if (ex == 1):
-            ax.set_xlabel("Prediction Lead (Years)")
+            ax.set_xlabel("Prediction Lead (Years)",fontsize=pparams.fsz_axlbl,) # Label Y-axis for first column
         if it == legend_sp:
-            ax.legend(ncol=2,fontsize=10)
+            ax.legend(ncol=2,fontsize=pparams.fsz_legend)
         it += 1
 
 plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_OutlineVer_stderr%i.png"% (figpath,detrend,plotmax,expdirs[expnum],plotstderr),
             dpi=200,bbox_inches="tight",transparent=False)
 
-#%% Same as above, but just for the Neutral class
+#%% Same as above, but just for the Neutral class (Draft 02 Appendix Figure)
 
 
 darkmode = False
@@ -865,7 +875,7 @@ plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_AGUver.p
 # --------------------------------------------------------------------------------
 # %% Do comparison plot of CNN vs FNN (Outline Ver, copied from AGU version below)
 # --------------------------------------------------------------------------------
-
+# Note that this plots for all variables. The Outline Version (Final) is the next code block)
 nvar = 4
 
 v            = 0 # Choose the first variable
@@ -883,13 +893,22 @@ for v in range(nvar):
     # Plotting for each experiment
     if justbaseline is False:
         for ex,expid in enumerate(plot_exs):
-            totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[expid])
             
+            # Load the data
+            if load_test_metrics:
+                totalacc = np.array([alloutputs[ex][v]['total_acc'] for v in range(nvars)])
+                classacc = np.array([alloutputs[ex][v]['class_acc'] for v in range(nvars)])
+                ypred    = np.array([alloutputs[ex][v]['predictions'] for v in range(nvars)])
+                ylabs    = np.array([alloutputs[ex][v]['targets'] for v in range(nvars)])
+            else:
+                totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
+            
+            # Select what to plot
             plotacc   = np.array(totalacc)[v,:,:]
             mu        = np.array(plotacc).mean(0)
             sigma     = np.array(plotacc).std(0)
             
-            
+            # Plot a percentile
             sortacc  = np.sort(plotacc,0)
             idpct    = sortacc.shape[0] * plotconf
             lobnd   = np.floor(idpct).astype(int)
@@ -930,17 +949,23 @@ for v in range(nvar):
     #ax.set_title("")
     
     
-#%% Remake above, but for the GRL Outline
+#%% Remake above, but for the GRL Outline (Draft 3, Supplemental Material)
 
 v            = 0 # Choose the first variable
 justbaseline = False
 plotconf     = 0.05
 detrend_plot = False
-plot_exs     = [1,2]
-fsz          = 14
-fszt         = 12
-fszb         = 16
-plotstderr   = True
+plot_exs     = [0,1]
+fsz          = 16
+fszt         = 18
+fszb         = 18
+
+# Error Bars
+plotstderr   = True  # If True, plot standard error (95%)
+add_conf     = True  # If True, add empirical error bars. If false, compute stdev
+plotconf     = False # If a value (ex. 0.66), include number of models within that range 
+plotmax      = False # Set to True to plot maximum rather than the mean
+alpha        = 0.25  # Alpha of error bars
 
 
 fig,ax = plt.subplots(1,1,figsize=(9,3),sharex=True,constrained_layout=True)
@@ -948,32 +973,47 @@ fig,ax = plt.subplots(1,1,figsize=(9,3),sharex=True,constrained_layout=True)
 # Plotting for each experiment
 if justbaseline is False:
     for ex,expid in enumerate(plot_exs):
-        totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[expid])
         
-        plotacc   = np.array(classacc)[v,:,:,:]
-        plotacc   = plotacc[:,:,[0,2]].mean(2)#np.array(totalacc)[v,:,:]
-        mu        = np.array(plotacc).mean(0)
+        # Load the data (note this is the updated blok copied from above)
+        if load_test_metrics:
+            totalacc = np.array([alloutputs[ex][v]['total_acc'] for v in range(nvars)])
+            classacc = np.array([alloutputs[ex][v]['class_acc'] for v in range(nvars)])
+            ypred    = np.array([alloutputs[ex][v]['predictions'] for v in range(nvars)])
+            ylabs    = np.array([alloutputs[ex][v]['targets'] for v in range(nvars)])
+        else:
+            totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
+        # ==========
         
-
+        # Compute Mean
+        plotacc   = np.array(classacc)[v,:,:,:] # Select the variable
+        plotacc   = plotacc[:,:,[0,2]].mean(2)  # Take mean along + and - classes
+        mu        = np.array(plotacc).mean(0)   # Take mean along models
         
+        # Compute Error bars
+        if plotstderr:
+            nmodels = plotacc.shape[0]
+            sigma = 2*plotacc.std(0) / np.sqrt(nmodels)
+            sigma_label = "2$\sigma_E$"
+        else:
+            sigma = plotacc.std(0)
+            sigma_label = "1$\sigma$"
         
         sortacc  = np.sort(plotacc,0)
         idpct    = sortacc.shape[0] * plotconf
         lobnd   = np.floor(idpct).astype(int)
         hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
         
-        
         ax.plot(leads,mu,color=expcolors[ex],marker="o",alpha=1.0,lw=2.5,label=expnames[ex] + " (mean)",zorder=9)
         if plotconf:
             ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.3,color=expcolors[ex],zorder=1,label=expnames[ex]+" (95% conf.)")
         else:
-            ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=expcolors[ex],zorder=1)
+            ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=expcolors[ex],zorder=1,label=expnames[ex]+" "+sigma_label)
 
 
 ax.plot(leads,persacctotal[detrend_plot],color=dfcol,label="Persistence",ls="dashed")
 ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
 ax.set_xlim([0,24])
-ax.set_xticks(leads,fontsize=fszt)
+ax.set_xticks(leads,labelsize=fszt)
 ax.set_ylim([.25,1])
 ax.set_yticks(np.arange(.30,1.1,.1))
 ax.set_yticklabels((np.arange(.30,1.1,.1)*100).astype(int),fontsize=fszt)

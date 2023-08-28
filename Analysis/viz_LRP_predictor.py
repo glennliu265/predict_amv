@@ -78,9 +78,9 @@ nn_param_dict = pparams.nn_param_dict
 # Indicate settings (Network Name)
 
 # Data and variable settings
-varnames       = pparams.varnames #("SST","SSH","SSS","SLP")
-varnames_plot  = pparams.varnames #("SST","SSH","SSS","SLP")
-expdir         = "FNN4_128_SingleVar_PaperRun"
+varnames       = ("SST","SSH","SSS","SLP") # pparams.varnames #
+varnames_plot  = ("SST","SSH","SSS","SLP") #pparams.varnames #
+expdir         = "FNN4_128_SingleVar_PaperRun_detrended"
 eparams        = train_cesm_params.train_params_all[expdir]
 
 leads          = np.arange(0,26,1)
@@ -247,6 +247,10 @@ else:
     dfcol = "k"
     transparent      = False
 
+# Indicate which variables to plot
+plotvars = varnames[:4]
+plotorder = [0,2,1,3] # Indices based on pparams.varnames
+
 #Same as above but reduce the number of leadtimes
 plot_bbox        = [-80,0,0,60]
 leadsplot        = [25,20,10,5,0]
@@ -256,18 +260,28 @@ absval           = False
 cmax             = 1
 cmin             = 1
 clvl             = np.arange(-2.1,2.1,0.3)
-no_sp_label      = True
-fsz_title        = 20
-fsz_axlbl        = 18
-fsz_ticks        = 16
+no_sp_label      = False
+fsz_title        = 32
+fsz_axlbl        = 32
+fsz_ticks        = 22
+fsz_contourlbl   = 18
 cmap='cmo.balance'
 
+debug = False
+
 for c in range(3): # Loop for class
+    if debug:
+        if c > 0:
+            continue
+
+
     ia = 0
     fig,axs = plt.subplots(4,5,figsize=(24,16),
                            subplot_kw={'projection':proj},constrained_layout=True)
     # Loop for variable
-    for v,varname in enumerate(varnames):
+    for v,varname in enumerate(plotvars):
+        
+        iv = plotorder[v]
         # Loop for leadtime
         for l,lead in enumerate(leadsplot):
             
@@ -281,28 +295,30 @@ for c in range(3): # Loop for class
             ax = axs[v,l]
             blabel = [0,0,0,0]
             
-            #ax.set_extent(plot_bbox)
-            #ax.coastlines()
-            
             if v == 0:
                 ax.set_title("Lead %02i Years" % (leads[id_lead]),fontsize=fsz_title)
             if l == 0:
                 blabel[0] = 1
-                ax.text(-0.15, 0.55, varnames_plot[v], va='bottom', ha='center',rotation='vertical',
-                        rotation_mode='anchor',transform=ax.transAxes,fontsize=fsz_axlbl)
-            if v == (len(varnames)-1):
+                ax.text(-0.18, 0.55, varnames_plot[iv], va='bottom', ha='center',rotation='vertical',
+                        rotation_mode='anchor',transform=ax.transAxes,fontsize=fsz_title)
+            if v == (len(plotvars)-1):
                 blabel[-1]=1
             
-            ax = viz.add_coast_grid(ax,bbox=plot_bbox,blabels=blabel,fill_color="k")
+            ax = viz.add_coast_grid(ax,bbox=plot_bbox,blabels=blabel,fill_color='gray',fontsize=fsz_ticks,ignore_error=True)
             if no_sp_label is False:
                 ax = viz.label_sp(ia,ax=ax,fig=fig,alpha=0.8,fontsize=fsz_axlbl)
-            # -----------------------------
+            #-----------------------------
             
             # --------- Composite the Relevances and variables
-            plotrel = rcomps_topN[v,id_lead,c,:,:]
+            plotrel = rcomps_topN[iv,id_lead,c,:,:]
             if normalize_sample == 2:
                 plotrel = plotrel/np.max(np.abs(plotrel))
-            plotvar = pcomps[v][id_lead,c,:,:]
+            plotvar = pcomps[iv][id_lead,c,:,:]
+            
+            
+            # Boost SSS values by 1.5
+            if varnames_plot[iv] == "SSS":
+                plotrel = plotrel*2
             #plotvar = plotvar/np.max(np.abs(plotvar))
             
             
@@ -312,9 +328,10 @@ for c in range(3): # Loop for class
             
             # Do the plotting
             pcm=ax.pcolormesh(lon,lat,plotrel*data_mask,vmin=-cmin,vmax=cmax,cmap=cmap)
-            cl = ax.contour(lon,lat,plotvar*data_mask,levels=clvl,colors="k",linewidths=0.75)
-            ax.clabel(cl,clvl[::2])
+            cl = ax.contour(lon,lat,plotvar*data_mask,levels=clvl,colors="k",linewidths=1)
+            ax.clabel(cl,clvl[::2],fontsize=fsz_contourlbl)
             ia += 1
+            
             # Finish Leadtime Loop (Column)
         # Finish Variable Loop (Row)
     cb = fig.colorbar(pcm,ax=axs.flatten(),orientation='horizontal',fraction=0.025,pad=0.01)
@@ -357,7 +374,6 @@ fsz_title        = 20
 fsz_axlbl        = 18
 fsz_ticks        = 16
 cmap='cmo.balance'
-
 
 fig,axs = plt.subplots(3,6,figsize=(24,12),
                        subplot_kw={'projection':proj},constrained_layout=True)
@@ -650,9 +666,9 @@ cmax             = 1
 
 clvl             = np.arange(-2.2,2.2,0.2)
 
-fsz_title        = 20
-fsz_axlbl        = 18
-fsz_ticks        = 16
+fsz_title        = pparams.fsz_title
+fsz_axlbl        = pparams.fsz_axlbl
+fsz_ticks        = pparams.fsz_ticks
 
 #cmax            = 0.5
 

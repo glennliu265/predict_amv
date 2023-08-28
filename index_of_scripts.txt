@@ -38,7 +38,12 @@ Symbology
     calc_amoc_max                 :: Compute Index of AMOC strength and examine the autocorrelation/predictability timescale of individual members
     test_predictor_uncertainty    :: Test a model trained on one predictor using another, different predictor.
     test_cesm_witheld             :: Visualize frequency count by year for members withheld from CESM1 training (based on test_reanalysis_data.py)
-    viz_acc_by_predictor 	  ::  Visualize accuracy by leadtime and predictor
+    
+    ~ Keep these for cleaned up script
+    viz_acc_by_predictor 	  ::  Visualize accuracy by leadtime and predictor (Figure 2 for GRL Draft 2)
+    
+
+    
 
 
 # ----------------

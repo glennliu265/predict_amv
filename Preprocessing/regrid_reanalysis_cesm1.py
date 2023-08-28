@@ -130,7 +130,7 @@ reanalysis_dict  = dict(zip(reanalysis_names,indicts))
 
 # Preprocessing Information (predictor)
 regrid_data   = False # Set to true to rerun regridding section
-detrend       = False
+detrend       = True
 bbox          = [-90,20,0,90] # Crop Selection
 ystart        = '1870-01-01'
 yend          = '2022-12-31'
