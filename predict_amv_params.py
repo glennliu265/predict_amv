@@ -29,15 +29,16 @@ from torch import nn
 # -----------------------------------------------------------------------
 #%% Set Project Paths
 # -----------------------------------------------------------------------
-# Path to the processed data and output. Assumed to be in same directory as predict_amv repo.
+# Path to data (raw model output, observations, NN data). Assumed to be in same directory as predict_nasst repo.
 datpath       = "../../CESM_data/"
 
-# Figure output path. This can be anywhere you set.
+# Figure output path. User selected.
 figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230720/"
 
 # -----------------------------------------------------------------------
 #%% Module and (Raw) Data Paths
 # -----------------------------------------------------------------------
+# Add Relative paths here
 
 # Added info from scm. First is the template
 mdict0 = {
