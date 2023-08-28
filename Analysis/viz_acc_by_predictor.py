@@ -956,9 +956,9 @@ justbaseline = False
 plotconf     = 0.05
 detrend_plot = False
 plot_exs     = [0,1]
-fsz          = 14
-fszt         = 12
-fszb         = 16
+fsz          = 16
+fszt         = 18
+fszb         = 18
 
 # Error Bars
 plotstderr   = True  # If True, plot standard error (95%)
@@ -1013,7 +1013,7 @@ if justbaseline is False:
 ax.plot(leads,persacctotal[detrend_plot],color=dfcol,label="Persistence",ls="dashed")
 ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
 ax.set_xlim([0,24])
-ax.set_xticks(leads,fontsize=fszt)
+ax.set_xticks(leads,labelsize=fszt)
 ax.set_ylim([.25,1])
 ax.set_yticks(np.arange(.30,1.1,.1))
 ax.set_yticklabels((np.arange(.30,1.1,.1)*100).astype(int),fontsize=fszt)
