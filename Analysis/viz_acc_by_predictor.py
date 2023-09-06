@@ -88,7 +88,7 @@ debug = True
 #%% Load variables from main parameter file
 
 # Note; Need to set script into current working directory (need to think of a better way)
-cwd = os.getcwd()
+cwd             = os.getcwd()
 sys.path.append(cwd+"/../")
 import predict_amv_params as pparams
 
@@ -273,6 +273,8 @@ else:
     
 #%% Check to see how many models are just predicting one or two class (currently 24/10400)
 # --------------------------- ------------------------------------------------------------
+nleads = len(leads)
+nruns  = len(runids)
 ignore_one_class = np.zeros((4,26,100))
 cnt_pred1 = 0
 cnt_pred2 = 0
@@ -878,6 +880,8 @@ plt.savefig("%sPredictor_Intercomparison_byclass_detredn%i_plotmax%i_%s_AGUver.p
 # Note that this plots for all variables. The Outline Version (Final) is the next code block)
 nvar = 4
 
+
+class_avg    = [0,] # Choose the classes to average acc over plot
 v            = 0 # Choose the first variable
 justbaseline = False
 plotconf     = 0.05
@@ -904,7 +908,8 @@ for v in range(nvar):
                 totalacc,classacc,ypred,ylabs,shuffids=am.unpack_expdict(alloutputs[ex])
             
             # Select what to plot
-            plotacc   = np.array(totalacc)[v,:,:]
+            plotacc   = np.array(classacc)[v,:,:,:]
+            plotacc   = plotacc[:,:,class_avg].mean(-1)
             mu        = np.array(plotacc).mean(0)
             sigma     = np.array(plotacc).std(0)
             
@@ -914,7 +919,6 @@ for v in range(nvar):
             lobnd   = np.floor(idpct).astype(int)
             hibnd   = np.ceil(sortacc.shape[0]-idpct).astype(int)
             
-            
             ax.plot(leads,mu,color=expcolors[ex],marker="o",alpha=1.0,lw=2.5,label=expnames[ex] + " (mean)",zorder=9)
             if plotconf:
                 ax.fill_between(leads,sortacc[lobnd,:],sortacc[hibnd],alpha=.3,color=expcolors[ex],zorder=1,label=expnames[ex]+" (95% conf.)")
@@ -922,14 +926,15 @@ for v in range(nvar):
                 ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=expcolors[ex],zorder=1)
     
 
-    
-    ax.plot(leads,persacctotal[detrend_plot],color=dfcol,label="Persistence",ls="dashed")
+    plotperse = np.array(persaccclass)
+    plotperse = plotperse[:,:,class_avg].mean(-1)[int(detrend_plot),:]
+    ax.plot(leads,plotperse,color=dfcol,label="Persistence",ls="dashed")
     ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
     ax.set_xlim([0,24])
     ax.set_xticks(leads,fontsize=fszt)
     ax.set_ylim([.25,1])
-    ax.set_yticks(np.arange(.30,1.1,.1))
-    ax.set_yticklabels((np.arange(.30,1.1,.1)*100).astype(int),fontsize=fszt)
+    ax.set_yticks(np.arange(0,1.1,.1))
+    ax.set_yticklabels((np.arange(0,1.1,.1)*100).astype(int),fontsize=fszt)
     ax.set_ylabel("Accuracy (%)",fontsize=fsz)
     ax.set_xlabel("Prediction Lead Time (Years)",fontsize=fsz)
     ax.grid(True,ls='dotted')
@@ -959,6 +964,7 @@ plot_exs     = [0,1]
 fsz          = 16
 fszt         = 18
 fszb         = 18
+class_avg    = [0,2] # Choose the classes to average acc over plot
 
 # Error Bars
 plotstderr   = True  # If True, plot standard error (95%)
@@ -985,8 +991,10 @@ if justbaseline is False:
         # ==========
         
         # Compute Mean
-        plotacc   = np.array(classacc)[v,:,:,:] # Select the variable
-        plotacc   = plotacc[:,:,[0,2]].mean(2)  # Take mean along + and - classes
+        plotacc   = np.array(classacc)[v,:,:,:]
+        plotacc   = plotacc[:,:,class_avg].mean(-1)
+        #plotacc   = np.array(classacc)[v,:,:,:] # Select the variable
+        #plotacc   = plotacc[:,:,[0,2]].mean(2)  # Take mean along + and - classes
         mu        = np.array(plotacc).mean(0)   # Take mean along models
         
         # Compute Error bars
@@ -1009,14 +1017,15 @@ if justbaseline is False:
         else:
             ax.fill_between(leads,mu-sigma,mu+sigma,alpha=.4,color=expcolors[ex],zorder=1,label=expnames[ex]+" "+sigma_label)
 
-
-ax.plot(leads,persacctotal[detrend_plot],color=dfcol,label="Persistence",ls="dashed")
+plotperse = np.array(persaccclass)
+plotperse = plotperse[:,:,class_avg].mean(-1)[int(detrend_plot),:]
+ax.plot(leads,plotperse,color=dfcol,label="Persistence",ls="dashed")
 ax.axhline(.33,color=dfcol,label="Random Chance",ls="dotted")
 ax.set_xlim([0,24])
 ax.set_xticks(leads,labelsize=fszt)
-ax.set_ylim([.25,1])
-ax.set_yticks(np.arange(.30,1.1,.1))
-ax.set_yticklabels((np.arange(.30,1.1,.1)*100).astype(int),fontsize=fszt)
+ax.set_ylim([0,1])
+ax.set_yticks(np.arange(0,1.1,.1))
+ax.set_yticklabels((np.arange(0,1.1,.1)*100).astype(int),fontsize=fszt)
 ax.set_ylabel("Accuracy (%)",fontsize=fsz)
 ax.set_xlabel("Prediction Lead Time (Years)",fontsize=fsz)
 #ax.grid(True,ls='dotted')
@@ -1037,9 +1046,6 @@ else:
 print(savename)
 plt.savefig(savename,dpi=200,bbox_inches='tight',transparent=False)
 #ax.set_title("")
-
-    
-
 
 #%% ---------------------------------------------------------------------------
 # Scrap below
