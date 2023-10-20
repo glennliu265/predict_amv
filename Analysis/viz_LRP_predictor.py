@@ -248,12 +248,13 @@ else:
     transparent      = False
 
 # Indicate which variables to plot
-plotvars = varnames[:4]
-plotorder = [0,2,1,3] # Indices based on pparams.varnames
+plotvars  = pparams.varnames[:4]
+plotorder = [0,3,2,1] # Indices based on pparams.varnames
 
 #Same as above but reduce the number of leadtimes
 plot_bbox        = [-80,0,0,60]
 leadsplot        = [25,20,10,5,0]
+
 
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
@@ -273,8 +274,7 @@ for c in range(3): # Loop for class
     if debug:
         if c > 0:
             continue
-
-
+        
     ia = 0
     fig,axs = plt.subplots(4,5,figsize=(24,16),
                            subplot_kw={'projection':proj},constrained_layout=True)
@@ -315,12 +315,10 @@ for c in range(3): # Loop for class
                 plotrel = plotrel/np.max(np.abs(plotrel))
             plotvar = pcomps[iv][id_lead,c,:,:]
             
-            
             # Boost SSS values by 1.5
             if varnames_plot[iv] == "SSS":
                 plotrel = plotrel*2
             #plotvar = plotvar/np.max(np.abs(plotvar))
-            
             
             # Set Land Points to Zero
             plotrel[plotrel==0] = np.nan
@@ -363,6 +361,7 @@ else:
 #Same as above but reduce the number of leadtimes
 plot_bbox        = [-80,0,0,60]
 leadsplot        = np.arange(25,-1,-5)
+
 
 normalize_sample = 2 # 0=None, 1=samplewise, 2=after composite
 absval           = False
