@@ -30,18 +30,17 @@ from torch import nn
 #%% Set Project Paths
 # -----------------------------------------------------------------------
 # Path to data (raw model output, observations, NN data). Assumed to be in same directory as predict_nasst repo.
-# This can be edited here, or in the mdict below for your machine.
 datpath       = "../../CESM_data/"
 
 # Figure output path. User selected.
-figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20230720/"
+figpath       = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/02_Figures/20231020/"
 
 # -----------------------------------------------------------------------
 #%% Module and (Raw) Data Paths
 # -----------------------------------------------------------------------
-# Add specific paths to modules/datasets/packages
+# Add Relative paths here
 
-# Template (Copy this and modify) ----------------------------------------
+# Added info from scm. First is the template
 mdict0 = {
     "machine"           : None,     # Name of the machine
     "amv_path"          : 0,        # Path to amv module (with proc,viz)
@@ -51,7 +50,6 @@ mdict0 = {
     "lenspath"          : 0,        # Large Ensemble Data (CMIP5)
     "lrp_path"          : 0,        # Path to Pytorch-LRP module
     }
-# ------------------------------------------------------------------------
 
 # Default, uses relative paths and assumes a particular file structure
 # where the additional modules are in General_Utilities and data in Raw_Data
