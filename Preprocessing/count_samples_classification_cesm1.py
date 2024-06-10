@@ -326,8 +326,6 @@ lead1   = lead0+N
 xtk     = [lead0,lead1]
 xtklabs = (str(lead0) + "\n(lead=0)",str(lead1)+"\n(lead=%i)"%N) 
 
-
-
 fig,ax= plt.subplots(1,1,figsize=(8,3),constrained_layout=True)
 ax.plot(yrs,target[e,:],c="gray",label="Ensemble member %02i" % (e+1),lw=2.5)
 

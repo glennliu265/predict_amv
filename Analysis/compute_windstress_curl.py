@@ -51,7 +51,6 @@ def ddzeta(data, zeta, lonname='longitude',latname='latitude'):
 
     return ddata_dzeta
 
-
 def curl(u, v, lonname, latname):
     """compute curl of vector field"""
     

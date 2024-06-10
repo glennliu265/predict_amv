@@ -15,15 +15,12 @@ import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
 import cmocean
-
 from scipy.signal import butter,filtfilt,detrend
-
 from tqdm import tqdm
 
-
 #%% User Edits
-datpath = "../../CESM_data/"
-outpath = "../../CESM_data/Figures/"
+datpath = "/Users/gliu/Downloads/02_Research/01_Projects/04_Predict_AMV/03_Scripts/CESM_data/"#"../../CESM_data/"
+outpath = "../../../CESM_data/Figures/"
 # Read in the data
 
 # Set File Names

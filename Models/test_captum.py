@@ -286,7 +286,7 @@ pmodel.eval()
 
 innexp         = 1
 innmethod      ='b-rule'
-innbeta        = 0.5
+innbeta        = 0.1
 nsamples_lead = X_torch.shape[0]
 innepsi        = 1e-2
 
@@ -315,7 +315,7 @@ for c in range(3):
     relevance_captum    = lrp.attribute(X_torch,target=c)
     relevances_captum.append(relevance_captum.detach().numpy().copy())
 relevance_captum = np.array(relevances_captum).mean(0)
-relevance_captum    = relevance_captum.reshape(nsamples_lead,nlat,nlon) 
+c
 
 # <o><o><o><o><o><o><o><o><o><o><o><o><o><o>
 #%% PLOT: Check captum maps for each class (all composites irrespective of prediction)
@@ -395,7 +395,7 @@ print(composites_by_class_prediction.shape)
 Visualize the composites by class prediction
 """
 normalize_samplewise=False
-plot_mode = "Pytorch-LRP" # Captum
+plot_mode = "Captum"#"Pytorch-LRP" # Captum
 
 vlm     = 1e-3
 fig,axs = plt.subplots(1,3,subplot_kw={'projection':ccrs.PlateCarree()},
@@ -540,7 +540,8 @@ model_activation = model_prediction[idmax]
 
 innexps         = np.arange(1,11,1)
 innmethods      =('e-rule','b-rule')
-innbetas        = np.arange(.1,3.5,.5)
+innbetas        = np.arange(.1,1.1,.1)
+
 
 
 n_exps = len(innexps)

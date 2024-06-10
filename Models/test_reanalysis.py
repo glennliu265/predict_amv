@@ -56,7 +56,7 @@ from innvestigator import InnvestigateModel
 
 # Shared Information
 varname            = "SST" # Testing variable
-detrend            = True
+detrend            = False
 leads              = np.arange(0,26,1)
 region_name        = "NAT"
 nsamples           = "ALL"
@@ -66,11 +66,11 @@ shuffle_trainsplit = False
 manual_threshold   = None#0.37 # Set to None to automatically detect
 
 # CESM1-trained model information
-expdir             = "FNN4_128_SingleVar_PaperRun_detrended"
+expdir             = "FNN4_128_SingleVar_PaperRun"
 modelname          = "FNN4_128"
 nmodels            = 100 # Specify manually how much to do in the analysis
 eparams            = train_cesm_params.train_params_all[expdir] # Load experiment parameters
-ens                = 0#eparams['ens']
+ens                = 0 #eparams['ens']
 runids             = np.arange(0,nmodels)
 
 # Load parameters from [oredict_amv_param.py]
@@ -87,7 +87,6 @@ bbox               = pparams.bbox
 # Reanalysis dataset information
 dataset_name       = "HadISST"
 regrid             = "CESM1"
-
 
 # LRP Parameters
 innexp         = 2
@@ -117,7 +116,7 @@ if "detrend" in expdir:
     detrend = True
 else:
     detrend = False
-    
+
 
 # Load reanalysis datasets [channel x ensemble x year x lat x lon]
 re_data,re_lat,re_lon=dl.load_data_reanalysis(dataset_name,varname,bbox,
@@ -221,8 +220,6 @@ flist.sort()
 print("Found %i files per lead for %s using searchstring: %s" % (len(flist),varname,search))
 #%% 
 
-
-
 # ------------------------------------------------------------
 # %% Looping for runid
 # ------------------------------------------------------------
@@ -317,10 +314,9 @@ for nr,runid in tqdm(enumerate(runids)):
         # Put into pytorch dataloaders
         test_loader = DataLoader(TensorDataset(X_torch,y_torch), batch_size=eparams['batch_size'])
         
-        
-        #
+        # -----------------
         # Rebuild the model
-        #
+        # -----------------
         # Get the models (now by leadtime)
         modweights = modweights_lead[l][nr]
         modlist    = modlist_lead[l][nr]
@@ -342,10 +338,10 @@ for nr,runid in tqdm(enumerate(runids)):
         
         
         
-        total_acc_all[nr,l]   = lead_acc
-        class_acc_all[nr,l,:] = class_acc
+        total_acc_all[nr,l]       = lead_acc
+        class_acc_all[nr,l,:]     = class_acc
         y_predicted_all[nr,l,:]   = y_predicted
-        y_actual_all[l,:] = y_actual
+        y_actual_all[l,:]         = y_actual
         
         #
         # Perform LRP
@@ -381,7 +377,44 @@ for nr,runid in tqdm(enumerate(runids)):
 #print("Leadtesting ran to completion in %.2fs" % (time.time()-allstart))
 
 
-#%% Perform LRP
+#%% Save the Output (modeled after compute_test_metrics)
+
+# Set saving output path
+datpath_out = "%s%s/Metrics/Test_Metrics/" % (datpath,expdir,)
+print("Saving data to %s" % datpath_out)
+
+# Get Dimension Sizes
+
+# (1) Save the class predictions and accuracy data ---------------------------------------
+## y_predicted_all [run x lead x class]
+## y_actual_all    [lead x class]
+## class_acc_all   [run x lead x class]
+## total_acc_all   [run x lead]
+st_acc          = time.time()
+
+# Flip to [lead x run] to be consistent with compute_test_metrics
+predictions_all = y_predicted_all.transpose(1,0,2) # [lead x run x class]
+targets_all     = y_actual_all.transpose(1,0)      # [lead x class]
+class_acc_all   = class_acc_all.transpose(1,0,2)   # [lead x run x class]
+total_acc_all   = total_acc_all.transpose(1,0)     # [lead x run]
+
+save_vars       = [total_acc_all,class_acc_all,predictions_all,targets_all,leads,runids]
+save_vars_name  = ["total_acc","class_acc","predictions","targets","leads","runids"]
+metrics_dict    = dict(zip(save_vars_name,save_vars))
+outname         = "%sTest_Metrics_HadISST_%s_accuracy_predictions.npz" % (datpath_out,varname)
+np.savez(outname,**metrics_dict,allow_pickle=True)
+print("Saved Accuracy and Predictions to %s in %.2fs" % (outname,time.time()-st_acc))
+
+#%%
+# (2)  Save the relevance maps
+## relevances_lead [lead] (nsamples_lead,nlat,nlon)
+## predictor_lead  [lead]
+## lat
+## lon
+
+
+
+
 
 #%% Prepare to do some visualization
 
@@ -801,11 +834,16 @@ ax2.axhline([0],color=dfcol,ls="solid",lw=0.5)
 plt.savefig("%sHadISST_Prediction_Count_AllLeads.png"%figpath,dpi=150,bbox_inches="tight",transparent=True)
 
 
-#%%
+#%% Save some necessary output from below
+
+
+
+
 
 
 #%% Try the above, but get prediction count for selected leadtimes
 # Q : Is there a systematic shift towards the selected leadtimes?
+
 selected_leads      = leads.copy() #[0,6,12,18,24]
 nleads_sel          = len(selected_leads)
 
@@ -817,7 +855,7 @@ for y in range(ntime-leads[ilead]):
     for ll in range(nleads_sel):
         sel_lead_index = list(leads).index(selected_leads[ll])
         y_pred_year = y_predicted_all[...,sel_lead_index,y]
-    
+        
         for c in range(3):
             
             count_by_year_leads[y,c,ll] = (y_pred_year == c).sum()
